@@ -154,6 +154,64 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
                 ],
               ),
               const SizedBox(height: 12),
+              // Distance totals
+              GlassCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.route_rounded,
+                            size: 20, color: Color(0xFF38E1FF)),
+                        const SizedBox(width: 8),
+                        Text(l10n.weekKmLabel,
+                            style: text.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w800)),
+                        const Spacer(),
+                        Text(
+                          '${WeekCalendar.formatKm(r.totalKm)} ${l10n.kmUnit}',
+                          style: text.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF38E1FF)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _kmStat(
+                              context,
+                              l10n.kmOutLabel,
+                              WeekCalendar.formatKm(r.totalKmOut),
+                              l10n),
+                        ),
+                        Expanded(
+                          child: _kmStat(
+                              context,
+                              l10n.kmBackLabel,
+                              WeekCalendar.formatKm(r.totalKmBack),
+                              l10n),
+                        ),
+                        Expanded(
+                          child: _kmStat(
+                              context,
+                              l10n.avgKmPerDay,
+                              r.recordedDaysCount == 0
+                                  ? '–'
+                                  : WeekCalendar.formatKm(
+                                      r.totalKm / r.recordedDaysCount),
+                              l10n),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              // Weekly salary
+              _salaryCard(context, ref, l10n, r, text, scheme),
+              const SizedBox(height: 12),
               // Best day + comparison
               GlassCard(
                 child: Column(
@@ -259,6 +317,116 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
     final d = cur - prev;
     final sign = d >= 0 ? '+' : '';
     return '$sign$d';
+  }
+
+  Widget _kmStat(BuildContext context, String label, String value,
+      AppLocalizations l10n) {
+    final text = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      children: [
+        Text('$value ${l10n.kmUnit}',
+            style:
+                text.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+        const SizedBox(height: 2),
+        Text(label,
+            style: text.bodySmall?.copyWith(
+                color: scheme.onSurface.withValues(alpha: 0.6))),
+      ],
+    );
+  }
+
+  /// Weekly salary = (attended days × daily fixed) + (orders × order price).
+  Widget _salaryCard(BuildContext context, WidgetRef ref,
+      AppLocalizations l10n, WeeklyReport r, TextTheme text, ColorScheme scheme) {
+    final settings = ref.watch(settingsProvider);
+    final orderPrice = settings.orderPrice;
+    final dailyFixed = settings.dailyFixedPay;
+
+    if (orderPrice == null || dailyFixed == null) {
+      return GlassCard(
+        child: Row(
+          children: [
+            Icon(Icons.payments_outlined,
+                color: scheme.primary.withValues(alpha: 0.7)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(l10n.setSalaryHint,
+                  style: text.bodyMedium?.copyWith(
+                      color:
+                          scheme.onSurface.withValues(alpha: 0.7))),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final daysPay = r.recordedDaysCount * dailyFixed;
+    final ordersPay = r.totalOrders * orderPrice;
+    final total = daysPay + ordersPay;
+
+    return GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.payments_rounded,
+                  size: 20, color: scheme.primary),
+              const SizedBox(width: 8),
+              Text(l10n.weeklySalary,
+                  style: text.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w800)),
+              const Spacer(),
+              Text(
+                '${_fmtMoney(total)} ${l10n.egpUnit}',
+                style: text.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: scheme.primary),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _salaryRow(
+              text,
+              scheme,
+              '${l10n.attendanceDays} (${r.recordedDaysCount} × ${_fmtMoney(dailyFixed)})',
+              '${_fmtMoney(daysPay)} ${l10n.egpUnit}'),
+          const SizedBox(height: 6),
+          _salaryRow(
+              text,
+              scheme,
+              '${l10n.totalOrders} (${r.totalOrders} × ${_fmtMoney(orderPrice)})',
+              '${_fmtMoney(ordersPay)} ${l10n.egpUnit}'),
+        ],
+      ),
+    );
+  }
+
+  Widget _salaryRow(
+      TextTheme text, ColorScheme scheme, String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Expanded(
+          child: Text(label,
+              style: text.bodyMedium?.copyWith(
+                  color: scheme.onSurface.withValues(alpha: 0.75))),
+        ),
+        Text(value,
+            style:
+                text.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+      ],
+    );
+  }
+
+  /// Money formatting: no trailing .0, thousands separator for readability.
+  String _fmtMoney(double v) {
+    final s = v.toStringAsFixed(v.truncateToDouble() == v ? 0 : 2);
+    final parts = s.split('.');
+    final intPart = parts[0].replaceAllMapped(
+        RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
+    return parts.length > 1 ? '$intPart.${parts[1]}' : intPart;
   }
 
   String _deltaHours(double cur, double prev) {

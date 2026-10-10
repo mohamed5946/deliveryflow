@@ -40,6 +40,7 @@ class DatabaseService {
     reg<DailySchedule>(DailyScheduleAdapter());
     reg<WorkSchedule>(WorkScheduleAdapter());
     reg<DailyOrderRecord>(DailyOrderRecordAdapter());
+    reg<OrderEntry>(OrderEntryAdapter());
     reg<BreakInterval>(BreakIntervalAdapter());
     reg<WorkSession>(WorkSessionAdapter());
   }
@@ -120,6 +121,99 @@ class DatabaseService {
   }
 
   DailyOrderRecord? orderRecord(String dateKey) => _orders.get(dateKey);
+
+  /// Per-order entries for a day (empty when none recorded).
+  List<OrderEntry> orderEntries(String dateKey) =>
+      List.unmodifiable(orderRecord(dateKey)?.entries ?? const <OrderEntry>[]);
+
+  /// Adds one order entry to the day's record (creating it if needed) and
+  /// bumps the day's order count.
+  Future<OrderEntry> addOrderEntry({
+    required String dateKey,
+    required int timestampMillis,
+    double kmOut = 0,
+    double kmBack = 0,
+    String notes = '',
+  }) async {
+    if (kmOut < 0 || kmBack < 0) {
+      throw ArgumentError('Distance cannot be negative');
+    }
+    final now = DateTime.now().millisecondsSinceEpoch;
+    var record = _orders.get(dateKey);
+    record ??= DailyOrderRecord(
+      id: 'ord_$dateKey',
+      dateKey: dateKey,
+      completedOrders: 0,
+      createdAtMillis: now,
+      updatedAtMillis: now,
+    );
+    final entry = OrderEntry(
+      id: 'oe_${now}_${record.entries.length}',
+      dateKey: dateKey,
+      timestampMillis: timestampMillis,
+      kmOut: kmOut,
+      kmBack: kmBack,
+      notes: notes,
+    );
+    record.entries.add(entry);
+    record.completedOrders = record.completedOrders + 1;
+    record.isConfirmed = true;
+    record.updatedAtMillis = now;
+    await _orders.put(dateKey, record);
+    return entry;
+  }
+
+  /// Updates one order entry's distance/notes/time.
+  Future<void> updateOrderEntry({
+    required String dateKey,
+    required String entryId,
+    int? timestampMillis,
+    double? kmOut,
+    double? kmBack,
+    String? notes,
+  }) async {
+    final record = _orders.get(dateKey);
+    if (record == null) return;
+    final idx = record.entries.indexWhere((e) => e.id == entryId);
+    if (idx < 0) return;
+    final entry = record.entries[idx];
+    if (timestampMillis != null) entry.timestampMillis = timestampMillis;
+    if (kmOut != null) {
+      if (kmOut < 0) throw ArgumentError('Distance cannot be negative');
+      entry.kmOut = kmOut;
+    }
+    if (kmBack != null) {
+      if (kmBack < 0) throw ArgumentError('Distance cannot be negative');
+      entry.kmBack = kmBack;
+    }
+    if (notes != null) entry.notes = notes;
+    record.updatedAtMillis = DateTime.now().millisecondsSinceEpoch;
+    await record.save();
+  }
+
+  /// Deletes one order entry and decrements the day's order count.
+  Future<void> deleteOrderEntry({
+    required String dateKey,
+    required String entryId,
+  }) async {
+    final record = _orders.get(dateKey);
+    if (record == null) return;
+    final before = record.entries.length;
+    record.entries.removeWhere((e) => e.id == entryId);
+    if (record.entries.length < before) {
+      record.completedOrders =
+          (record.completedOrders - 1).clamp(0, 1 << 30);
+      record.updatedAtMillis = DateTime.now().millisecondsSinceEpoch;
+      await record.save();
+    }
+  }
+
+  /// Total driven km (out, back) for a day from detailed entries.
+  (double, double) kmForDate(String dateKey) {
+    final record = _orders.get(dateKey);
+    if (record == null) return (0, 0);
+    return (record.totalKmOut, record.totalKmBack);
+  }
 
   // ------------------------------------------------------------- sessions --
   Future<WorkSession> startSession(String dateKey, {String notes = ''}) async {
@@ -204,7 +298,7 @@ class DatabaseService {
   // ---------------------------------------------------------------- export --
   String exportCsv() {
     final rows = <List<String>>[
-      ['date', 'orders', 'work_minutes', 'notes']
+      ['date', 'orders', 'work_minutes', 'km_out', 'km_back', 'notes']
     ];
     final keys = _orders.keys.cast<String>().toList()..sort();
     for (final k in keys) {
@@ -213,6 +307,8 @@ class DatabaseService {
         r.dateKey,
         r.completedOrders.toString(),
         recordedMinutesForDate(r.dateKey).toString(),
+        r.totalKmOut.toStringAsFixed(1),
+        r.totalKmBack.toStringAsFixed(1),
         '"${r.notes.replaceAll('"', '""')}"',
       ]);
     }
@@ -230,6 +326,7 @@ class DatabaseService {
                 'completedOrders': r.completedOrders,
                 'notes': r.notes,
                 'isConfirmed': r.isConfirmed,
+                'entries': r.entries.map((e) => e.toJson()).toList(),
               })
           .toList(),
       'schedules': _schedules.values
@@ -288,6 +385,10 @@ class DatabaseService {
           notes: (m['notes'] as String?) ?? '',
           createdAtMillis: now,
           updatedAtMillis: now,
+          entries: [
+            for (final e in (m['entries'] as List? ?? []))
+              OrderEntry.fromJson(e as Map<String, dynamic>),
+          ],
         ),
       );
     }
@@ -373,6 +474,8 @@ class DatabaseService {
     var recordedDays = 0;
     var workingDaysWithData = 0;
     var workingMinutesSum = 0;
+    var totalKmOut = 0.0;
+    var totalKmBack = 0.0;
     String? bestDay;
     var bestOrders = -1;
     final missing = <String>[];
@@ -398,6 +501,10 @@ class DatabaseService {
           bestDay = key;
         }
       }
+      final kmOut = order?.totalKmOut ?? 0;
+      final kmBack = order?.totalKmBack ?? 0;
+      totalKmOut += kmOut;
+      totalKmBack += kmBack;
       totalMinutes += minutes;
       if (isWorking && hasData) {
         workingDaysWithData++;
@@ -409,6 +516,8 @@ class DatabaseService {
         workMinutes: minutes,
         plannedHours: planned,
         isWorkingDay: isWorking,
+        kmOut: kmOut,
+        kmBack: kmBack,
       ));
     }
 
@@ -446,6 +555,8 @@ class DatabaseService {
       bestDayKey: bestDay,
       missingRecordDates: missing,
       recordedDaysCount: recordedDays,
+      totalKmOut: totalKmOut,
+      totalKmBack: totalKmBack,
     );
   }
 

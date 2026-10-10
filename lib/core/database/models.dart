@@ -1,7 +1,7 @@
 import 'package:hive/hive.dart';
 
 /// Schema version for migrations. Bump when a model changes shape.
-const int kSchemaVersion = 1;
+const int kSchemaVersion = 2;
 
 // ---------------------------------------------------------------------------
 // UserSettings (typeId 0)
@@ -49,6 +49,12 @@ class UserSettings extends HiveObject {
   bool notificationsEnabled;
   @HiveField(19)
   bool onboardingDone;
+  @HiveField(20)
+  int themePreset; // index into AppThemePreset.all
+  @HiveField(21)
+  double? orderPrice; // EGP per order (salary calc)
+  @HiveField(22)
+  double? dailyFixedPay; // EGP per attended day (salary calc)
 
   UserSettings({
     this.displayName = '',
@@ -71,6 +77,9 @@ class UserSettings extends HiveObject {
     this.defaultBreakDurationMinutes = 30,
     this.notificationsEnabled = true,
     this.onboardingDone = false,
+    this.themePreset = 0,
+    this.orderPrice,
+    this.dailyFixedPay,
   });
 
   Map<String, dynamic> toJson() => {
@@ -94,6 +103,9 @@ class UserSettings extends HiveObject {
         'defaultBreakDurationMinutes': defaultBreakDurationMinutes,
         'notificationsEnabled': notificationsEnabled,
         'onboardingDone': onboardingDone,
+        'themePreset': themePreset,
+        'orderPrice': orderPrice,
+        'dailyFixedPay': dailyFixedPay,
         'schemaVersion': kSchemaVersion,
       };
 
@@ -127,6 +139,9 @@ class UserSettings extends HiveObject {
             (json['defaultBreakDurationMinutes'] as num?)?.toInt() ?? 30,
         notificationsEnabled: (json['notificationsEnabled'] as bool?) ?? true,
         onboardingDone: (json['onboardingDone'] as bool?) ?? false,
+        themePreset: (json['themePreset'] as num?)?.toInt() ?? 0,
+        orderPrice: (json['orderPrice'] as num?)?.toDouble(),
+        dailyFixedPay: (json['dailyFixedPay'] as num?)?.toDouble(),
       );
 }
 
@@ -161,13 +176,16 @@ class UserSettingsAdapter extends TypeAdapter<UserSettings> {
       defaultBreakDurationMinutes: (fields[17] as int?) ?? 30,
       notificationsEnabled: (fields[18] as bool?) ?? true,
       onboardingDone: (fields[19] as bool?) ?? false,
+      themePreset: (fields[20] as int?) ?? 0,
+      orderPrice: (fields[21] as num?)?.toDouble(),
+      dailyFixedPay: (fields[22] as num?)?.toDouble(),
     );
   }
 
   @override
   void write(BinaryWriter writer, UserSettings obj) {
     writer
-      ..writeByte(20)
+      ..writeByte(23)
       ..writeByte(0)
       ..write(obj.displayName)
       ..writeByte(1)
@@ -207,7 +225,13 @@ class UserSettingsAdapter extends TypeAdapter<UserSettings> {
       ..writeByte(18)
       ..write(obj.notificationsEnabled)
       ..writeByte(19)
-      ..write(obj.onboardingDone);
+      ..write(obj.onboardingDone)
+      ..writeByte(20)
+      ..write(obj.themePreset)
+      ..writeByte(21)
+      ..write(obj.orderPrice)
+      ..writeByte(22)
+      ..write(obj.dailyFixedPay);
   }
 }
 
@@ -380,6 +404,8 @@ class DailyOrderRecord extends HiveObject {
   int createdAtMillis;
   @HiveField(6)
   int updatedAtMillis;
+  @HiveField(7)
+  List<OrderEntry> entries; // per-order details (may be empty)
 
   DailyOrderRecord({
     required this.id,
@@ -389,7 +415,20 @@ class DailyOrderRecord extends HiveObject {
     this.isConfirmed = true,
     required this.createdAtMillis,
     required this.updatedAtMillis,
-  }) : assert(completedOrders >= 0, 'completedOrders cannot be negative');
+    List<OrderEntry>? entries,
+  })  : entries = entries ?? [],
+        assert(completedOrders >= 0, 'completedOrders cannot be negative');
+
+  /// Total km driven going (out) across detailed entries.
+  double get totalKmOut =>
+      entries.fold<double>(0, (s, e) => s + e.kmOut);
+
+  /// Total km driven returning (back) across detailed entries.
+  double get totalKmBack =>
+      entries.fold<double>(0, (s, e) => s + e.kmBack);
+
+  /// Total km (out + back) across detailed entries.
+  double get totalKm => totalKmOut + totalKmBack;
 }
 
 class DailyOrderRecordAdapter extends TypeAdapter<DailyOrderRecord> {
@@ -410,13 +449,14 @@ class DailyOrderRecordAdapter extends TypeAdapter<DailyOrderRecord> {
       isConfirmed: (fields[4] as bool?) ?? true,
       createdAtMillis: (fields[5] as int?) ?? 0,
       updatedAtMillis: (fields[6] as int?) ?? 0,
+      entries: (fields[7] as List?)?.cast<OrderEntry>() ?? <OrderEntry>[],
     );
   }
 
   @override
   void write(BinaryWriter writer, DailyOrderRecord obj) {
     writer
-      ..writeByte(7)
+      ..writeByte(8)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -430,7 +470,103 @@ class DailyOrderRecordAdapter extends TypeAdapter<DailyOrderRecord> {
       ..writeByte(5)
       ..write(obj.createdAtMillis)
       ..writeByte(6)
-      ..write(obj.updatedAtMillis);
+      ..write(obj.updatedAtMillis)
+      ..writeByte(7)
+      ..write(obj.entries);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// OrderEntry (typeId 6): one delivery order with its driven distance.
+// ---------------------------------------------------------------------------
+
+/// A single delivery order entry: when it happened and how many kilometers
+/// were driven going (out) and returning (back).
+@HiveType(typeId: 6)
+class OrderEntry extends HiveObject {
+  @HiveField(0)
+  String id;
+  @HiveField(1)
+  String dateKey; // work-day yyyy-MM-dd this entry belongs to
+  @HiveField(2)
+  int timestampMillis; // when the order was completed
+  @HiveField(3)
+  double kmOut; // km driven going (>= 0)
+  @HiveField(4)
+  double kmBack; // km driven returning (>= 0)
+  @HiveField(5)
+  String notes;
+
+  OrderEntry({
+    required this.id,
+    required this.dateKey,
+    required this.timestampMillis,
+    this.kmOut = 0,
+    this.kmBack = 0,
+    this.notes = '',
+  })  : assert(kmOut >= 0, 'kmOut cannot be negative'),
+        assert(kmBack >= 0, 'kmBack cannot be negative');
+
+  double get kmTotal => kmOut + kmBack;
+
+  DateTime get timestamp =>
+      DateTime.fromMillisecondsSinceEpoch(timestampMillis);
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'dateKey': dateKey,
+        'timestampMillis': timestampMillis,
+        'kmOut': kmOut,
+        'kmBack': kmBack,
+        'notes': notes,
+      };
+
+  static OrderEntry fromJson(Map<String, dynamic> json) => OrderEntry(
+        id: json['id'] as String,
+        dateKey: json['dateKey'] as String,
+        timestampMillis: (json['timestampMillis'] as num).toInt(),
+        kmOut: (json['kmOut'] as num?)?.toDouble() ?? 0,
+        kmBack: (json['kmBack'] as num?)?.toDouble() ?? 0,
+        notes: (json['notes'] as String?) ?? '',
+      );
+}
+
+class OrderEntryAdapter extends TypeAdapter<OrderEntry> {
+  @override
+  final int typeId = 6;
+
+  @override
+  OrderEntry read(BinaryReader reader) {
+    final numOfFields = reader.readByte();
+    final fields = <int, dynamic>{
+      for (var i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
+    };
+    return OrderEntry(
+      id: fields[0] as String,
+      dateKey: fields[1] as String,
+      timestampMillis: (fields[2] as int?) ?? 0,
+      kmOut: (fields[3] as num?)?.toDouble() ?? 0,
+      kmBack: (fields[4] as num?)?.toDouble() ?? 0,
+      notes: (fields[5] as String?) ?? '',
+    );
+  }
+
+  @override
+  void write(BinaryWriter writer, OrderEntry obj) {
+    writer
+      ..writeByte(6)
+      ..writeByte(0)
+      ..write(obj.id)
+      ..writeByte(1)
+      ..write(obj.dateKey)
+      ..writeByte(2)
+      ..write(obj.timestampMillis)
+      ..writeByte(3)
+      ..write(obj.kmOut)
+      ..writeByte(4)
+      ..write(obj.kmBack)
+      ..writeByte(5)
+      ..write(obj.notes);
   }
 }
 
@@ -607,6 +743,8 @@ class DayBreakdown {
   final int workMinutes; // recorded net minutes (0 when none)
   final double plannedHours;
   final bool isWorkingDay;
+  final double kmOut; // detailed entries only
+  final double kmBack; // detailed entries only
 
   const DayBreakdown({
     required this.dateKey,
@@ -614,7 +752,11 @@ class DayBreakdown {
     required this.workMinutes,
     required this.plannedHours,
     required this.isWorkingDay,
+    this.kmOut = 0,
+    this.kmBack = 0,
   });
+
+  double get kmTotal => kmOut + kmBack;
 }
 
 class WeeklyReport {
@@ -630,6 +772,8 @@ class WeeklyReport {
   final String? bestDayKey;
   final List<String> missingRecordDates;
   final int recordedDaysCount;
+  final double totalKmOut;
+  final double totalKmBack;
 
   const WeeklyReport({
     required this.weekStartKey,
@@ -644,5 +788,9 @@ class WeeklyReport {
     required this.bestDayKey,
     required this.missingRecordDates,
     required this.recordedDaysCount,
+    this.totalKmOut = 0,
+    this.totalKmBack = 0,
   });
+
+  double get totalKm => totalKmOut + totalKmBack;
 }

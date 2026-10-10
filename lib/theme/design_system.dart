@@ -2,6 +2,10 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../core/providers.dart';
+import 'app_theme.dart';
 
 /// Central design tokens for the Liquid Glass aesthetic.
 abstract class GlassTokens {
@@ -290,14 +294,14 @@ class GlassLoading extends StatelessWidget {
 /// Animated aurora background: soft drifting color blobs over a subtle
 /// vertical gradient. This is what makes the frosted-glass surfaces read
 /// as real glass — they refract the color behind them.
-class AuroraBackground extends StatefulWidget {
+class AuroraBackground extends ConsumerStatefulWidget {
   const AuroraBackground({super.key});
 
   @override
-  State<AuroraBackground> createState() => _AuroraBackgroundState();
+  ConsumerState<AuroraBackground> createState() => _AuroraBackgroundState();
 }
 
-class _AuroraBackgroundState extends State<AuroraBackground>
+class _AuroraBackgroundState extends ConsumerState<AuroraBackground>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
 
@@ -319,6 +323,11 @@ class _AuroraBackgroundState extends State<AuroraBackground>
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final presetId =
+        ref.watch(settingsProvider.select((s) => s.themePreset));
+    final preset = AppThemePreset.of(presetId);
+    final blobs = isDark ? preset.auroraDark : preset.auroraLight;
+    final bg = isDark ? preset.bgDark : preset.bgLight;
     return RepaintBoundary(
       child: AnimatedBuilder(
         animation: _ctrl,
@@ -329,9 +338,7 @@ class _AuroraBackgroundState extends State<AuroraBackground>
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: isDark
-                    ? const [Color(0xFF0A0F24), Color(0xFF060A18)]
-                    : const [Color(0xFFE9F2FF), Color(0xFFF7F0FF)],
+                colors: [bg[0], bg[1]],
               ),
             ),
             child: Stack(
@@ -340,36 +347,28 @@ class _AuroraBackgroundState extends State<AuroraBackground>
                   top: -70 + 26 * math.sin(t),
                   left: -70 + 34 * math.cos(t * 0.8),
                   size: 330,
-                  color: isDark
-                      ? const Color(0xFF2E7CF6)
-                      : const Color(0xFF8FBEFF),
+                  color: blobs[0],
                   opacity: isDark ? 0.38 : 0.55,
                 ),
                 _blob(
                   top: 130 + 34 * math.cos(t * 0.6),
                   right: -90 + 26 * math.sin(t * 1.1),
                   size: 290,
-                  color: isDark
-                      ? const Color(0xFF7A5CFF)
-                      : const Color(0xFFC0A6FF),
+                  color: blobs[1],
                   opacity: isDark ? 0.32 : 0.5,
                 ),
                 _blob(
                   bottom: -70 + 26 * math.sin(t * 0.7 + 1.2),
                   left: 30 + 44 * math.cos(t * 0.5),
                   size: 310,
-                  color: isDark
-                      ? const Color(0xFF00B8CC)
-                      : const Color(0xFF9FE6FF),
+                  color: blobs[2],
                   opacity: isDark ? 0.28 : 0.45,
                 ),
                 _blob(
                   bottom: 90 + 22 * math.cos(t * 0.9),
                   right: 50 + 36 * math.sin(t * 0.7 + 2.1),
                   size: 240,
-                  color: isDark
-                      ? const Color(0xFFFF5CA8)
-                      : const Color(0xFFFFB9DC),
+                  color: blobs[3],
                   opacity: isDark ? 0.2 : 0.38,
                 ),
               ],

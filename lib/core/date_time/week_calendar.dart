@@ -87,4 +87,10 @@ class WeekCalendar {
 
   /// Formats a double hour value with one decimal, e.g. 7.5.
   static String formatHours(double hours) => hours.toStringAsFixed(1);
+
+  /// Compact km formatting: 12.5 / 12 (no trailing .0).
+  static String formatKm(double km) {
+    final s = km.toStringAsFixed(1);
+    return s.endsWith('.0') ? s.substring(0, s.length - 2) : s;
+  }
 }

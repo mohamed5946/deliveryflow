@@ -601,4 +601,85 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get zeroOrders => '0 أوردر';
+
+  @override
+  String get addOrder => 'أضف أوردر';
+
+  @override
+  String get editOrder => 'تعديل الأوردر';
+
+  @override
+  String get deleteOrderTitle => 'حذف الأوردر؟';
+
+  @override
+  String get deleteOrderConfirm => 'هيتمسح الأوردر ده من سجل اليوم.';
+
+  @override
+  String get invalidKm => 'دخل مسافة صحيحة (رقم موجب)';
+
+  @override
+  String get kmOutLabel => 'رايح';
+
+  @override
+  String get kmBackLabel => 'راجع';
+
+  @override
+  String get kmUnit => 'كم';
+
+  @override
+  String get noOrdersYet => 'لا توجد أوردرات مسجلة — أضف أول أوردر';
+
+  @override
+  String get orderAdded => 'تمت إضافة الأوردر';
+
+  @override
+  String get orderDeleted => 'تم حذف الأوردر';
+
+  @override
+  String get orderTime => 'وقت الأوردر';
+
+  @override
+  String get ordersLabel => 'أوردرات';
+
+  @override
+  String ordersWithoutDetails(int count) {
+    return '+$count أوردرات مسجلة بدون تفاصيل مسافة';
+  }
+
+  @override
+  String get totalKmLabel => 'إجمالي المسافة';
+
+  @override
+  String get todayKm => 'مسافة اليوم';
+
+  @override
+  String get weekKmLabel => 'مسافة الأسبوع';
+
+  @override
+  String get avgKmPerDay => 'متوسط / يوم';
+
+  @override
+  String get chooseTheme => 'اختار الثيم';
+
+  @override
+  String get salarySection => 'المرتب';
+
+  @override
+  String get orderPriceLabel => 'سعر الأوردر (جنيه)';
+
+  @override
+  String get dailyFixedLabel => 'الثابت اليومي (جنيه)';
+
+  @override
+  String get weeklySalary => 'المرتب الأسبوعي';
+
+  @override
+  String get attendanceDays => 'أيام الحضور';
+
+  @override
+  String get setSalaryHint =>
+      'حدد سعر الأوردر والثابت اليومي من الإعدادات عشان يتحسب المرتب الأسبوعي';
+
+  @override
+  String get egpUnit => 'جنيه';
 }

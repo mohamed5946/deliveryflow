@@ -101,6 +101,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                           ? l10n.unrecorded
                           : '${todayOrder.completedOrders}',
                       WeekCalendar.formatHours(todayMinutes / 60.0),
+                      todayOrder == null
+                          ? '–'
+                          : '${WeekCalendar.formatKm(todayOrder.totalKm)} ${l10n.kmUnit}',
                       () => context.push('/orders?date=$todayKey'),
                     ),
                     const SizedBox(height: 12),
@@ -145,60 +148,92 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  /// Big tappable hero card: today's orders + hours.
+  /// Big tappable hero card: today's orders + hours + distance.
   Widget _todayHeroCard(BuildContext context, AppLocalizations l10n,
-      String ordersValue, String hoursValue, VoidCallback onTap) {
+      String ordersValue, String hoursValue, String kmValue, VoidCallback onTap) {
     final text = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
     return GlassCard(
       onTap: onTap,
       borderRadius: GlassTokens.radiusL,
-      child: Row(
+      child: Column(
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(l10n.todayOrders,
-                    style: text.bodyMedium?.copyWith(
-                        color: text.bodyMedium?.color
-                            ?.withValues(alpha: 0.75),
-                        fontWeight: FontWeight.w600)),
-                const SizedBox(height: 4),
-                Text(ordersValue,
-                    style: text.displayMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: scheme.primary,
-                        height: 1.0)),
-              ],
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(l10n.todayOrders,
+                        style: text.bodyMedium?.copyWith(
+                            color: text.bodyMedium?.color
+                                ?.withValues(alpha: 0.75),
+                            fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 4),
+                    Text(ordersValue,
+                        style: text.displayMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: scheme.primary,
+                            height: 1.0)),
+                  ],
+                ),
+              ),
+              Icon(Icons.arrow_forward_rounded,
+                  color: scheme.primary.withValues(alpha: 0.7)),
+            ],
           ),
+          const SizedBox(height: 12),
           Container(
-            width: 1,
-            height: 64,
-            color: scheme.onSurface.withValues(alpha: 0.12),
+            height: 1,
+            color: scheme.onSurface.withValues(alpha: 0.1),
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(l10n.todayHours,
-                    style: text.bodyMedium?.copyWith(
-                        color: text.bodyMedium?.color
-                            ?.withValues(alpha: 0.75),
-                        fontWeight: FontWeight.w600)),
-                const SizedBox(height: 4),
-                Text(hoursValue,
-                    style: text.displaySmall?.copyWith(
-                        fontWeight: FontWeight.w800, height: 1.0)),
-              ],
-            ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _heroSubStat(
+                    context,
+                    Icons.schedule_rounded,
+                    hoursValue,
+                    l10n.todayHours,
+                    const Color(0xFF8A6BFF)),
+              ),
+              Expanded(
+                child: _heroSubStat(
+                    context,
+                    Icons.route_rounded,
+                    kmValue,
+                    l10n.todayKm,
+                    const Color(0xFF38E1FF)),
+              ),
+            ],
           ),
-          Icon(Icons.arrow_forward_rounded,
-              color: scheme.primary.withValues(alpha: 0.7)),
         ],
       ),
+    );
+  }
+
+  Widget _heroSubStat(BuildContext context, IconData icon, String value,
+      String label, Color color) {
+    final text = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: color),
+        const SizedBox(width: 8),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(value,
+                style: text.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800, height: 1.0)),
+            const SizedBox(height: 2),
+            Text(label,
+                style: text.bodySmall?.copyWith(
+                    color: scheme.onSurface.withValues(alpha: 0.6))),
+          ],
+        ),
+      ],
     );
   }
 

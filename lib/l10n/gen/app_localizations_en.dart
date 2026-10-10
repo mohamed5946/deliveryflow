@@ -600,4 +600,86 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get zeroOrders => '0 orders';
+
+  @override
+  String get addOrder => 'Add order';
+
+  @override
+  String get editOrder => 'Edit order';
+
+  @override
+  String get deleteOrderTitle => 'Delete order?';
+
+  @override
+  String get deleteOrderConfirm =>
+      'This order will be removed from the day\'s log.';
+
+  @override
+  String get invalidKm => 'Enter a valid distance (a positive number)';
+
+  @override
+  String get kmOutLabel => 'Going';
+
+  @override
+  String get kmBackLabel => 'Returning';
+
+  @override
+  String get kmUnit => 'km';
+
+  @override
+  String get noOrdersYet => 'No orders logged yet — add the first one';
+
+  @override
+  String get orderAdded => 'Order added';
+
+  @override
+  String get orderDeleted => 'Order deleted';
+
+  @override
+  String get orderTime => 'Order time';
+
+  @override
+  String get ordersLabel => 'Orders';
+
+  @override
+  String ordersWithoutDetails(int count) {
+    return '+$count orders logged without distance details';
+  }
+
+  @override
+  String get totalKmLabel => 'Total distance';
+
+  @override
+  String get todayKm => 'Today\'s distance';
+
+  @override
+  String get weekKmLabel => 'Week distance';
+
+  @override
+  String get avgKmPerDay => 'Avg / day';
+
+  @override
+  String get chooseTheme => 'Choose theme';
+
+  @override
+  String get salarySection => 'Salary';
+
+  @override
+  String get orderPriceLabel => 'Price per order (EGP)';
+
+  @override
+  String get dailyFixedLabel => 'Daily fixed pay (EGP)';
+
+  @override
+  String get weeklySalary => 'Weekly salary';
+
+  @override
+  String get attendanceDays => 'Days attended';
+
+  @override
+  String get setSalaryHint =>
+      'Set the order price and daily fixed pay in Settings to calculate the weekly salary';
+
+  @override
+  String get egpUnit => 'EGP';
 }

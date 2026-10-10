@@ -1225,6 +1225,162 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'0 orders'**
   String get zeroOrders;
+
+  /// No description provided for @addOrder.
+  ///
+  /// In en, this message translates to:
+  /// **'Add order'**
+  String get addOrder;
+
+  /// No description provided for @editOrder.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit order'**
+  String get editOrder;
+
+  /// No description provided for @deleteOrderTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete order?'**
+  String get deleteOrderTitle;
+
+  /// No description provided for @deleteOrderConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'This order will be removed from the day\'s log.'**
+  String get deleteOrderConfirm;
+
+  /// No description provided for @invalidKm.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a valid distance (a positive number)'**
+  String get invalidKm;
+
+  /// No description provided for @kmOutLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Going'**
+  String get kmOutLabel;
+
+  /// No description provided for @kmBackLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Returning'**
+  String get kmBackLabel;
+
+  /// No description provided for @kmUnit.
+  ///
+  /// In en, this message translates to:
+  /// **'km'**
+  String get kmUnit;
+
+  /// No description provided for @noOrdersYet.
+  ///
+  /// In en, this message translates to:
+  /// **'No orders logged yet — add the first one'**
+  String get noOrdersYet;
+
+  /// No description provided for @orderAdded.
+  ///
+  /// In en, this message translates to:
+  /// **'Order added'**
+  String get orderAdded;
+
+  /// No description provided for @orderDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Order deleted'**
+  String get orderDeleted;
+
+  /// No description provided for @orderTime.
+  ///
+  /// In en, this message translates to:
+  /// **'Order time'**
+  String get orderTime;
+
+  /// No description provided for @ordersLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Orders'**
+  String get ordersLabel;
+
+  /// No description provided for @ordersWithoutDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'+{count} orders logged without distance details'**
+  String ordersWithoutDetails(int count);
+
+  /// No description provided for @totalKmLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Total distance'**
+  String get totalKmLabel;
+
+  /// No description provided for @todayKm.
+  ///
+  /// In en, this message translates to:
+  /// **'Today\'s distance'**
+  String get todayKm;
+
+  /// No description provided for @weekKmLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Week distance'**
+  String get weekKmLabel;
+
+  /// No description provided for @avgKmPerDay.
+  ///
+  /// In en, this message translates to:
+  /// **'Avg / day'**
+  String get avgKmPerDay;
+
+  /// No description provided for @chooseTheme.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose theme'**
+  String get chooseTheme;
+
+  /// No description provided for @salarySection.
+  ///
+  /// In en, this message translates to:
+  /// **'Salary'**
+  String get salarySection;
+
+  /// No description provided for @orderPriceLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Price per order (EGP)'**
+  String get orderPriceLabel;
+
+  /// No description provided for @dailyFixedLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Daily fixed pay (EGP)'**
+  String get dailyFixedLabel;
+
+  /// No description provided for @weeklySalary.
+  ///
+  /// In en, this message translates to:
+  /// **'Weekly salary'**
+  String get weeklySalary;
+
+  /// No description provided for @attendanceDays.
+  ///
+  /// In en, this message translates to:
+  /// **'Days attended'**
+  String get attendanceDays;
+
+  /// No description provided for @setSalaryHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Set the order price and daily fixed pay in Settings to calculate the weekly salary'**
+  String get setSalaryHint;
+
+  /// No description provided for @egpUnit.
+  ///
+  /// In en, this message translates to:
+  /// **'EGP'**
+  String get egpUnit;
 }
 
 class _AppLocalizationsDelegate

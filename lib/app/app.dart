@@ -24,8 +24,8 @@ class DeliveryFlowApp extends ConsumerWidget {
     return MaterialApp.router(
       title: 'DeliveryFlow',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.light(),
-      darkTheme: AppTheme.dark(),
+      theme: AppTheme.light(settings.themePreset),
+      darkTheme: AppTheme.dark(settings.themePreset),
       themeMode: AppTheme.themeModeFromInt(settings.themeMode),
       locale: locale,
       supportedLocales: const [Locale('ar'), Locale('en')],

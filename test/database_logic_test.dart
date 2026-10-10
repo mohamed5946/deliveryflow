@@ -194,7 +194,85 @@ void main() {
       final csv = db.exportCsv();
       expect(csv, contains('2026-10-12'));
       expect(csv, contains('7'));
-      expect(csv.split('\n').first, 'date,orders,work_minutes,notes');
+      expect(csv.split('\n').first,
+          'date,orders,work_minutes,km_out,km_back,notes');
+    });
+
+    test('order entries: add/update/delete sync count and km', () async {
+      const key = '2026-10-13';
+      final e1 = await db.addOrderEntry(
+        dateKey: key,
+        timestampMillis:
+            DateTime(2026, 10, 13, 19, 30).millisecondsSinceEpoch,
+        kmOut: 12.5,
+        kmBack: 8.0,
+      );
+      await db.addOrderEntry(
+        dateKey: key,
+        timestampMillis:
+            DateTime(2026, 10, 13, 21, 15).millisecondsSinceEpoch,
+        kmOut: 5,
+        kmBack: 5.5,
+      );
+      var rec = db.orderRecord(key)!;
+      expect(rec.completedOrders, 2);
+      expect(rec.totalKmOut, 17.5);
+      expect(rec.totalKmBack, 13.5);
+      expect(rec.totalKm, 31.0);
+
+      await db.updateOrderEntry(
+        dateKey: key,
+        entryId: e1.id,
+        kmOut: 10,
+      );
+      rec = db.orderRecord(key)!;
+      expect(rec.totalKmOut, 15.0);
+
+      await db.deleteOrderEntry(dateKey: key, entryId: e1.id);
+      rec = db.orderRecord(key)!;
+      expect(rec.completedOrders, 1);
+      expect(rec.entries.length, 1);
+      expect(rec.totalKm, 10.5);
+
+      expect(() => db.addOrderEntry(
+            dateKey: key,
+            timestampMillis: 0,
+            kmOut: -1,
+          ),
+          throwsArgumentError);
+    });
+
+    test('weekly report includes km totals', () async {
+      await db.addOrderEntry(
+        dateKey: '2026-10-12',
+        timestampMillis:
+            DateTime(2026, 10, 12, 20).millisecondsSinceEpoch,
+        kmOut: 10,
+        kmBack: 10,
+      );
+      final r = db.buildWeeklyReport(DateTime(2026, 10, 14));
+      expect(r.totalKmOut, 10);
+      expect(r.totalKmBack, 10);
+      expect(r.totalKm, 20);
+    });
+
+    test('backup/restore round-trip preserves order entries', () async {
+      await db.addOrderEntry(
+        dateKey: '2026-10-14',
+        timestampMillis:
+            DateTime(2026, 10, 14, 18).millisecondsSinceEpoch,
+        kmOut: 7.5,
+        kmBack: 6.5,
+        notes: 'test entry',
+      );
+      final json = db.backupJson();
+      await db.clearAll();
+      await db.restoreFromJson(json);
+      final rec = db.orderRecord('2026-10-14')!;
+      expect(rec.entries.length, 1);
+      expect(rec.entries.first.kmOut, 7.5);
+      expect(rec.entries.first.kmBack, 6.5);
+      expect(rec.entries.first.notes, 'test entry');
     });
 
     test('backup/restore round-trip preserves records', () async {
@@ -227,6 +305,18 @@ void main() {
       expect(re.languageCode, 'en');
       expect(re.dailyReminderHour, 20);
       expect(re.dailyReminderMinute, 30);
+    });
+
+    test('salary settings (order price + daily fixed) persist', () async {
+      final s = db.settings;
+      s.orderPrice = 15.5;
+      s.dailyFixedPay = 100;
+      s.themePreset = 3;
+      await db.saveSettings(s);
+      final re = db.settings;
+      expect(re.orderPrice, 15.5);
+      expect(re.dailyFixedPay, 100);
+      expect(re.themePreset, 3);
     });
   });
 }

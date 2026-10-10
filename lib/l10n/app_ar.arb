@@ -190,5 +190,39 @@
   "workPrefsSection": "تفضيلات العمل",
   "workStart": "بداية العمل",
   "workingDay": "يوم عمل",
-  "zeroOrders": "0 أوردر"
+  "zeroOrders": "0 أوردر",
+  "addOrder": "أضف أوردر",
+  "editOrder": "تعديل الأوردر",
+  "deleteOrderTitle": "حذف الأوردر؟",
+  "deleteOrderConfirm": "هيتمسح الأوردر ده من سجل اليوم.",
+  "invalidKm": "دخل مسافة صحيحة (رقم موجب)",
+  "kmOutLabel": "رايح",
+  "kmBackLabel": "راجع",
+  "kmUnit": "كم",
+  "noOrdersYet": "لا توجد أوردرات مسجلة — أضف أول أوردر",
+  "orderAdded": "تمت إضافة الأوردر",
+  "orderDeleted": "تم حذف الأوردر",
+  "orderTime": "وقت الأوردر",
+  "ordersLabel": "أوردرات",
+  "ordersWithoutDetails": "+{count} أوردرات مسجلة بدون تفاصيل مسافة",
+  "@ordersWithoutDetails": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "2"
+      }
+    }
+  },
+  "totalKmLabel": "إجمالي المسافة",
+  "todayKm": "مسافة اليوم",
+  "weekKmLabel": "مسافة الأسبوع",
+  "avgKmPerDay": "متوسط / يوم",
+  "chooseTheme": "اختار الثيم",
+  "salarySection": "المرتب",
+  "orderPriceLabel": "سعر الأوردر (جنيه)",
+  "dailyFixedLabel": "الثابت اليومي (جنيه)",
+  "weeklySalary": "المرتب الأسبوعي",
+  "attendanceDays": "أيام الحضور",
+  "setSalaryHint": "حدد سعر الأوردر والثابت اليومي من الإعدادات عشان يتحسب المرتب الأسبوعي",
+  "egpUnit": "جنيه"
 }

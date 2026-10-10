@@ -1,27 +1,34 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Release signing key, if provided by CI in android/key.properties.
+// Loaded at script top level so `rootProject` and plain control flow
+// are used outside any DSL receiver block.
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = Properties()
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
+}
+val hasReleaseKey = keystoreProperties.containsKey("storeFile")
+
 android {
     namespace = "com.valor.deliveryflow"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
-    // Release signing from android/key.properties (created by CI from secrets).
-    // Falls back to the debug key when the file is absent (local builds).
-    val keystoreProperties = java.util.Properties().apply {
-        val f = rootProject.file("key.properties")
-        if (f.exists()) f.inputStream().use { load(it) }
-    }
-    val hasReleaseKey = keystoreProperties.containsKey("storeFile")
-
-    signingConfigs {
-        if (hasReleaseKey) {
+    // Register the release signing config only when CI supplied the key.
+    if (hasReleaseKey) {
+        signingConfigs {
             create("release") {
-                storeFile = file(keystoreProperties.getProperty("storeFile"))
-                storePassword = keystoreProperties.getProperty("storePassword")
+                storeFile =
+                    file(keystoreProperties.getProperty("storeFile")!!)
+                storePassword =
+                    keystoreProperties.getProperty("storePassword")
                 keyAlias = keystoreProperties.getProperty("keyAlias")
                 keyPassword = keystoreProperties.getProperty("keyPassword")
             }

@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../core/providers.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/design_system.dart';
 
 /// Complete settings: appearance, language, notifications, work
@@ -200,6 +201,84 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                 ],
               ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          _section(l10n.chooseTheme, text),
+          GlassCard(
+            child: GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate:
+                  const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 5,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 8,
+                childAspectRatio: 0.78,
+              ),
+              itemCount: AppThemePreset.all.length,
+              itemBuilder: (ctx, i) {
+                final preset = AppThemePreset.all[i];
+                final selected = settings.themePreset == preset.id;
+                final scheme = Theme.of(ctx).colorScheme;
+                return GestureDetector(
+                  onTap: () => notifier
+                      .update((s) => s..themePreset = preset.id),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 52,
+                        height: 52,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              preset.auroraDark[0],
+                              preset.auroraDark[1],
+                              preset.auroraDark[3],
+                            ],
+                          ),
+                          border: Border.all(
+                            color: selected
+                                ? scheme.primary
+                                : Colors.white.withValues(alpha: 0.25),
+                            width: selected ? 3 : 1.5,
+                          ),
+                          boxShadow: selected
+                              ? [
+                                  BoxShadow(
+                                    color: scheme.primary
+                                        .withValues(alpha: 0.4),
+                                    blurRadius: 10,
+                                  )
+                                ]
+                              : null,
+                        ),
+                        child: selected
+                            ? const Icon(Icons.check_rounded,
+                                color: Colors.white, size: 22)
+                            : null,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        preset.name(settings.languageCode),
+                        style: text.bodySmall?.copyWith(
+                          fontWeight: selected
+                              ? FontWeight.w800
+                              : FontWeight.w400,
+                          fontSize: 11,
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
           ),
           const SizedBox(height: 12),
@@ -416,6 +495,45 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     onDone: (v) => notifier.update((s) => s
                       ..defaultBreakDurationMinutes =
                           v?.toInt() ?? 30),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          _section(l10n.salarySection, text),
+          GlassCard(
+            child: Column(
+              children: [
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(l10n.orderPriceLabel),
+                  trailing: Text(
+                      settings.orderPrice?.toString() ?? '–',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700)),
+                  onTap: () => _askNumber(
+                    title: l10n.orderPriceLabel,
+                    initial: settings.orderPrice?.toString() ?? '',
+                    decimal: true,
+                    onDone: (v) => notifier.update(
+                        (s) => s..orderPrice = v),
+                  ),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(l10n.dailyFixedLabel),
+                  trailing: Text(
+                      settings.dailyFixedPay?.toString() ?? '–',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700)),
+                  onTap: () => _askNumber(
+                    title: l10n.dailyFixedLabel,
+                    initial:
+                        settings.dailyFixedPay?.toString() ?? '',
+                    decimal: true,
+                    onDone: (v) => notifier.update(
+                        (s) => s..dailyFixedPay = v),
                   ),
                 ),
               ],

@@ -143,35 +143,30 @@ void main() {
   });
 
   group('Order entry', () {
-    testWidgets('stepper increments and saves the record', (tester) async {
+    testWidgets('shows empty state and add button', (tester) async {
       await pumpScreen(tester, const OrderEntryScreen(), db: db);
-      expect(find.text('0'), findsOneWidget);
-      await tester.tap(find.byIcon(Icons.add_rounded));
-      await tester.pump();
-      expect(find.text('1'), findsOneWidget);
-      final now = DateTime.now();
-      final saveKey =
-          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
-      await tester.runAsync(() async {
-        await tester.tap(find.text('حفظ'));
-        // Wait until the widget's full async save (write + version bump +
-        // reminder refresh + SnackBar) has landed.
-        for (var i = 0; i < 50; i++) {
-          await tester.pump(const Duration(milliseconds: 100));
-          if (db.orderRecord(saveKey)?.completedOrders == 1 &&
-              find.byType(SnackBar).evaluate().isNotEmpty) {
-            break;
-          }
-        }
-      });
-      expect(db.orderRecord(saveKey)?.completedOrders, 1);
+      expect(find.text('أضف أوردر'), findsOneWidget);
+      expect(
+          find.text('لا توجد أوردرات مسجلة — أضف أول أوردر'),
+          findsOneWidget);
     });
 
-    testWidgets('stepper never goes below zero', (tester) async {
+    testWidgets('add order sheet shows km fields', (tester) async {
       await pumpScreen(tester, const OrderEntryScreen(), db: db);
-      await tester.tap(find.byIcon(Icons.remove_rounded));
+      await tester.tap(find.text('أضف أوردر'));
       await tester.pump();
-      expect(find.text('0'), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 500));
+      // Sheet opened with per-order km fields and save action.
+      expect(
+          find.widgetWithText(TextField, 'رايح (كم)',
+              skipOffstage: false),
+          findsOneWidget);
+      expect(
+          find.widgetWithText(TextField, 'راجع (كم)',
+              skipOffstage: false),
+          findsOneWidget);
+      expect(find.text('حفظ', skipOffstage: false), findsOneWidget);
+      // DB-level entry save with km is covered in database_logic_test.
     });
   });
 
@@ -190,11 +185,18 @@ void main() {
 
     testWidgets('language switch is offered', (tester) async {
       await pumpScreen(tester, const SettingsScreen(), db: db);
-      expect(find.text('العربية'), findsOneWidget);
-      expect(find.text('English'), findsOneWidget);
+      expect(find.text('العربية', skipOffstage: false), findsOneWidget);
+      expect(find.text('English', skipOffstage: false), findsOneWidget);
     });
 
     testWidgets('notification toggles exist', (tester) async {
+      // Tall viewport so the whole settings list is laid out.
+      tester.view.physicalSize = const Size(800, 4000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
       await pumpScreen(tester, const SettingsScreen(), db: db);
       expect(find.text('تفعيل الإشعارات'), findsOneWidget);
       expect(find.text('تذكير الأوردرات اليومي'), findsOneWidget);

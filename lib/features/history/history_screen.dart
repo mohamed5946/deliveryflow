@@ -95,6 +95,9 @@ class HistoryScreen extends ConsumerWidget {
                                   WeekCalendar.formatHours(
                                       r.totalRecordedHours)),
                               _mini(
+                                  l10n.weekKmLabel,
+                                  '${WeekCalendar.formatKm(r.totalKm)} ${l10n.kmUnit}'),
+                              _mini(
                                   l10n.completeDays(
                                       r.recordedDaysCount),
                                   ''),
