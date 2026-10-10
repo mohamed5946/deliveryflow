@@ -682,4 +682,77 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get egpUnit => 'جنيه';
+
+  @override
+  String get orderDetails => 'تفاصيل الأوردر';
+
+  @override
+  String get statusPending => 'في الانتظار';
+
+  @override
+  String get statusToCustomer => 'في الطريق للعميل';
+
+  @override
+  String get statusToMart => 'راجع للمارت';
+
+  @override
+  String get statusCompleted => 'مكتمل';
+
+  @override
+  String get startDelivery => 'بدأ التوصيل';
+
+  @override
+  String get arrivedAtCustomer => 'وصلت للعميل';
+
+  @override
+  String get arrivedAtMart => 'وصلت للمارت';
+
+  @override
+  String get orderCompleted => 'تم إكمال الأوردر بنجاح';
+
+  @override
+  String get trackingToCustomer => 'التتبع: إلى العميل';
+
+  @override
+  String get trackingToMart => 'التتبع: عودة للمارت';
+
+  @override
+  String get distanceSoFar => 'المسافة حتى الآن';
+
+  @override
+  String get timeElapsed => 'الوقت المنقضي';
+
+  @override
+  String get gpsAccuracyNote => 'يتم حساب المسافة بالـ GPS تلقائياً بدقة عالية';
+
+  @override
+  String get tripBreakdown => 'تفاصيل الرحلة';
+
+  @override
+  String get pickupTime => 'وقت الاستلام من المارت';
+
+  @override
+  String get outgoingLeg => 'الذهاب (مارت ← عميل)';
+
+  @override
+  String get deliveryTime => 'وقت التوصيل للعميل';
+
+  @override
+  String get returnLeg => 'الرجوع (عميل ← مارت)';
+
+  @override
+  String get martArrivalTime => 'وقت الوصول للمارت';
+
+  @override
+  String get totalTripTime => 'إجمالي وقت الأوردر';
+
+  @override
+  String get totalTripDistance => 'إجمالي مسافة الأوردر';
+
+  @override
+  String get locationPermissionRequired =>
+      'لازم تسمح بالوصول للموقع عشان التتبع يشتغل';
+
+  @override
+  String get pleaseWait => 'استنى…';
 }

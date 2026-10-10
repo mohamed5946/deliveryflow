@@ -1381,6 +1381,150 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'EGP'**
   String get egpUnit;
+
+  /// No description provided for @orderDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Order details'**
+  String get orderDetails;
+
+  /// No description provided for @statusPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Pending'**
+  String get statusPending;
+
+  /// No description provided for @statusToCustomer.
+  ///
+  /// In en, this message translates to:
+  /// **'On the way to customer'**
+  String get statusToCustomer;
+
+  /// No description provided for @statusToMart.
+  ///
+  /// In en, this message translates to:
+  /// **'Returning to mart'**
+  String get statusToMart;
+
+  /// No description provided for @statusCompleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Completed'**
+  String get statusCompleted;
+
+  /// No description provided for @startDelivery.
+  ///
+  /// In en, this message translates to:
+  /// **'Start delivery'**
+  String get startDelivery;
+
+  /// No description provided for @arrivedAtCustomer.
+  ///
+  /// In en, this message translates to:
+  /// **'Arrived at customer'**
+  String get arrivedAtCustomer;
+
+  /// No description provided for @arrivedAtMart.
+  ///
+  /// In en, this message translates to:
+  /// **'Arrived at mart'**
+  String get arrivedAtMart;
+
+  /// No description provided for @orderCompleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Order completed successfully'**
+  String get orderCompleted;
+
+  /// No description provided for @trackingToCustomer.
+  ///
+  /// In en, this message translates to:
+  /// **'Tracking: to customer'**
+  String get trackingToCustomer;
+
+  /// No description provided for @trackingToMart.
+  ///
+  /// In en, this message translates to:
+  /// **'Tracking: back to mart'**
+  String get trackingToMart;
+
+  /// No description provided for @distanceSoFar.
+  ///
+  /// In en, this message translates to:
+  /// **'Distance so far'**
+  String get distanceSoFar;
+
+  /// No description provided for @timeElapsed.
+  ///
+  /// In en, this message translates to:
+  /// **'Time elapsed'**
+  String get timeElapsed;
+
+  /// No description provided for @gpsAccuracyNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Distance is calculated automatically via GPS with high accuracy'**
+  String get gpsAccuracyNote;
+
+  /// No description provided for @tripBreakdown.
+  ///
+  /// In en, this message translates to:
+  /// **'Trip breakdown'**
+  String get tripBreakdown;
+
+  /// No description provided for @pickupTime.
+  ///
+  /// In en, this message translates to:
+  /// **'Pickup time from mart'**
+  String get pickupTime;
+
+  /// No description provided for @outgoingLeg.
+  ///
+  /// In en, this message translates to:
+  /// **'Outgoing (mart → customer)'**
+  String get outgoingLeg;
+
+  /// No description provided for @deliveryTime.
+  ///
+  /// In en, this message translates to:
+  /// **'Delivery time to customer'**
+  String get deliveryTime;
+
+  /// No description provided for @returnLeg.
+  ///
+  /// In en, this message translates to:
+  /// **'Return (customer → mart)'**
+  String get returnLeg;
+
+  /// No description provided for @martArrivalTime.
+  ///
+  /// In en, this message translates to:
+  /// **'Mart arrival time'**
+  String get martArrivalTime;
+
+  /// No description provided for @totalTripTime.
+  ///
+  /// In en, this message translates to:
+  /// **'Total order time'**
+  String get totalTripTime;
+
+  /// No description provided for @totalTripDistance.
+  ///
+  /// In en, this message translates to:
+  /// **'Total order distance'**
+  String get totalTripDistance;
+
+  /// No description provided for @locationPermissionRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Location permission is required for tracking'**
+  String get locationPermissionRequired;
+
+  /// No description provided for @pleaseWait.
+  ///
+  /// In en, this message translates to:
+  /// **'Please wait…'**
+  String get pleaseWait;
 }
 
 class _AppLocalizationsDelegate

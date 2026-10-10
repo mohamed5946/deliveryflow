@@ -1,7 +1,7 @@
 import 'package:hive/hive.dart';
 
 /// Schema version for migrations. Bump when a model changes shape.
-const int kSchemaVersion = 2;
+const int kSchemaVersion = 3;
 
 // ---------------------------------------------------------------------------
 // UserSettings (typeId 0)
@@ -496,6 +496,23 @@ class OrderEntry extends HiveObject {
   double kmBack; // km driven returning (>= 0)
   @HiveField(5)
   String notes;
+  // --- GPS-tracked delivery lifecycle (v4) ---
+  @HiveField(6)
+  int status; // 0=pending, 1=toCustomer, 2=toMart, 3=completed
+  @HiveField(7)
+  int? pickupTimeMillis; // "بدأ التوصيل" pressed
+  @HiveField(8)
+  int? deliveredTimeMillis; // "وصلت للعميل" pressed
+  @HiveField(9)
+  int? martArrivedTimeMillis; // "وصلت للمارت" pressed
+  @HiveField(10)
+  double gpsKmOut; // GPS-calculated outgoing km
+  @HiveField(11)
+  double gpsKmBack; // GPS-calculated return km
+  @HiveField(12)
+  int outgoingDurationSec; // outgoing trip duration
+  @HiveField(13)
+  int returnDurationSec; // return trip duration
 
   OrderEntry({
     required this.id,
@@ -504,10 +521,29 @@ class OrderEntry extends HiveObject {
     this.kmOut = 0,
     this.kmBack = 0,
     this.notes = '',
+    this.status = 0,
+    this.pickupTimeMillis,
+    this.deliveredTimeMillis,
+    this.martArrivedTimeMillis,
+    this.gpsKmOut = 0,
+    this.gpsKmBack = 0,
+    this.outgoingDurationSec = 0,
+    this.returnDurationSec = 0,
   })  : assert(kmOut >= 0, 'kmOut cannot be negative'),
         assert(kmBack >= 0, 'kmBack cannot be negative');
 
   double get kmTotal => kmOut + kmBack;
+
+  /// Effective outgoing km: GPS value when tracked, else manual.
+  double get effectiveKmOut => gpsKmOut > 0 ? gpsKmOut : kmOut;
+  double get effectiveKmBack => gpsKmBack > 0 ? gpsKmBack : kmBack;
+  double get effectiveKmTotal => effectiveKmOut + effectiveKmBack;
+
+  bool get isPending => status == 0;
+  bool get isToCustomer => status == 1;
+  bool get isToMart => status == 2;
+  bool get isCompleted => status == 3;
+  bool get isTracking => status == 1 || status == 2;
 
   DateTime get timestamp =>
       DateTime.fromMillisecondsSinceEpoch(timestampMillis);
@@ -519,6 +555,14 @@ class OrderEntry extends HiveObject {
         'kmOut': kmOut,
         'kmBack': kmBack,
         'notes': notes,
+        'status': status,
+        'pickupTimeMillis': pickupTimeMillis,
+        'deliveredTimeMillis': deliveredTimeMillis,
+        'martArrivedTimeMillis': martArrivedTimeMillis,
+        'gpsKmOut': gpsKmOut,
+        'gpsKmBack': gpsKmBack,
+        'outgoingDurationSec': outgoingDurationSec,
+        'returnDurationSec': returnDurationSec,
       };
 
   static OrderEntry fromJson(Map<String, dynamic> json) => OrderEntry(
@@ -528,6 +572,14 @@ class OrderEntry extends HiveObject {
         kmOut: (json['kmOut'] as num?)?.toDouble() ?? 0,
         kmBack: (json['kmBack'] as num?)?.toDouble() ?? 0,
         notes: (json['notes'] as String?) ?? '',
+        status: (json['status'] as num?)?.toInt() ?? 0,
+        pickupTimeMillis: (json['pickupTimeMillis'] as num?)?.toInt(),
+        deliveredTimeMillis: (json['deliveredTimeMillis'] as num?)?.toInt(),
+        martArrivedTimeMillis: (json['martArrivedTimeMillis'] as num?)?.toInt(),
+        gpsKmOut: (json['gpsKmOut'] as num?)?.toDouble() ?? 0,
+        gpsKmBack: (json['gpsKmBack'] as num?)?.toDouble() ?? 0,
+        outgoingDurationSec: (json['outgoingDurationSec'] as num?)?.toInt() ?? 0,
+        returnDurationSec: (json['returnDurationSec'] as num?)?.toInt() ?? 0,
       );
 }
 
@@ -548,13 +600,21 @@ class OrderEntryAdapter extends TypeAdapter<OrderEntry> {
       kmOut: (fields[3] as num?)?.toDouble() ?? 0,
       kmBack: (fields[4] as num?)?.toDouble() ?? 0,
       notes: (fields[5] as String?) ?? '',
+      status: (fields[6] as int?) ?? 0,
+      pickupTimeMillis: fields[7] as int?,
+      deliveredTimeMillis: fields[8] as int?,
+      martArrivedTimeMillis: fields[9] as int?,
+      gpsKmOut: (fields[10] as num?)?.toDouble() ?? 0,
+      gpsKmBack: (fields[11] as num?)?.toDouble() ?? 0,
+      outgoingDurationSec: (fields[12] as int?) ?? 0,
+      returnDurationSec: (fields[13] as int?) ?? 0,
     );
   }
 
   @override
   void write(BinaryWriter writer, OrderEntry obj) {
     writer
-      ..writeByte(6)
+      ..writeByte(14)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -566,7 +626,23 @@ class OrderEntryAdapter extends TypeAdapter<OrderEntry> {
       ..writeByte(4)
       ..write(obj.kmBack)
       ..writeByte(5)
-      ..write(obj.notes);
+      ..write(obj.notes)
+      ..writeByte(6)
+      ..write(obj.status)
+      ..writeByte(7)
+      ..write(obj.pickupTimeMillis)
+      ..writeByte(8)
+      ..write(obj.deliveredTimeMillis)
+      ..writeByte(9)
+      ..write(obj.martArrivedTimeMillis)
+      ..writeByte(10)
+      ..write(obj.gpsKmOut)
+      ..writeByte(11)
+      ..write(obj.gpsKmBack)
+      ..writeByte(12)
+      ..write(obj.outgoingDurationSec)
+      ..writeByte(13)
+      ..write(obj.returnDurationSec);
   }
 }
 

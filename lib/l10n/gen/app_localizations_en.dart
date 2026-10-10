@@ -682,4 +682,78 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get egpUnit => 'EGP';
+
+  @override
+  String get orderDetails => 'Order details';
+
+  @override
+  String get statusPending => 'Pending';
+
+  @override
+  String get statusToCustomer => 'On the way to customer';
+
+  @override
+  String get statusToMart => 'Returning to mart';
+
+  @override
+  String get statusCompleted => 'Completed';
+
+  @override
+  String get startDelivery => 'Start delivery';
+
+  @override
+  String get arrivedAtCustomer => 'Arrived at customer';
+
+  @override
+  String get arrivedAtMart => 'Arrived at mart';
+
+  @override
+  String get orderCompleted => 'Order completed successfully';
+
+  @override
+  String get trackingToCustomer => 'Tracking: to customer';
+
+  @override
+  String get trackingToMart => 'Tracking: back to mart';
+
+  @override
+  String get distanceSoFar => 'Distance so far';
+
+  @override
+  String get timeElapsed => 'Time elapsed';
+
+  @override
+  String get gpsAccuracyNote =>
+      'Distance is calculated automatically via GPS with high accuracy';
+
+  @override
+  String get tripBreakdown => 'Trip breakdown';
+
+  @override
+  String get pickupTime => 'Pickup time from mart';
+
+  @override
+  String get outgoingLeg => 'Outgoing (mart → customer)';
+
+  @override
+  String get deliveryTime => 'Delivery time to customer';
+
+  @override
+  String get returnLeg => 'Return (customer → mart)';
+
+  @override
+  String get martArrivalTime => 'Mart arrival time';
+
+  @override
+  String get totalTripTime => 'Total order time';
+
+  @override
+  String get totalTripDistance => 'Total order distance';
+
+  @override
+  String get locationPermissionRequired =>
+      'Location permission is required for tracking';
+
+  @override
+  String get pleaseWait => 'Please wait…';
 }

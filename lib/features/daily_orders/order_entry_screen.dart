@@ -8,6 +8,7 @@ import '../../core/database/models.dart';
 import '../../core/date_time/week_calendar.dart';
 import '../../core/providers.dart';
 import '../../theme/design_system.dart';
+import 'order_detail_screen.dart';
 
 /// Per-order tracking: each order gets its own entry with the driven
 /// distance going (out) and returning (back). The day's order count is
@@ -156,9 +157,9 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
   }
 
   double get _kmOut =>
-      _entries.fold<double>(0, (s, e) => s + e.kmOut);
+      _entries.fold<double>(0, (s, e) => s + e.effectiveKmOut);
   double get _kmBack =>
-      _entries.fold<double>(0, (s, e) => s + e.kmBack);
+      _entries.fold<double>(0, (s, e) => s + e.effectiveKmBack);
 
   @override
   Widget build(BuildContext context) {
@@ -333,7 +334,20 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
         .format(entry.timestamp);
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: GlassCard(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: () async {
+          await Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => OrderDetailScreen(
+                dateKey: _dateKey,
+                entryId: entry.id,
+              ),
+            ),
+          );
+          if (mounted) _load();
+        },
+        child: GlassCard(
         padding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Row(
@@ -356,7 +370,7 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '${l10n.kmOutLabel}: ${_fmtKm(entry.kmOut)} • ${l10n.kmBackLabel}: ${_fmtKm(entry.kmBack)} ${l10n.kmUnit}',
+                    '${l10n.kmOutLabel}: ${_fmtKm(entry.effectiveKmOut)} • ${l10n.kmBackLabel}: ${_fmtKm(entry.effectiveKmBack)} ${l10n.kmUnit}',
                     style: text.bodyMedium,
                   ),
                   if (entry.notes.isNotEmpty)
@@ -369,7 +383,7 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
                 ],
               ),
             ),
-            Text(_fmtKm(entry.kmTotal),
+            Text(_fmtKm(entry.effectiveKmTotal),
                 style: text.titleMedium?.copyWith(
                     fontWeight: FontWeight.w800,
                     color: scheme.secondary)),
@@ -388,6 +402,7 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
               visualDensity: VisualDensity.compact,
             ),
           ],
+        ),
         ),
       ),
     );

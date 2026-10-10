@@ -171,6 +171,14 @@ class DatabaseService {
     double? kmOut,
     double? kmBack,
     String? notes,
+    int? status,
+    int? pickupTimeMillis,
+    int? deliveredTimeMillis,
+    int? martArrivedTimeMillis,
+    double? gpsKmOut,
+    double? gpsKmBack,
+    int? outgoingDurationSec,
+    int? returnDurationSec,
   }) async {
     final record = _orders.get(dateKey);
     if (record == null) return;
@@ -187,6 +195,20 @@ class DatabaseService {
       entry.kmBack = kmBack;
     }
     if (notes != null) entry.notes = notes;
+    if (status != null) entry.status = status;
+    if (pickupTimeMillis != null) entry.pickupTimeMillis = pickupTimeMillis;
+    if (deliveredTimeMillis != null) {
+      entry.deliveredTimeMillis = deliveredTimeMillis;
+    }
+    if (martArrivedTimeMillis != null) {
+      entry.martArrivedTimeMillis = martArrivedTimeMillis;
+    }
+    if (gpsKmOut != null) entry.gpsKmOut = gpsKmOut;
+    if (gpsKmBack != null) entry.gpsKmBack = gpsKmBack;
+    if (outgoingDurationSec != null) {
+      entry.outgoingDurationSec = outgoingDurationSec;
+    }
+    if (returnDurationSec != null) entry.returnDurationSec = returnDurationSec;
     record.updatedAtMillis = DateTime.now().millisecondsSinceEpoch;
     await record.save();
   }
