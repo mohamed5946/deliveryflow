@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -294,87 +293,61 @@ class GlassLoading extends StatelessWidget {
 /// Animated aurora background: soft drifting color blobs over a subtle
 /// vertical gradient. This is what makes the frosted-glass surfaces read
 /// as real glass — they refract the color behind them.
-class AuroraBackground extends ConsumerStatefulWidget {
+class AuroraBackground extends ConsumerWidget {
   const AuroraBackground({super.key});
 
   @override
-  ConsumerState<AuroraBackground> createState() => _AuroraBackgroundState();
-}
-
-class _AuroraBackgroundState extends ConsumerState<AuroraBackground>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 28),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final presetId =
         ref.watch(settingsProvider.select((s) => s.themePreset));
     final preset = AppThemePreset.of(presetId);
     final blobs = isDark ? preset.auroraDark : preset.auroraLight;
     final bg = isDark ? preset.bgDark : preset.bgLight;
+    // Static (no animation) for maximum smoothness: the blobs are pre-blurred
+    // once and cached by the RepaintBoundary. The glass cards above still
+    // provide depth via their own backdrop blur.
     return RepaintBoundary(
-      child: AnimatedBuilder(
-        animation: _ctrl,
-        builder: (context, _) {
-          final t = _ctrl.value * 6.28318;
-          return Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [bg[0], bg[1]],
-              ),
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [bg[0], bg[1]],
+          ),
+        ),
+        child: Stack(
+          children: [
+            _blob(
+              top: -70,
+              left: -70,
+              size: 330,
+              color: blobs[0],
+              opacity: isDark ? 0.38 : 0.55,
             ),
-            child: Stack(
-              children: [
-                _blob(
-                  top: -70 + 26 * math.sin(t),
-                  left: -70 + 34 * math.cos(t * 0.8),
-                  size: 330,
-                  color: blobs[0],
-                  opacity: isDark ? 0.38 : 0.55,
-                ),
-                _blob(
-                  top: 130 + 34 * math.cos(t * 0.6),
-                  right: -90 + 26 * math.sin(t * 1.1),
-                  size: 290,
-                  color: blobs[1],
-                  opacity: isDark ? 0.32 : 0.5,
-                ),
-                _blob(
-                  bottom: -70 + 26 * math.sin(t * 0.7 + 1.2),
-                  left: 30 + 44 * math.cos(t * 0.5),
-                  size: 310,
-                  color: blobs[2],
-                  opacity: isDark ? 0.28 : 0.45,
-                ),
-                _blob(
-                  bottom: 90 + 22 * math.cos(t * 0.9),
-                  right: 50 + 36 * math.sin(t * 0.7 + 2.1),
-                  size: 240,
-                  color: blobs[3],
-                  opacity: isDark ? 0.2 : 0.38,
-                ),
-              ],
+            _blob(
+              top: 130,
+              right: -90,
+              size: 290,
+              color: blobs[1],
+              opacity: isDark ? 0.32 : 0.5,
             ),
-          );
-        },
+            _blob(
+              bottom: -70,
+              left: 30,
+              size: 310,
+              color: blobs[2],
+              opacity: isDark ? 0.28 : 0.45,
+            ),
+            _blob(
+              bottom: 90,
+              right: 50,
+              size: 240,
+              color: blobs[3],
+              opacity: isDark ? 0.2 : 0.38,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -428,6 +401,9 @@ class GlassScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.transparent,
+      // Extend the aurora body behind the floating nav bar so no black
+      // shows around its rounded corners.
+      extendBody: true,
       appBar: appBar,
       floatingActionButton: floatingActionButton,
       bottomNavigationBar: bottomNavigationBar,
