@@ -132,6 +132,15 @@ class AppLocalizationsAr extends AppLocalizations {
   String get delete => 'حذف';
 
   @override
+  String get designedBy => 'تم تصميم التطبيق بواسطة';
+
+  @override
+  String get designerName => 'eng/Mohamed El Sayed';
+
+  @override
+  String get contactLabel => 'للتواصل';
+
+  @override
   String get displayNameHint => 'مثال: أحمد';
 
   @override

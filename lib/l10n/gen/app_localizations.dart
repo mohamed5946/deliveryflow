@@ -338,6 +338,24 @@ abstract class AppLocalizations {
   /// **'Delete'**
   String get delete;
 
+  /// No description provided for @designedBy.
+  ///
+  /// In en, this message translates to:
+  /// **'Designed by'**
+  String get designedBy;
+
+  /// No description provided for @designerName.
+  ///
+  /// In en, this message translates to:
+  /// **'eng/Mohamed El Sayed'**
+  String get designerName;
+
+  /// No description provided for @contactLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Contact'**
+  String get contactLabel;
+
   /// No description provided for @displayNameHint.
   ///
   /// In en, this message translates to:

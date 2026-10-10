@@ -484,6 +484,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
+                  title: Text(l10n.designedBy),
+                  subtitle: Text(l10n.designerName),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(l10n.contactLabel),
+                  subtitle: const Text('01557887719',
+                      textDirection: TextDirection.ltr),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
                   title: Text(l10n.privacyInfo),
                   subtitle: Text(l10n.privacyBody,
                       maxLines: 4,
