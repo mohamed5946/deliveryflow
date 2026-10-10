@@ -755,4 +755,23 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get pleaseWait => 'استنى…';
+
+  @override
+  String get routeMapTitle => 'خريطة خط السير';
+
+  @override
+  String get martLabel => 'المارت';
+
+  @override
+  String get customerLabel => 'العميل';
+
+  @override
+  String get outgoingLegShort => 'الذهاب';
+
+  @override
+  String get returnLegShort => 'الرجوع';
+
+  @override
+  String get noRouteData =>
+      'لا توجد بيانات خط سير لهذا الأوردر (تم قبل تفعيل التتبع)';
 }

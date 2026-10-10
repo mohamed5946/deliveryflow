@@ -179,6 +179,10 @@ class DatabaseService {
     double? gpsKmBack,
     int? outgoingDurationSec,
     int? returnDurationSec,
+    List<double>? routeOutLat,
+    List<double>? routeOutLng,
+    List<double>? routeBackLat,
+    List<double>? routeBackLng,
   }) async {
     final record = _orders.get(dateKey);
     if (record == null) return;
@@ -209,6 +213,10 @@ class DatabaseService {
       entry.outgoingDurationSec = outgoingDurationSec;
     }
     if (returnDurationSec != null) entry.returnDurationSec = returnDurationSec;
+    if (routeOutLat != null) entry.routeOutLat = routeOutLat;
+    if (routeOutLng != null) entry.routeOutLng = routeOutLng;
+    if (routeBackLat != null) entry.routeBackLat = routeBackLat;
+    if (routeBackLng != null) entry.routeBackLng = routeBackLng;
     record.updatedAtMillis = DateTime.now().millisecondsSinceEpoch;
     await record.save();
   }

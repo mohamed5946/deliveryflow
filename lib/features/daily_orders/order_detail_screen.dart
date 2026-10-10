@@ -7,6 +7,7 @@ import '../../core/database/models.dart';
 import '../../core/providers.dart';
 import '../../core/tracking/delivery_tracking_service.dart';
 import '../../theme/design_system.dart';
+import 'route_map_card.dart';
 
 /// Order detail + GPS-tracked delivery lifecycle.
 ///
@@ -133,6 +134,8 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
           ],
           if (entry.isCompleted) ...[
             _breakdownCard(context, entry),
+            const SizedBox(height: 12),
+            RouteMapCard(entry: entry),
             const SizedBox(height: 12),
           ],
           _actionButton(context, entry),

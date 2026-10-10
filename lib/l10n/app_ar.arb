@@ -248,5 +248,11 @@
   "totalTripTime": "إجمالي وقت الأوردر",
   "totalTripDistance": "إجمالي مسافة الأوردر",
   "locationPermissionRequired": "لازم تسمح بالوصول للموقع عشان التتبع يشتغل",
-  "pleaseWait": "استنى…"
+  "pleaseWait": "استنى…",
+  "routeMapTitle": "خريطة خط السير",
+  "martLabel": "المارت",
+  "customerLabel": "العميل",
+  "outgoingLegShort": "الذهاب",
+  "returnLegShort": "الرجوع",
+  "noRouteData": "لا توجد بيانات خط سير لهذا الأوردر (تم قبل تفعيل التتبع)"
 }

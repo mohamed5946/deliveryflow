@@ -1525,6 +1525,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Please wait…'**
   String get pleaseWait;
+
+  /// No description provided for @routeMapTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Route map'**
+  String get routeMapTitle;
+
+  /// No description provided for @martLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Mart'**
+  String get martLabel;
+
+  /// No description provided for @customerLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Customer'**
+  String get customerLabel;
+
+  /// No description provided for @outgoingLegShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Outgoing'**
+  String get outgoingLegShort;
+
+  /// No description provided for @returnLegShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Return'**
+  String get returnLegShort;
+
+  /// No description provided for @noRouteData.
+  ///
+  /// In en, this message translates to:
+  /// **'No route data for this order (created before tracking)'**
+  String get noRouteData;
 }
 
 class _AppLocalizationsDelegate

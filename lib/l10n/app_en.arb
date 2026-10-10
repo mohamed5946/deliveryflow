@@ -296,5 +296,11 @@
   "totalTripTime": "Total order time",
   "totalTripDistance": "Total order distance",
   "locationPermissionRequired": "Location permission is required for tracking",
-  "pleaseWait": "Please wait…"
+  "pleaseWait": "Please wait…",
+  "routeMapTitle": "Route map",
+  "martLabel": "Mart",
+  "customerLabel": "Customer",
+  "outgoingLegShort": "Outgoing",
+  "returnLegShort": "Return",
+  "noRouteData": "No route data for this order (created before tracking)"
 }

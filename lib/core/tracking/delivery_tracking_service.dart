@@ -53,6 +53,10 @@ class DeliveryTrackingService {
   TrackingSegment? _segment;
   DateTime? _segmentStart;
   double _segmentKm = 0;
+  // Downsampled breadcrumb trail for the route map.
+  final List<double> _routeLat = [];
+  final List<double> _routeLng = [];
+  Position? _lastRoutePoint;
 
   final _snapshotController = StreamController<TrackingSnapshot>.broadcast();
   Stream<TrackingSnapshot> get snapshots => _snapshotController.stream;
@@ -136,6 +140,9 @@ class DeliveryTrackingService {
     _segmentStart = DateTime.now();
     _segmentKm = 0;
     _lastPosition = null;
+    _routeLat.clear();
+    _routeLng.clear();
+    _lastRoutePoint = null;
 
     const settings = LocationSettings(
       accuracy: LocationAccuracy.high,
@@ -161,7 +168,10 @@ class DeliveryTrackingService {
     if (pos.accuracy > _maxAcceptedAccuracyM) return;
     final prev = _lastPosition;
     _lastPosition = pos;
-    if (prev == null) return;
+    if (prev == null) {
+      _recordRoutePoint(pos);
+      return;
+    }
     final stepM = Geolocator.distanceBetween(
       prev.latitude,
       prev.longitude,
@@ -171,7 +181,32 @@ class DeliveryTrackingService {
     // Ignore GPS drift when (almost) stationary.
     if (stepM < _minStepM) return;
     _segmentKm += stepM / 1000.0;
+    _recordRoutePoint(pos);
     _updateNotification();
+  }
+
+  /// Records a downsampled breadcrumb point for the route map.
+  /// Stores a point every ~15m to keep the polyline smooth without
+  /// bloating storage.
+  void _recordRoutePoint(Position pos) {
+    final last = _lastRoutePoint;
+    if (last != null) {
+      final distM = Geolocator.distanceBetween(
+        last.latitude,
+        last.longitude,
+        pos.latitude,
+        pos.longitude,
+      );
+      if (distM < 15) return;
+    }
+    _lastRoutePoint = pos;
+    _routeLat.add(pos.latitude);
+    _routeLng.add(pos.longitude);
+    // Safety cap: ~4 hours of tracking at 15m intervals.
+    if (_routeLat.length > 1000) {
+      _routeLat.removeAt(0);
+      _routeLng.removeAt(0);
+    }
   }
 
   void _emitSnapshot() {
@@ -228,6 +263,8 @@ class DeliveryTrackingService {
     final kmOut = _segmentKm;
     final durationSec =
         start == null ? 0 : DateTime.now().difference(start).inSeconds;
+    final outLat = List<double>.from(_routeLat);
+    final outLng = List<double>.from(_routeLng);
     await _stopTrackingInternal();
     final now = DateTime.now().millisecondsSinceEpoch;
     await _db.updateOrderEntry(
@@ -237,6 +274,8 @@ class DeliveryTrackingService {
       deliveredTimeMillis: now,
       gpsKmOut: _round2(kmOut),
       outgoingDurationSec: durationSec,
+      routeOutLat: outLat,
+      routeOutLng: outLng,
     );
     await _beginSegment(
       orderId: entryId,
@@ -256,6 +295,8 @@ class DeliveryTrackingService {
     final kmBack = _segmentKm;
     final durationSec =
         start == null ? 0 : DateTime.now().difference(start).inSeconds;
+    final backLat = List<double>.from(_routeLat);
+    final backLng = List<double>.from(_routeLng);
     await _stopTrackingInternal();
     final now = DateTime.now().millisecondsSinceEpoch;
     await _db.updateOrderEntry(
@@ -266,6 +307,8 @@ class DeliveryTrackingService {
       gpsKmBack: _round2(kmBack),
       returnDurationSec: durationSec,
       timestampMillis: now,
+      routeBackLat: backLat,
+      routeBackLng: backLng,
     );
   }
 
@@ -279,6 +322,9 @@ class DeliveryTrackingService {
     _segmentStart = null;
     _segmentKm = 0;
     _lastPosition = null;
+    _routeLat.clear();
+    _routeLng.clear();
+    _lastRoutePoint = null;
     await _stopForegroundService();
   }
 

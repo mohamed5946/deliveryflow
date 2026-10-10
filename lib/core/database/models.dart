@@ -1,7 +1,7 @@
 import 'package:hive/hive.dart';
 
 /// Schema version for migrations. Bump when a model changes shape.
-const int kSchemaVersion = 3;
+const int kSchemaVersion = 4;
 
 // ---------------------------------------------------------------------------
 // UserSettings (typeId 0)
@@ -513,6 +513,15 @@ class OrderEntry extends HiveObject {
   int outgoingDurationSec; // outgoing trip duration
   @HiveField(13)
   int returnDurationSec; // return trip duration
+  // --- GPS route polylines (v5): downsampled breadcrumb trail ---
+  @HiveField(14)
+  List<double> routeOutLat;
+  @HiveField(15)
+  List<double> routeOutLng;
+  @HiveField(16)
+  List<double> routeBackLat;
+  @HiveField(17)
+  List<double> routeBackLng;
 
   OrderEntry({
     required this.id,
@@ -529,6 +538,10 @@ class OrderEntry extends HiveObject {
     this.gpsKmBack = 0,
     this.outgoingDurationSec = 0,
     this.returnDurationSec = 0,
+    this.routeOutLat = const [],
+    this.routeOutLng = const [],
+    this.routeBackLat = const [],
+    this.routeBackLng = const [],
   })  : assert(kmOut >= 0, 'kmOut cannot be negative'),
         assert(kmBack >= 0, 'kmBack cannot be negative');
 
@@ -544,6 +557,13 @@ class OrderEntry extends HiveObject {
   bool get isToMart => status == 2;
   bool get isCompleted => status == 3;
   bool get isTracking => status == 1 || status == 2;
+
+  /// Number of recorded route points (outgoing + return).
+  int get routePointCount =>
+      routeOutLat.length + routeBackLat.length;
+
+  bool get hasRoute =>
+      routeOutLat.isNotEmpty || routeBackLat.isNotEmpty;
 
   DateTime get timestamp =>
       DateTime.fromMillisecondsSinceEpoch(timestampMillis);
@@ -563,6 +583,10 @@ class OrderEntry extends HiveObject {
         'gpsKmBack': gpsKmBack,
         'outgoingDurationSec': outgoingDurationSec,
         'returnDurationSec': returnDurationSec,
+        'routeOutLat': routeOutLat,
+        'routeOutLng': routeOutLng,
+        'routeBackLat': routeBackLat,
+        'routeBackLng': routeBackLng,
       };
 
   static OrderEntry fromJson(Map<String, dynamic> json) => OrderEntry(
@@ -580,6 +604,22 @@ class OrderEntry extends HiveObject {
         gpsKmBack: (json['gpsKmBack'] as num?)?.toDouble() ?? 0,
         outgoingDurationSec: (json['outgoingDurationSec'] as num?)?.toInt() ?? 0,
         returnDurationSec: (json['returnDurationSec'] as num?)?.toInt() ?? 0,
+        routeOutLat: (json['routeOutLat'] as List?)
+                ?.map((e) => (e as num).toDouble())
+                .toList() ??
+            const [],
+        routeOutLng: (json['routeOutLng'] as List?)
+                ?.map((e) => (e as num).toDouble())
+                .toList() ??
+            const [],
+        routeBackLat: (json['routeBackLat'] as List?)
+                ?.map((e) => (e as num).toDouble())
+                .toList() ??
+            const [],
+        routeBackLng: (json['routeBackLng'] as List?)
+                ?.map((e) => (e as num).toDouble())
+                .toList() ??
+            const [],
       );
 }
 
@@ -608,13 +648,17 @@ class OrderEntryAdapter extends TypeAdapter<OrderEntry> {
       gpsKmBack: (fields[11] as num?)?.toDouble() ?? 0,
       outgoingDurationSec: (fields[12] as int?) ?? 0,
       returnDurationSec: (fields[13] as int?) ?? 0,
+      routeOutLat: (fields[14] as List?)?.cast<double>() ?? const [],
+      routeOutLng: (fields[15] as List?)?.cast<double>() ?? const [],
+      routeBackLat: (fields[16] as List?)?.cast<double>() ?? const [],
+      routeBackLng: (fields[17] as List?)?.cast<double>() ?? const [],
     );
   }
 
   @override
   void write(BinaryWriter writer, OrderEntry obj) {
     writer
-      ..writeByte(14)
+      ..writeByte(18)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -642,7 +686,15 @@ class OrderEntryAdapter extends TypeAdapter<OrderEntry> {
       ..writeByte(12)
       ..write(obj.outgoingDurationSec)
       ..writeByte(13)
-      ..write(obj.returnDurationSec);
+      ..write(obj.returnDurationSec)
+      ..writeByte(14)
+      ..write(obj.routeOutLat)
+      ..writeByte(15)
+      ..write(obj.routeOutLng)
+      ..writeByte(16)
+      ..write(obj.routeBackLat)
+      ..writeByte(17)
+      ..write(obj.routeBackLng);
   }
 }
 

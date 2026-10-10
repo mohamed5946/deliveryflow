@@ -242,6 +242,55 @@ void main() {
           throwsArgumentError);
     });
 
+    test('GPS tracking fields and route points persist', () async {
+      const key = '2026-10-14';
+      final e = await db.addOrderEntry(
+        dateKey: key,
+        timestampMillis:
+            DateTime(2026, 10, 14, 10).millisecondsSinceEpoch,
+      );
+      final pickup = DateTime(2026, 10, 14, 10, 5).millisecondsSinceEpoch;
+      final delivered =
+          DateTime(2026, 10, 14, 10, 40).millisecondsSinceEpoch;
+      await db.updateOrderEntry(
+        dateKey: key,
+        entryId: e.id,
+        status: 3,
+        pickupTimeMillis: pickup,
+        deliveredTimeMillis: delivered,
+        martArrivedTimeMillis:
+            DateTime(2026, 10, 14, 11, 10).millisecondsSinceEpoch,
+        gpsKmOut: 7.25,
+        gpsKmBack: 6.8,
+        outgoingDurationSec: 2100,
+        returnDurationSec: 1800,
+        routeOutLat: [30.05, 30.06, 30.07],
+        routeOutLng: [31.24, 31.25, 31.26],
+        routeBackLat: [30.07, 30.06, 30.05],
+        routeBackLng: [31.26, 31.25, 31.24],
+      );
+      final rec = db.orderRecord(key)!;
+      final re = rec.entries.firstWhere((x) => x.id == e.id);
+      expect(re.status, 3);
+      expect(re.isCompleted, true);
+      expect(re.pickupTimeMillis, pickup);
+      expect(re.deliveredTimeMillis, delivered);
+      expect(re.gpsKmOut, 7.25);
+      expect(re.gpsKmBack, 6.8);
+      expect(re.effectiveKmOut, 7.25);
+      expect(re.effectiveKmBack, 6.8);
+      expect(re.effectiveKmTotal, 14.05);
+      expect(re.outgoingDurationSec, 2100);
+      expect(re.returnDurationSec, 1800);
+      expect(re.hasRoute, true);
+      expect(re.routePointCount, 6);
+      expect(re.routeOutLat, [30.05, 30.06, 30.07]);
+      // JSON round-trip keeps route data.
+      final rej = OrderEntry.fromJson(re.toJson());
+      expect(rej.routeOutLat, [30.05, 30.06, 30.07]);
+      expect(rej.gpsKmOut, 7.25);
+    });
+
     test('weekly report includes km totals', () async {
       await db.addOrderEntry(
         dateKey: '2026-10-12',

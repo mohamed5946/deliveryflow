@@ -756,4 +756,23 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get pleaseWait => 'Please wait…';
+
+  @override
+  String get routeMapTitle => 'Route map';
+
+  @override
+  String get martLabel => 'Mart';
+
+  @override
+  String get customerLabel => 'Customer';
+
+  @override
+  String get outgoingLegShort => 'Outgoing';
+
+  @override
+  String get returnLegShort => 'Return';
+
+  @override
+  String get noRouteData =>
+      'No route data for this order (created before tracking)';
 }
