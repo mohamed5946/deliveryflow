@@ -1,0 +1,648 @@
+import 'package:hive/hive.dart';
+
+/// Schema version for migrations. Bump when a model changes shape.
+const int kSchemaVersion = 1;
+
+// ---------------------------------------------------------------------------
+// UserSettings (typeId 0)
+// ---------------------------------------------------------------------------
+
+@HiveType(typeId: 0)
+class UserSettings extends HiveObject {
+  @HiveField(0)
+  String displayName;
+  @HiveField(1)
+  String languageCode; // 'ar' | 'en'
+  @HiveField(2)
+  int themeMode; // 0=system, 1=light, 2=dark
+  @HiveField(3)
+  int dailyReminderHour;
+  @HiveField(4)
+  int dailyReminderMinute;
+  @HiveField(5)
+  bool dailyReminderEnabled;
+  @HiveField(6)
+  int scheduleReminderHour;
+  @HiveField(7)
+  int scheduleReminderMinute;
+  @HiveField(8)
+  bool scheduleReminderEnabled;
+  @HiveField(9)
+  int reportReminderHour;
+  @HiveField(10)
+  int reportReminderMinute;
+  @HiveField(11)
+  bool reportReminderEnabled;
+  @HiveField(12)
+  int followUpReminderHour;
+  @HiveField(13)
+  int followUpReminderMinute;
+  @HiveField(14)
+  bool followUpReminderEnabled;
+  @HiveField(15)
+  int? weeklyOrderGoal;
+  @HiveField(16)
+  double? weeklyWorkHoursGoal;
+  @HiveField(17)
+  int defaultBreakDurationMinutes;
+  @HiveField(18)
+  bool notificationsEnabled;
+  @HiveField(19)
+  bool onboardingDone;
+
+  UserSettings({
+    this.displayName = '',
+    this.languageCode = 'ar',
+    this.themeMode = 0,
+    this.dailyReminderHour = 21,
+    this.dailyReminderMinute = 0,
+    this.dailyReminderEnabled = true,
+    this.scheduleReminderHour = 10,
+    this.scheduleReminderMinute = 0,
+    this.scheduleReminderEnabled = true,
+    this.reportReminderHour = 20,
+    this.reportReminderMinute = 0,
+    this.reportReminderEnabled = true,
+    this.followUpReminderHour = 22,
+    this.followUpReminderMinute = 30,
+    this.followUpReminderEnabled = false,
+    this.weeklyOrderGoal,
+    this.weeklyWorkHoursGoal,
+    this.defaultBreakDurationMinutes = 30,
+    this.notificationsEnabled = true,
+    this.onboardingDone = false,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'displayName': displayName,
+        'languageCode': languageCode,
+        'themeMode': themeMode,
+        'dailyReminderHour': dailyReminderHour,
+        'dailyReminderMinute': dailyReminderMinute,
+        'dailyReminderEnabled': dailyReminderEnabled,
+        'scheduleReminderHour': scheduleReminderHour,
+        'scheduleReminderMinute': scheduleReminderMinute,
+        'scheduleReminderEnabled': scheduleReminderEnabled,
+        'reportReminderHour': reportReminderHour,
+        'reportReminderMinute': reportReminderMinute,
+        'reportReminderEnabled': reportReminderEnabled,
+        'followUpReminderHour': followUpReminderHour,
+        'followUpReminderMinute': followUpReminderMinute,
+        'followUpReminderEnabled': followUpReminderEnabled,
+        'weeklyOrderGoal': weeklyOrderGoal,
+        'weeklyWorkHoursGoal': weeklyWorkHoursGoal,
+        'defaultBreakDurationMinutes': defaultBreakDurationMinutes,
+        'notificationsEnabled': notificationsEnabled,
+        'onboardingDone': onboardingDone,
+        'schemaVersion': kSchemaVersion,
+      };
+
+  static UserSettings fromJson(Map<String, dynamic> json) => UserSettings(
+        displayName: (json['displayName'] as String?) ?? '',
+        languageCode: (json['languageCode'] as String?) ?? 'ar',
+        themeMode: (json['themeMode'] as num?)?.toInt() ?? 0,
+        dailyReminderHour: (json['dailyReminderHour'] as num?)?.toInt() ?? 21,
+        dailyReminderMinute:
+            (json['dailyReminderMinute'] as num?)?.toInt() ?? 0,
+        dailyReminderEnabled: (json['dailyReminderEnabled'] as bool?) ?? true,
+        scheduleReminderHour:
+            (json['scheduleReminderHour'] as num?)?.toInt() ?? 10,
+        scheduleReminderMinute:
+            (json['scheduleReminderMinute'] as num?)?.toInt() ?? 0,
+        scheduleReminderEnabled:
+            (json['scheduleReminderEnabled'] as bool?) ?? true,
+        reportReminderHour: (json['reportReminderHour'] as num?)?.toInt() ?? 20,
+        reportReminderMinute:
+            (json['reportReminderMinute'] as num?)?.toInt() ?? 0,
+        reportReminderEnabled: (json['reportReminderEnabled'] as bool?) ?? true,
+        followUpReminderHour:
+            (json['followUpReminderHour'] as num?)?.toInt() ?? 22,
+        followUpReminderMinute:
+            (json['followUpReminderMinute'] as num?)?.toInt() ?? 30,
+        followUpReminderEnabled:
+            (json['followUpReminderEnabled'] as bool?) ?? false,
+        weeklyOrderGoal: (json['weeklyOrderGoal'] as num?)?.toInt(),
+        weeklyWorkHoursGoal: (json['weeklyWorkHoursGoal'] as num?)?.toDouble(),
+        defaultBreakDurationMinutes:
+            (json['defaultBreakDurationMinutes'] as num?)?.toInt() ?? 30,
+        notificationsEnabled: (json['notificationsEnabled'] as bool?) ?? true,
+        onboardingDone: (json['onboardingDone'] as bool?) ?? false,
+      );
+}
+
+class UserSettingsAdapter extends TypeAdapter<UserSettings> {
+  @override
+  final int typeId = 0;
+
+  @override
+  UserSettings read(BinaryReader reader) {
+    final numOfFields = reader.readByte();
+    final fields = <int, dynamic>{
+      for (var i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
+    };
+    return UserSettings(
+      displayName: (fields[0] as String?) ?? '',
+      languageCode: (fields[1] as String?) ?? 'ar',
+      themeMode: (fields[2] as int?) ?? 0,
+      dailyReminderHour: (fields[3] as int?) ?? 21,
+      dailyReminderMinute: (fields[4] as int?) ?? 0,
+      dailyReminderEnabled: (fields[5] as bool?) ?? true,
+      scheduleReminderHour: (fields[6] as int?) ?? 10,
+      scheduleReminderMinute: (fields[7] as int?) ?? 0,
+      scheduleReminderEnabled: (fields[8] as bool?) ?? true,
+      reportReminderHour: (fields[9] as int?) ?? 20,
+      reportReminderMinute: (fields[10] as int?) ?? 0,
+      reportReminderEnabled: (fields[11] as bool?) ?? true,
+      followUpReminderHour: (fields[12] as int?) ?? 22,
+      followUpReminderMinute: (fields[13] as int?) ?? 30,
+      followUpReminderEnabled: (fields[14] as bool?) ?? false,
+      weeklyOrderGoal: fields[15] as int?,
+      weeklyWorkHoursGoal: (fields[16] as num?)?.toDouble(),
+      defaultBreakDurationMinutes: (fields[17] as int?) ?? 30,
+      notificationsEnabled: (fields[18] as bool?) ?? true,
+      onboardingDone: (fields[19] as bool?) ?? false,
+    );
+  }
+
+  @override
+  void write(BinaryWriter writer, UserSettings obj) {
+    writer
+      ..writeByte(20)
+      ..writeByte(0)
+      ..write(obj.displayName)
+      ..writeByte(1)
+      ..write(obj.languageCode)
+      ..writeByte(2)
+      ..write(obj.themeMode)
+      ..writeByte(3)
+      ..write(obj.dailyReminderHour)
+      ..writeByte(4)
+      ..write(obj.dailyReminderMinute)
+      ..writeByte(5)
+      ..write(obj.dailyReminderEnabled)
+      ..writeByte(6)
+      ..write(obj.scheduleReminderHour)
+      ..writeByte(7)
+      ..write(obj.scheduleReminderMinute)
+      ..writeByte(8)
+      ..write(obj.scheduleReminderEnabled)
+      ..writeByte(9)
+      ..write(obj.reportReminderHour)
+      ..writeByte(10)
+      ..write(obj.reportReminderMinute)
+      ..writeByte(11)
+      ..write(obj.reportReminderEnabled)
+      ..writeByte(12)
+      ..write(obj.followUpReminderHour)
+      ..writeByte(13)
+      ..write(obj.followUpReminderMinute)
+      ..writeByte(14)
+      ..write(obj.followUpReminderEnabled)
+      ..writeByte(15)
+      ..write(obj.weeklyOrderGoal)
+      ..writeByte(16)
+      ..write(obj.weeklyWorkHoursGoal)
+      ..writeByte(17)
+      ..write(obj.defaultBreakDurationMinutes)
+      ..writeByte(18)
+      ..write(obj.notificationsEnabled)
+      ..writeByte(19)
+      ..write(obj.onboardingDone);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// DailySchedule (typeId 1)
+// ---------------------------------------------------------------------------
+
+@HiveType(typeId: 1)
+class DailySchedule extends HiveObject {
+  @HiveField(0)
+  String dateKey; // yyyy-MM-dd
+  @HiveField(1)
+  bool isWorkingDay;
+  @HiveField(2)
+  int startMinutes; // minutes since midnight
+  @HiveField(3)
+  int endMinutes; // minutes since midnight (<= start => overnight)
+  @HiveField(4)
+  int breakDurationMinutes;
+  @HiveField(5)
+  String notes;
+
+  DailySchedule({
+    required this.dateKey,
+    this.isWorkingDay = true,
+    this.startMinutes = 9 * 60,
+    this.endMinutes = 17 * 60,
+    this.breakDurationMinutes = 30,
+    this.notes = '',
+  });
+
+  /// Net planned minutes for this day (0 when it is a day off).
+  int get netPlannedMinutes {
+    if (!isWorkingDay) return 0;
+    var end = endMinutes;
+    if (end <= startMinutes) end += 24 * 60;
+    final gross = end - startMinutes;
+    return gross - breakDurationMinutes.clamp(0, gross);
+  }
+}
+
+class DailyScheduleAdapter extends TypeAdapter<DailySchedule> {
+  @override
+  final int typeId = 1;
+
+  @override
+  DailySchedule read(BinaryReader reader) {
+    final numOfFields = reader.readByte();
+    final fields = <int, dynamic>{
+      for (var i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
+    };
+    return DailySchedule(
+      dateKey: fields[0] as String,
+      isWorkingDay: (fields[1] as bool?) ?? true,
+      startMinutes: (fields[2] as int?) ?? 9 * 60,
+      endMinutes: (fields[3] as int?) ?? 17 * 60,
+      breakDurationMinutes: (fields[4] as int?) ?? 30,
+      notes: (fields[5] as String?) ?? '',
+    );
+  }
+
+  @override
+  void write(BinaryWriter writer, DailySchedule obj) {
+    writer
+      ..writeByte(6)
+      ..writeByte(0)
+      ..write(obj.dateKey)
+      ..writeByte(1)
+      ..write(obj.isWorkingDay)
+      ..writeByte(2)
+      ..write(obj.startMinutes)
+      ..writeByte(3)
+      ..write(obj.endMinutes)
+      ..writeByte(4)
+      ..write(obj.breakDurationMinutes)
+      ..writeByte(5)
+      ..write(obj.notes);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// WorkSchedule (typeId 2)
+// ---------------------------------------------------------------------------
+
+@HiveType(typeId: 2)
+class WorkSchedule extends HiveObject {
+  @HiveField(0)
+  String id;
+  @HiveField(1)
+  String weekStartKey; // Sunday yyyy-MM-dd
+  @HiveField(2)
+  String weekEndKey; // Saturday yyyy-MM-dd
+  @HiveField(3)
+  List<DailySchedule> dailySchedules;
+  @HiveField(4)
+  int createdAtMillis;
+  @HiveField(5)
+  int updatedAtMillis;
+
+  WorkSchedule({
+    required this.id,
+    required this.weekStartKey,
+    required this.weekEndKey,
+    required this.dailySchedules,
+    required this.createdAtMillis,
+    required this.updatedAtMillis,
+  });
+
+  double get totalPlannedHours =>
+      dailySchedules.fold<int>(0, (s, d) => s + d.netPlannedMinutes) / 60.0;
+}
+
+class WorkScheduleAdapter extends TypeAdapter<WorkSchedule> {
+  @override
+  final int typeId = 2;
+
+  @override
+  WorkSchedule read(BinaryReader reader) {
+    final numOfFields = reader.readByte();
+    final fields = <int, dynamic>{
+      for (var i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
+    };
+    return WorkSchedule(
+      id: fields[0] as String,
+      weekStartKey: fields[1] as String,
+      weekEndKey: fields[2] as String,
+      dailySchedules:
+          (fields[3] as List?)?.cast<DailySchedule>() ?? <DailySchedule>[],
+      createdAtMillis: (fields[4] as int?) ?? 0,
+      updatedAtMillis: (fields[5] as int?) ?? 0,
+    );
+  }
+
+  @override
+  void write(BinaryWriter writer, WorkSchedule obj) {
+    writer
+      ..writeByte(6)
+      ..writeByte(0)
+      ..write(obj.id)
+      ..writeByte(1)
+      ..write(obj.weekStartKey)
+      ..writeByte(2)
+      ..write(obj.weekEndKey)
+      ..writeByte(3)
+      ..write(obj.dailySchedules)
+      ..writeByte(4)
+      ..write(obj.createdAtMillis)
+      ..writeByte(5)
+      ..write(obj.updatedAtMillis);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// DailyOrderRecord (typeId 3)
+// ---------------------------------------------------------------------------
+
+@HiveType(typeId: 3)
+class DailyOrderRecord extends HiveObject {
+  @HiveField(0)
+  String id;
+  @HiveField(1)
+  String dateKey; // yyyy-MM-dd (unique)
+  @HiveField(2)
+  int completedOrders; // >= 0 ; zero is a valid recorded value
+  @HiveField(3)
+  String notes;
+  @HiveField(4)
+  bool isConfirmed;
+  @HiveField(5)
+  int createdAtMillis;
+  @HiveField(6)
+  int updatedAtMillis;
+
+  DailyOrderRecord({
+    required this.id,
+    required this.dateKey,
+    required this.completedOrders,
+    this.notes = '',
+    this.isConfirmed = true,
+    required this.createdAtMillis,
+    required this.updatedAtMillis,
+  }) : assert(completedOrders >= 0, 'completedOrders cannot be negative');
+}
+
+class DailyOrderRecordAdapter extends TypeAdapter<DailyOrderRecord> {
+  @override
+  final int typeId = 3;
+
+  @override
+  DailyOrderRecord read(BinaryReader reader) {
+    final numOfFields = reader.readByte();
+    final fields = <int, dynamic>{
+      for (var i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
+    };
+    return DailyOrderRecord(
+      id: fields[0] as String,
+      dateKey: fields[1] as String,
+      completedOrders: (fields[2] as int?) ?? 0,
+      notes: (fields[3] as String?) ?? '',
+      isConfirmed: (fields[4] as bool?) ?? true,
+      createdAtMillis: (fields[5] as int?) ?? 0,
+      updatedAtMillis: (fields[6] as int?) ?? 0,
+    );
+  }
+
+  @override
+  void write(BinaryWriter writer, DailyOrderRecord obj) {
+    writer
+      ..writeByte(7)
+      ..writeByte(0)
+      ..write(obj.id)
+      ..writeByte(1)
+      ..write(obj.dateKey)
+      ..writeByte(2)
+      ..write(obj.completedOrders)
+      ..writeByte(3)
+      ..write(obj.notes)
+      ..writeByte(4)
+      ..write(obj.isConfirmed)
+      ..writeByte(5)
+      ..write(obj.createdAtMillis)
+      ..writeByte(6)
+      ..write(obj.updatedAtMillis);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// BreakInterval (typeId 4) + WorkSession (typeId 5)
+// ---------------------------------------------------------------------------
+
+@HiveType(typeId: 4)
+class BreakInterval extends HiveObject {
+  @HiveField(0)
+  int startMillis;
+  @HiveField(1)
+  int? endMillis; // null => break still in progress
+
+  BreakInterval({required this.startMillis, this.endMillis});
+
+  int get durationMillis =>
+      (endMillis ?? DateTime.now().millisecondsSinceEpoch) - startMillis;
+}
+
+class BreakIntervalAdapter extends TypeAdapter<BreakInterval> {
+  @override
+  final int typeId = 4;
+
+  @override
+  BreakInterval read(BinaryReader reader) {
+    final numOfFields = reader.readByte();
+    final fields = <int, dynamic>{
+      for (var i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
+    };
+    return BreakInterval(
+      startMillis: fields[0] as int,
+      endMillis: fields[1] as int?,
+    );
+  }
+
+  @override
+  void write(BinaryWriter writer, BreakInterval obj) {
+    writer
+      ..writeByte(2)
+      ..writeByte(0)
+      ..write(obj.startMillis)
+      ..writeByte(1)
+      ..write(obj.endMillis);
+  }
+}
+
+@HiveType(typeId: 5)
+class WorkSession extends HiveObject {
+  @HiveField(0)
+  String id;
+  @HiveField(1)
+  String dateKey; // calendar date the session belongs to
+  @HiveField(2)
+  int startMillis;
+  @HiveField(3)
+  int? endMillis; // null => session still active
+  @HiveField(4)
+  List<BreakInterval> breaks;
+  @HiveField(5)
+  String notes;
+  @HiveField(6)
+  int status; // 0=active, 1=onBreak, 2=finished
+  // Manual-entry support:
+  @HiveField(7)
+  int? manualStartMinutes; // minutes since midnight
+  @HiveField(8)
+  int? manualEndMinutes;
+  @HiveField(9)
+  int manualBreakMinutes;
+  @HiveField(10)
+  bool isManual;
+
+  WorkSession({
+    required this.id,
+    required this.dateKey,
+    required this.startMillis,
+    this.endMillis,
+    List<BreakInterval>? breaks,
+    this.notes = '',
+    this.status = 0,
+    this.manualStartMinutes,
+    this.manualEndMinutes,
+    this.manualBreakMinutes = 0,
+    this.isManual = false,
+  }) : breaks = breaks ?? [];
+
+  bool get isActive => status == 0 || status == 1;
+  bool get isOnBreak => status == 1;
+
+  int get breakMillis =>
+      breaks.fold<int>(0, (s, b) => s + b.durationMillis);
+
+  /// Net working milliseconds for timer sessions.
+  int get netMillis {
+    final end = endMillis ?? DateTime.now().millisecondsSinceEpoch;
+    return (end - startMillis) - breakMillis;
+  }
+
+  /// Net working minutes (timer or manual).
+  int get netMinutes {
+    if (isManual) {
+      final s = manualStartMinutes ?? 0;
+      var e = manualEndMinutes ?? 0;
+      if (e <= s) e += 24 * 60;
+      final gross = e - s;
+      return gross - manualBreakMinutes.clamp(0, gross);
+    }
+    return (netMillis / 60000).round().clamp(0, 1 << 30);
+  }
+}
+
+class WorkSessionAdapter extends TypeAdapter<WorkSession> {
+  @override
+  final int typeId = 5;
+
+  @override
+  WorkSession read(BinaryReader reader) {
+    final numOfFields = reader.readByte();
+    final fields = <int, dynamic>{
+      for (var i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
+    };
+    return WorkSession(
+      id: fields[0] as String,
+      dateKey: fields[1] as String,
+      startMillis: fields[2] as int,
+      endMillis: fields[3] as int?,
+      breaks: (fields[4] as List?)?.cast<BreakInterval>() ?? [],
+      notes: (fields[5] as String?) ?? '',
+      status: (fields[6] as int?) ?? 0,
+      manualStartMinutes: fields[7] as int?,
+      manualEndMinutes: fields[8] as int?,
+      manualBreakMinutes: (fields[9] as int?) ?? 0,
+      isManual: (fields[10] as bool?) ?? false,
+    );
+  }
+
+  @override
+  void write(BinaryWriter writer, WorkSession obj) {
+    writer
+      ..writeByte(11)
+      ..writeByte(0)
+      ..write(obj.id)
+      ..writeByte(1)
+      ..write(obj.dateKey)
+      ..writeByte(2)
+      ..write(obj.startMillis)
+      ..writeByte(3)
+      ..write(obj.endMillis)
+      ..writeByte(4)
+      ..write(obj.breaks)
+      ..writeByte(5)
+      ..write(obj.notes)
+      ..writeByte(6)
+      ..write(obj.status)
+      ..writeByte(7)
+      ..write(obj.manualStartMinutes)
+      ..writeByte(8)
+      ..write(obj.manualEndMinutes)
+      ..writeByte(9)
+      ..write(obj.manualBreakMinutes)
+      ..writeByte(10)
+      ..write(obj.isManual);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// WeeklyReport (derived, not stored)
+// ---------------------------------------------------------------------------
+
+class DayBreakdown {
+  final String dateKey;
+  final int? orders; // null => unrecorded
+  final int workMinutes; // recorded net minutes (0 when none)
+  final double plannedHours;
+  final bool isWorkingDay;
+
+  const DayBreakdown({
+    required this.dateKey,
+    required this.orders,
+    required this.workMinutes,
+    required this.plannedHours,
+    required this.isWorkingDay,
+  });
+}
+
+class WeeklyReport {
+  final String weekStartKey;
+  final String weekEndKey;
+  final int totalOrders;
+  final double totalRecordedHours;
+  final double totalPlannedHours;
+  final List<DayBreakdown> days;
+  final double? averageOrdersPerWorkingDay;
+  final double? averageHoursPerWorkingDay;
+  final double? ordersPerWorkingHour;
+  final String? bestDayKey;
+  final List<String> missingRecordDates;
+  final int recordedDaysCount;
+
+  const WeeklyReport({
+    required this.weekStartKey,
+    required this.weekEndKey,
+    required this.totalOrders,
+    required this.totalRecordedHours,
+    required this.totalPlannedHours,
+    required this.days,
+    required this.averageOrdersPerWorkingDay,
+    required this.averageHoursPerWorkingDay,
+    required this.ordersPerWorkingHour,
+    required this.bestDayKey,
+    required this.missingRecordDates,
+    required this.recordedDaysCount,
+  });
+}
