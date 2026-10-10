@@ -17,7 +17,8 @@ class AppTheme {
       useMaterial3: true,
       colorScheme: scheme,
       brightness: Brightness.dark,
-      scaffoldBackgroundColor: const Color(0xFF070B16),
+      // Transparent so the AuroraBackground behind every screen shows through.
+      scaffoldBackgroundColor: Colors.transparent,
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -68,7 +69,8 @@ class AppTheme {
       useMaterial3: true,
       colorScheme: scheme,
       brightness: Brightness.light,
-      scaffoldBackgroundColor: const Color(0xFFF2F6FD),
+      // Transparent so the AuroraBackground behind every screen shows through.
+      scaffoldBackgroundColor: Colors.transparent,
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.transparent,
         elevation: 0,

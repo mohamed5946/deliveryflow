@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/providers.dart';
+import '../theme/design_system.dart';
 import '../features/dashboard/dashboard_screen.dart';
 import '../features/daily_orders/order_entry_screen.dart';
 import '../features/history/history_screen.dart';
@@ -71,17 +72,24 @@ GoRouter buildRouter(WidgetRef ref) {
         builder: (context, state, navigationShell) {
           final l10n = AppLocalizations.of(context);
           return Scaffold(
-            body: navigationShell,
-            bottomNavigationBar: NavigationBar(
+            backgroundColor: Colors.transparent,
+            body: Stack(
+              children: [
+                const AuroraBackground(),
+                navigationShell,
+              ],
+            ),
+            bottomNavigationBar: GlassNavBar(
               selectedIndex: navigationShell.currentIndex,
               onDestinationSelected: (i) => navigationShell.goBranch(i),
-              destinations: [
-                for (var i = 0; i < _paths.length; i++)
-                  NavigationDestination(
-                    icon: Icon(_iconFor(
-                        i, i == navigationShell.currentIndex)),
-                    label: _labelFor(l10n, i),
-                  ),
+              icons: [
+                for (var i = 0; i < _paths.length; i++) _iconFor(i, false),
+              ],
+              selectedIcons: [
+                for (var i = 0; i < _paths.length; i++) _iconFor(i, true),
+              ],
+              labels: [
+                for (var i = 0; i < _paths.length; i++) _labelFor(l10n, i),
               ],
             ),
           );

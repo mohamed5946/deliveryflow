@@ -88,8 +88,8 @@ void main() {
           () => db.upsertOrderRecord(dateKey: key, completedOrders: 5));
       await pumpScreen(tester, const DashboardScreen(), db: db);
       expect(find.textContaining('صباح الخير'), findsOneWidget);
-      // Section header + quick-action button share the label.
-      expect(find.text('تسجيل أوردرات اليوم'), findsNWidgets(2));
+      // Quick-action button only (no separate section header anymore).
+      expect(find.text('تسجيل أوردرات اليوم'), findsOneWidget);
       expect(find.text('تسجيل ساعات العمل'), findsOneWidget);
       // RTL directionality for Arabic.
       final dir = tester.widget<Directionality>(
@@ -137,8 +137,8 @@ void main() {
       final dir = tester.widget<Directionality>(
           find.byType(Directionality).first);
       expect(dir.textDirection, TextDirection.ltr);
-      // Empty-state action + quick-action header + quick-action button.
-      expect(find.text('Record today\'s orders'), findsNWidgets(3));
+      // Empty-state action button only (quick actions hidden when empty).
+      expect(find.text('Record today\'s orders'), findsOneWidget);
     });
   });
 
