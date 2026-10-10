@@ -6,6 +6,7 @@ import 'package:geolocator/geolocator.dart';
 
 import '../database/database_service.dart';
 import '../providers.dart';
+import 'route_snap_service.dart';
 
 /// Which leg of the delivery is being tracked.
 enum TrackingSegment { outgoing, returning }
@@ -45,6 +46,7 @@ class DeliveryTrackingService {
   DeliveryTrackingService(this._db);
 
   final DatabaseService _db;
+  final RouteSnapService _snap = RouteSnapService();
 
   StreamSubscription<Position>? _positionSub;
   Timer? _uiTimer;
@@ -63,8 +65,8 @@ class DeliveryTrackingService {
 
   bool get isTracking => _trackingOrderId != null;
 
-  static const double _maxAcceptedAccuracyM = 25;
-  static const double _minStepM = 5;
+  static const double _maxAcceptedAccuracyM = 50;
+  static const double _minStepM = 3;
 
   /// Requests all location permissions needed for tracking.
   /// Returns true when foreground location is granted.
@@ -146,7 +148,7 @@ class DeliveryTrackingService {
 
     const settings = LocationSettings(
       accuracy: LocationAccuracy.high,
-      distanceFilter: 5,
+      distanceFilter: 3,
     );
     _positionSub =
         Geolocator.getPositionStream(locationSettings: settings).listen(
@@ -266,13 +268,21 @@ class DeliveryTrackingService {
     final outLat = List<double>.from(_routeLat);
     final outLng = List<double>.from(_routeLng);
     await _stopTrackingInternal();
+    // Final distance: snap the trail to real roads for Google-Maps-like
+    // accuracy. Falls back to the live GPS sum when offline.
+    final snappedKm = await _snap.snappedDistanceKm(
+      lat: outLat,
+      lng: outLng,
+    );
+    final finalKmOut =
+        snappedKm != null && snappedKm > 0 ? snappedKm : kmOut;
     final now = DateTime.now().millisecondsSinceEpoch;
     await _db.updateOrderEntry(
       dateKey: dateKey,
       entryId: entryId,
       status: 2,
       deliveredTimeMillis: now,
-      gpsKmOut: _round2(kmOut),
+      gpsKmOut: _round2(finalKmOut),
       outgoingDurationSec: durationSec,
       routeOutLat: outLat,
       routeOutLng: outLng,
@@ -298,13 +308,19 @@ class DeliveryTrackingService {
     final backLat = List<double>.from(_routeLat);
     final backLng = List<double>.from(_routeLng);
     await _stopTrackingInternal();
+    final snappedKm = await _snap.snappedDistanceKm(
+      lat: backLat,
+      lng: backLng,
+    );
+    final finalKmBack =
+        snappedKm != null && snappedKm > 0 ? snappedKm : kmBack;
     final now = DateTime.now().millisecondsSinceEpoch;
     await _db.updateOrderEntry(
       dateKey: dateKey,
       entryId: entryId,
       status: 3,
       martArrivedTimeMillis: now,
-      gpsKmBack: _round2(kmBack),
+      gpsKmBack: _round2(finalKmBack),
       returnDurationSec: durationSec,
       timestampMillis: now,
       routeBackLat: backLat,

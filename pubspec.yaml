@@ -27,6 +27,7 @@ dependencies:
   flutter_foreground_task: ^8.13.0
   flutter_map: ^6.1.0
   latlong2: ^0.9.1
+  http: ^1.2.2
   file_picker: ^13.1.0
 
 dev_dependencies:
