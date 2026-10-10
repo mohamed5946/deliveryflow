@@ -1,0 +1,469 @@
+import 'dart:convert';
+
+import 'package:hive/hive.dart';
+import 'package:path_provider/path_provider.dart';
+
+import '../date_time/week_calendar.dart';
+import 'models.dart';
+
+/// Local-first persistence layer built on Hive.
+///
+/// Boxes:
+/// - `settings`   : single [UserSettings] under key `'user'`.
+/// - `schedules`   : [WorkSchedule] keyed by week-start dateKey (unique per week).
+/// - `orders`     : [DailyOrderRecord] keyed by dateKey (unique per day).
+/// - `sessions`   : [WorkSession] with auto-increment int keys.
+/// - `meta`       : schema version + misc flags.
+class DatabaseService {
+  static const String _settingsBox = 'settings';
+  static const String _schedulesBox = 'schedules';
+  static const String _ordersBox = 'orders';
+  static const String _sessionsBox = 'sessions';
+  static const String _metaBox = 'meta';
+
+  late final Box<UserSettings> _settings;
+  late final Box<WorkSchedule> _schedules;
+  late final Box<DailyOrderRecord> _orders;
+  late final Box<WorkSession> _sessions;
+  late final Box _meta;
+
+  bool get isOpen => Hive.isBoxOpen(_settingsBox);
+
+  static void registerAdapters() {
+    void reg<T>(TypeAdapter<T> adapter) {
+      if (!Hive.isAdapterRegistered(adapter.typeId)) {
+        Hive.registerAdapter<T>(adapter);
+      }
+    }
+
+    reg<UserSettings>(UserSettingsAdapter());
+    reg<DailySchedule>(DailyScheduleAdapter());
+    reg<WorkSchedule>(WorkScheduleAdapter());
+    reg<DailyOrderRecord>(DailyOrderRecordAdapter());
+    reg<BreakInterval>(BreakIntervalAdapter());
+    reg<WorkSession>(WorkSessionAdapter());
+  }
+
+  Future<void> init({String? hivePath}) async {
+    if (hivePath != null) {
+      Hive.init(hivePath);
+    } else {
+      final dir = await getApplicationDocumentsDirectory();
+      Hive.init(dir.path);
+    }
+    registerAdapters();
+    _settings = await Hive.openBox<UserSettings>(_settingsBox);
+    _schedules = await Hive.openBox<WorkSchedule>(_schedulesBox);
+    _orders = await Hive.openBox<DailyOrderRecord>(_ordersBox);
+    _sessions = await Hive.openBox<WorkSession>(_sessionsBox);
+    _meta = await Hive.openBox(_metaBox);
+    await _migrateIfNeeded();
+    if (!_settings.containsKey('user')) {
+      await _settings.put('user', UserSettings());
+    }
+  }
+
+  Future<void> _migrateIfNeeded() async {
+    final stored = _meta.get('schemaVersion') as int?;
+    if (stored == null || stored < kSchemaVersion) {
+      // v1 is the first schema; future versions migrate here.
+      await _meta.put('schemaVersion', kSchemaVersion);
+    }
+  }
+
+  // ------------------------------------------------------------- settings --
+  UserSettings get settings => _settings.get('user') ?? UserSettings();
+
+  Future<void> saveSettings(UserSettings s) => _settings.put('user', s);
+
+  // ------------------------------------------------------------ schedules --
+  /// Saves a schedule; one schedule per week-start (updates in place).
+  Future<void> saveSchedule(WorkSchedule schedule) =>
+      _schedules.put(schedule.weekStartKey, schedule);
+
+  WorkSchedule? scheduleForWeek(DateTime anyDayInWeek) =>
+      _schedules.get(WeekCalendar.dateKey(WeekCalendar.weekStart(anyDayInWeek)));
+
+  bool hasScheduleForWeek(DateTime anyDayInWeek) =>
+      scheduleForWeek(anyDayInWeek) != null;
+
+  // --------------------------------------------------------------- orders --
+  /// Insert or update the unique daily record for [dateKey].
+  Future<DailyOrderRecord> upsertOrderRecord({
+    required String dateKey,
+    required int completedOrders,
+    String notes = '',
+  }) async {
+    if (completedOrders < 0) {
+      throw ArgumentError('completedOrders cannot be negative');
+    }
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final existing = _orders.get(dateKey);
+    if (existing != null) {
+      existing.completedOrders = completedOrders;
+      existing.notes = notes;
+      existing.isConfirmed = true;
+      existing.updatedAtMillis = now;
+      await existing.save();
+      return existing;
+    }
+    final record = DailyOrderRecord(
+      id: 'ord_$dateKey',
+      dateKey: dateKey,
+      completedOrders: completedOrders,
+      notes: notes,
+      createdAtMillis: now,
+      updatedAtMillis: now,
+    );
+    await _orders.put(dateKey, record);
+    return record;
+  }
+
+  DailyOrderRecord? orderRecord(String dateKey) => _orders.get(dateKey);
+
+  // ------------------------------------------------------------- sessions --
+  Future<WorkSession> startSession(String dateKey, {String notes = ''}) async {
+    final active = activeSession();
+    if (active != null) {
+      throw StateError('A work session is already active');
+    }
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final session = WorkSession(
+      id: 'ses_${now}_${_sessions.length}',
+      dateKey: dateKey,
+      startMillis: now,
+      notes: notes,
+      status: 0,
+    );
+    await _sessions.add(session);
+    return session;
+  }
+
+  WorkSession? activeSession() {
+    for (final s in _sessions.values) {
+      if (s.isActive) return s;
+    }
+    return null;
+  }
+
+  Future<void> saveSession(WorkSession s) => s.save();
+
+  Future<WorkSession> saveManualSession({
+    required String dateKey,
+    required int startMinutes,
+    required int endMinutes,
+    required int breakMinutes,
+    String notes = '',
+  }) async {
+    if (endMinutes == startMinutes) {
+      throw ArgumentError('End time must differ from start time');
+    }
+    var end = endMinutes;
+    if (end <= startMinutes) end += 24 * 60;
+    final gross = end - startMinutes;
+    if (gross <= 0) throw ArgumentError('Invalid shift duration');
+    if (breakMinutes < 0 || breakMinutes > gross) {
+      throw ArgumentError('Invalid break duration');
+    }
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final session = WorkSession(
+      id: 'man_${dateKey}_$now',
+      dateKey: dateKey,
+      startMillis: now,
+      endMillis: now,
+      notes: notes,
+      status: 2,
+      manualStartMinutes: startMinutes,
+      manualEndMinutes: endMinutes,
+      manualBreakMinutes: breakMinutes,
+      isManual: true,
+    );
+    await _sessions.add(session);
+    return session;
+  }
+
+  List<WorkSession> sessionsForDate(String dateKey) =>
+      _sessions.values.where((s) => s.dateKey == dateKey).toList();
+
+  /// Net recorded minutes for a date from finished + active sessions.
+  int recordedMinutesForDate(String dateKey) {
+    var total = 0;
+    for (final s in sessionsForDate(dateKey)) {
+      if (s.status == 2 || s.isActive) total += s.netMinutes;
+    }
+    return total;
+  }
+
+  // ---------------------------------------------------------------- counts --
+  Map<String, int> recordCounts() => {
+        'schedules': _schedules.length,
+        'orderRecords': _orders.length,
+        'sessions': _sessions.length,
+      };
+
+  // ---------------------------------------------------------------- export --
+  String exportCsv() {
+    final rows = <List<String>>[
+      ['date', 'orders', 'work_minutes', 'notes']
+    ];
+    final keys = _orders.keys.cast<String>().toList()..sort();
+    for (final k in keys) {
+      final r = _orders.get(k)!;
+      rows.add([
+        r.dateKey,
+        r.completedOrders.toString(),
+        recordedMinutesForDate(r.dateKey).toString(),
+        '"${r.notes.replaceAll('"', '""')}"',
+      ]);
+    }
+    return rows.map((r) => r.join(',')).join('\n');
+  }
+
+  String backupJson() {
+    final data = {
+      'schemaVersion': kSchemaVersion,
+      'exportedAt': DateTime.now().toIso8601String(),
+      'settings': settings.toJson(),
+      'orders': _orders.values
+          .map((r) => {
+                'dateKey': r.dateKey,
+                'completedOrders': r.completedOrders,
+                'notes': r.notes,
+                'isConfirmed': r.isConfirmed,
+              })
+          .toList(),
+      'schedules': _schedules.values
+          .map((s) => {
+                'weekStartKey': s.weekStartKey,
+                'weekEndKey': s.weekEndKey,
+                'days': s.dailySchedules
+                    .map((d) => {
+                          'dateKey': d.dateKey,
+                          'isWorkingDay': d.isWorkingDay,
+                          'startMinutes': d.startMinutes,
+                          'endMinutes': d.endMinutes,
+                          'breakDurationMinutes': d.breakDurationMinutes,
+                          'notes': d.notes,
+                        })
+                    .toList(),
+              })
+          .toList(),
+      'sessions': _sessions.values
+          .map((s) => {
+                'dateKey': s.dateKey,
+                'startMillis': s.startMillis,
+                'endMillis': s.endMillis,
+                'status': s.status,
+                'isManual': s.isManual,
+                'manualStartMinutes': s.manualStartMinutes,
+                'manualEndMinutes': s.manualEndMinutes,
+                'manualBreakMinutes': s.manualBreakMinutes,
+                'notes': s.notes,
+                'breaks': s.breaks
+                    .map((b) => {
+                          'startMillis': b.startMillis,
+                          'endMillis': b.endMillis,
+                        })
+                    .toList(),
+              })
+          .toList(),
+    };
+    return const JsonEncoder.withIndent('  ').convert(data);
+  }
+
+  Future<void> restoreFromJson(String jsonStr) async {
+    final data = json.decode(jsonStr) as Map<String, dynamic>;
+    await _orders.clear();
+    await _schedules.clear();
+    await _sessions.clear();
+    final now = DateTime.now().millisecondsSinceEpoch;
+    for (final o in (data['orders'] as List? ?? [])) {
+      final m = o as Map<String, dynamic>;
+      await _orders.put(
+        m['dateKey'] as String,
+        DailyOrderRecord(
+          id: 'ord_${m['dateKey']}',
+          dateKey: m['dateKey'] as String,
+          completedOrders: (m['completedOrders'] as num).toInt(),
+          notes: (m['notes'] as String?) ?? '',
+          createdAtMillis: now,
+          updatedAtMillis: now,
+        ),
+      );
+    }
+    for (final s in (data['schedules'] as List? ?? [])) {
+      final m = s as Map<String, dynamic>;
+      final days = <DailySchedule>[];
+      for (final d in (m['days'] as List? ?? [])) {
+        final dm = d as Map<String, dynamic>;
+        days.add(DailySchedule(
+          dateKey: dm['dateKey'] as String,
+          isWorkingDay: (dm['isWorkingDay'] as bool?) ?? true,
+          startMinutes: (dm['startMinutes'] as num?)?.toInt() ?? 540,
+          endMinutes: (dm['endMinutes'] as num?)?.toInt() ?? 1020,
+          breakDurationMinutes:
+              (dm['breakDurationMinutes'] as num?)?.toInt() ?? 30,
+          notes: (dm['notes'] as String?) ?? '',
+        ));
+      }
+      final sched = WorkSchedule(
+        id: 'sch_${m['weekStartKey']}',
+        weekStartKey: m['weekStartKey'] as String,
+        weekEndKey: m['weekEndKey'] as String,
+        dailySchedules: days,
+        createdAtMillis: now,
+        updatedAtMillis: now,
+      );
+      await _schedules.put(sched.weekStartKey, sched);
+    }
+    for (final s in (data['sessions'] as List? ?? [])) {
+      final m = s as Map<String, dynamic>;
+      final breaks = <BreakInterval>[];
+      for (final b in (m['breaks'] as List? ?? [])) {
+        final bm = b as Map<String, dynamic>;
+        breaks.add(BreakInterval(
+          startMillis: (bm['startMillis'] as num).toInt(),
+          endMillis: (bm['endMillis'] as num?)?.toInt(),
+        ));
+      }
+      await _sessions.add(WorkSession(
+        id: 'res_$now',
+        dateKey: m['dateKey'] as String,
+        startMillis: (m['startMillis'] as num).toInt(),
+        endMillis: (m['endMillis'] as num?)?.toInt(),
+        breaks: breaks,
+        notes: (m['notes'] as String?) ?? '',
+        status: (m['status'] as num?)?.toInt() ?? 2,
+        manualStartMinutes: (m['manualStartMinutes'] as num?)?.toInt(),
+        manualEndMinutes: (m['manualEndMinutes'] as num?)?.toInt(),
+        manualBreakMinutes: (m['manualBreakMinutes'] as num?)?.toInt() ?? 0,
+        isManual: (m['isManual'] as bool?) ?? false,
+      ));
+    }
+    if (data['settings'] is Map) {
+      await _settings.put(
+          'user',
+          UserSettings.fromJson(
+              Map<String, dynamic>.from(data['settings'] as Map)));
+    }
+  }
+
+  Future<void> clearAll() async {
+    await _orders.clear();
+    await _schedules.clear();
+    await _sessions.clear();
+    await _settings.put('user', UserSettings());
+  }
+
+  // ---------------------------------------------------------------- report --
+  /// Builds the weekly report for the week containing [anyDayInWeek].
+  ///
+  /// Averages use recorded days only — unrecorded days are never treated
+  /// as zero. [WeeklyReport.missingRecordDates] lists days with no data.
+  WeeklyReport buildWeeklyReport(DateTime anyDayInWeek) {
+    final start = WeekCalendar.weekStart(anyDayInWeek);
+    final days = WeekCalendar.weekDays(anyDayInWeek);
+    final schedule = scheduleForWeek(anyDayInWeek);
+    final schedByDay = <String, DailySchedule>{
+      for (final d in schedule?.dailySchedules ?? []) d.dateKey: d
+    };
+
+    var totalOrders = 0;
+    var totalMinutes = 0;
+    var recordedDays = 0;
+    var workingDaysWithData = 0;
+    var workingMinutesSum = 0;
+    String? bestDay;
+    var bestOrders = -1;
+    final missing = <String>[];
+    final breakdown = <DayBreakdown>[];
+
+    for (final day in days) {
+      final key = WeekCalendar.dateKey(day);
+      final order = _orders.get(key);
+      final minutes = recordedMinutesForDate(key);
+      final sched = schedByDay[key];
+      final isWorking = sched?.isWorkingDay ?? true;
+      final planned = (sched?.netPlannedMinutes ?? 0) / 60.0;
+
+      final hasData = order != null || minutes > 0;
+      if (!hasData) missing.add(key);
+      if (hasData) recordedDays++;
+
+      final orders = order?.completedOrders;
+      if (orders != null) {
+        totalOrders += orders;
+        if (orders > bestOrders) {
+          bestOrders = orders;
+          bestDay = key;
+        }
+      }
+      totalMinutes += minutes;
+      if (isWorking && hasData) {
+        workingDaysWithData++;
+        workingMinutesSum += minutes;
+      }
+      breakdown.add(DayBreakdown(
+        dateKey: key,
+        orders: orders,
+        workMinutes: minutes,
+        plannedHours: planned,
+        isWorkingDay: isWorking,
+      ));
+    }
+
+    final totalHours = totalMinutes / 60.0;
+    final plannedHours =
+        schedule?.totalPlannedHours ?? 0.0;
+
+    double? avgOrders;
+    if (workingDaysWithData > 0) {
+      var sum = 0;
+      var n = 0;
+      for (final d in breakdown) {
+        if (d.isWorkingDay && d.orders != null) {
+          sum += d.orders!;
+          n++;
+        }
+      }
+      if (n > 0) avgOrders = sum / n;
+    }
+    double? avgHours;
+    if (workingDaysWithData > 0) avgHours = (workingMinutesSum / 60.0) / workingDaysWithData;
+    double? ordersPerHour;
+    if (totalHours > 0) ordersPerHour = totalOrders / totalHours;
+
+    return WeeklyReport(
+      weekStartKey: WeekCalendar.dateKey(start),
+      weekEndKey: WeekCalendar.dateKey(start.add(const Duration(days: 6))),
+      totalOrders: totalOrders,
+      totalRecordedHours: totalHours,
+      totalPlannedHours: plannedHours,
+      days: breakdown,
+      averageOrdersPerWorkingDay: avgOrders,
+      averageHoursPerWorkingDay: avgHours,
+      ordersPerWorkingHour: ordersPerHour,
+      bestDayKey: bestDay,
+      missingRecordDates: missing,
+      recordedDaysCount: recordedDays,
+    );
+  }
+
+  /// Shareable plain-text summary of a report.
+  String reportShareText(WeeklyReport r,
+      {required String Function(String) dayLabel}) {
+    final b = StringBuffer();
+    b.writeln('${r.weekStartKey} – ${r.weekEndKey}');
+    b.writeln('Orders: ${r.totalOrders}');
+    b.writeln('Hours: ${WeekCalendar.formatHours(r.totalRecordedHours)}');
+    if (r.averageOrdersPerWorkingDay != null) {
+      b.writeln(
+          'Avg/day: ${r.averageOrdersPerWorkingDay!.toStringAsFixed(1)}');
+    }
+    if (r.bestDayKey != null) b.writeln('Best day: ${dayLabel(r.bestDayKey!)}');
+    if (r.missingRecordDates.isNotEmpty) {
+      b.writeln('Missing: ${r.missingRecordDates.length} day(s)');
+    }
+    return b.toString();
+  }
+}
