@@ -68,8 +68,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       final file = File(
           '${dir.path}/deliveryflow_backup_${DateTime.now().millisecondsSinceEpoch}.json');
       await file.writeAsString(db.backupJson());
-      await Share.shareXFiles([XFile(file.path)],
-          subject: 'DeliveryFlow backup');
+      await SharePlus.instance.share(ShareParams(
+        files: [XFile(file.path)],
+        subject: 'DeliveryFlow backup',
+      ));
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(l10n.backupCreated)));
@@ -84,11 +86,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   Future<void> _restore() async {
     final l10n = AppLocalizations.of(context);
-    final res = await FilePicker.platform.pickFiles(
+    final picked = await FilePicker.pickFile(
       type: FileType.custom,
       allowedExtensions: ['json'],
     );
-    if (res == null || res.files.single.path == null) return;
+    if (picked == null || picked.path == null) return;
     if (!mounted) return;
     final ok = await showDialog<bool>(
       context: context,
@@ -107,8 +109,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
     if (ok != true) return;
     try {
-      final content =
-          await File(res.files.single.path!).readAsString();
+      final content = await File(picked.path!).readAsString();
       await ref.read(databaseServiceProvider).restoreFromJson(content);
       bumpDataVersion(ref);
       if (mounted) {
@@ -155,7 +156,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Future<void> _exportCsv() async {
     final l10n = AppLocalizations.of(context);
     final db = ref.read(databaseServiceProvider);
-    await Share.share(db.exportCsv(), subject: 'deliveryflow.csv');
+    await SharePlus.instance.share(ShareParams(
+      text: db.exportCsv(),
+      subject: 'deliveryflow.csv',
+    ));
     if (mounted) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(l10n.csvExported)));

@@ -217,10 +217,10 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
                       onPressed: () {
                         final db =
                             ref.read(databaseServiceProvider);
-                        Share.share(db.reportShareText(r,
-                            dayLabel: (k) => DateFormat.EEEE(loc)
-                                .format(
-                                    WeekCalendar.parseDateKey(k))));
+                        SharePlus.instance.share(ShareParams(
+                            text: db.reportShareText(r,
+                                dayLabel: (k) => DateFormat.EEEE(loc).format(
+                                    WeekCalendar.parseDateKey(k)))));
                       },
                     ),
                   ),
@@ -234,8 +234,8 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
                         final db =
                             ref.read(databaseServiceProvider);
                         final csv = db.exportCsv();
-                        await Share.share(csv,
-                            subject: 'deliveryflow.csv');
+                        await SharePlus.instance.share(ShareParams(
+                            text: csv, subject: 'deliveryflow.csv'));
                         if (context.mounted) {
                           ScaffoldMessenger.of(context)
                               .showSnackBar(SnackBar(
