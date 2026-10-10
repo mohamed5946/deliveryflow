@@ -420,12 +420,14 @@ class DailyOrderRecord extends HiveObject {
         assert(completedOrders >= 0, 'completedOrders cannot be negative');
 
   /// Total km driven going (out) across detailed entries.
+  /// Prefers GPS-tracked values when available.
   double get totalKmOut =>
-      entries.fold<double>(0, (s, e) => s + e.kmOut);
+      entries.fold<double>(0, (s, e) => s + e.effectiveKmOut);
 
   /// Total km driven returning (back) across detailed entries.
+  /// Prefers GPS-tracked values when available.
   double get totalKmBack =>
-      entries.fold<double>(0, (s, e) => s + e.kmBack);
+      entries.fold<double>(0, (s, e) => s + e.effectiveKmBack);
 
   /// Total km (out + back) across detailed entries.
   double get totalKm => totalKmOut + totalKmBack;
