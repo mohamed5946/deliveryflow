@@ -210,6 +210,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get howManyOrders => 'How many orders did you complete?';
 
   @override
+  String get enterCountHint => 'Type the number';
+
+  @override
   String get incompleteWeek => 'Incomplete week — some days have no records.';
 
   @override

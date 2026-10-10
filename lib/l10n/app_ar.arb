@@ -65,6 +65,7 @@
   "hoursShort": "{hours} س",
   "hoursTitle": "ساعات العمل",
   "howManyOrders": "كم أوردر خلصت النهارده؟",
+  "enterCountHint": "اكتب العدد",
   "incompleteWeek": "أسبوع غير مكتمل — بعض الأيام بدون سجلات.",
   "invalidBreak": "مدة الراحة لا يمكن أن تتجاوز مدة الشيفت.",
   "invalidOrderCount": "عدد الأوردرات لا يمكن أن يكون سالباً.",

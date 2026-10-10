@@ -488,6 +488,12 @@ abstract class AppLocalizations {
   /// **'How many orders did you complete?'**
   String get howManyOrders;
 
+  /// No description provided for @enterCountHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Type the number'**
+  String get enterCountHint;
+
   /// No description provided for @incompleteWeek.
   ///
   /// In en, this message translates to:

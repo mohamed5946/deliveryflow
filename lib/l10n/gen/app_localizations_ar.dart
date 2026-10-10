@@ -210,6 +210,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get howManyOrders => 'كم أوردر خلصت النهارده؟';
 
   @override
+  String get enterCountHint => 'اكتب العدد';
+
+  @override
   String get incompleteWeek => 'أسبوع غير مكتمل — بعض الأيام بدون سجلات.';
 
   @override
