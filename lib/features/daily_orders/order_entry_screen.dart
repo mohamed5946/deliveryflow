@@ -77,7 +77,8 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(
               _existed ? l10n.recordUpdated : l10n.recordSaved)));
-      setState(() => _existed = true);
+      // Return to the previous screen after saving.
+      context.pop();
     }
   }
 
@@ -91,9 +92,11 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen>
     final date = WeekCalendar.parseDateKey(_dateKey);
     final dateLabel =
         DateFormat.yMMMMEEEEd(locale == 'ar' ? 'ar' : 'en').format(date);
-    if (!_loaded) return const Scaffold(body: GlassLoading());
+    if (!_loaded) {
+      return const GlassScaffold(body: GlassLoading());
+    }
 
-    return Scaffold(
+    return GlassScaffold(
       appBar: AppBar(
         title: Text(l10n.ordersForDate(dateLabel)),
         leading: IconButton(
@@ -157,7 +160,7 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen>
                     keyboardType: TextInputType.number,
                     textAlign: TextAlign.center,
                     decoration: InputDecoration(
-                        hintText: l10n.howManyOrders),
+                        hintText: l10n.enterCountHint),
                     onSubmitted: (v) {
                       final n = int.tryParse(v.trim());
                       if (n != null && n >= 0) {

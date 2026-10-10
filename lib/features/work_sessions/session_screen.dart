@@ -86,6 +86,8 @@ class _SessionScreenState extends ConsumerState<SessionScreen> {
       setState(() => _mError = null);
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(l10n.recordSaved)));
+      // Return to the previous screen after saving.
+      context.pop();
     }
   }
 
@@ -174,7 +176,7 @@ class _SessionScreenState extends ConsumerState<SessionScreen> {
         ? order.completedOrders / (netMinutes / 60.0)
         : null;
 
-    return Scaffold(
+    return GlassScaffold(
       appBar: AppBar(
         title: Text(l10n.hoursTitle),
         leading: IconButton(
