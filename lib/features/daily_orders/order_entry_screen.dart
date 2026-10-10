@@ -78,20 +78,13 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
   }
 
   Future<void> _addEntry() async {
-    final result = await showModalBottomSheet<_EntryFormResult>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _EntryFormSheet(dateKey: _dateKey),
-    );
-    if (result == null || !mounted) return;
+    // New flow: create a pending order instantly — no km questions.
+    // Distances are filled automatically by GPS tracking from the
+    // order detail screen ("بدأ التوصيل").
     final db = ref.read(databaseServiceProvider);
-    await db.addOrderEntry(
+    final entry = await db.addOrderEntry(
       dateKey: _dateKey,
-      timestampMillis: result.timestampMillis,
-      kmOut: result.kmOut,
-      kmBack: result.kmBack,
-      notes: result.notes,
+      timestampMillis: DateTime.now().millisecondsSinceEpoch,
     );
     if (!mounted) return;
     bumpDataVersion(ref);
@@ -99,9 +92,16 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
     await notifier.refreshReminders();
     _load();
     if (!mounted) return;
-    final l10n = AppLocalizations.of(context);
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(l10n.orderAdded)));
+    // Open the detail screen so the courier can start GPS tracking.
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => OrderDetailScreen(
+          dateKey: _dateKey,
+          entryId: entry.id,
+        ),
+      ),
+    );
+    if (mounted) _load();
   }
 
   Future<void> _editEntry(OrderEntry entry) async {
@@ -332,6 +332,15 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
     final locale = ref.watch(settingsProvider.select((s) => s.languageCode));
     final time = DateFormat.Hm(locale == 'ar' ? 'ar' : 'en')
         .format(entry.timestamp);
+
+    // Status badge: makes the tracking state visible at a glance.
+    final (statusLabel, statusColor) = switch (entry.status) {
+      1 => (l10n.statusToCustomer, Colors.orange),
+      2 => (l10n.statusToMart, Colors.blue),
+      3 => (l10n.statusCompleted, Colors.green),
+      _ => (l10n.statusPending, scheme.onSurface.withValues(alpha: 0.55)),
+    };
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: InkWell(
@@ -350,28 +359,56 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
         child: GlassCard(
         padding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(
+        child: Column(
           children: [
-            Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: scheme.primary.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(time,
-                  style: text.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: scheme.primary)),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: scheme.primary.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(time,
+                      style: text.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: scheme.primary)),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(statusLabel,
+                      style: text.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: statusColor)),
+                ),
+              ],
             ),
-            const SizedBox(width: 12),
+            const SizedBox(height: 8),
+            Row(
+          children: [
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '${l10n.kmOutLabel}: ${_fmtKm(entry.effectiveKmOut)} • ${l10n.kmBackLabel}: ${_fmtKm(entry.effectiveKmBack)} ${l10n.kmUnit}',
-                    style: text.bodyMedium,
+                    entry.isPending
+                        ? l10n.tapToStartTracking
+                        : '${l10n.kmOutLabel}: ${_fmtKm(entry.effectiveKmOut)} • ${l10n.kmBackLabel}: ${_fmtKm(entry.effectiveKmBack)} ${l10n.kmUnit}',
+                    style: text.bodyMedium?.copyWith(
+                      color: entry.isPending
+                          ? scheme.primary
+                          : null,
+                      fontWeight: entry.isPending
+                          ? FontWeight.w700
+                          : null,
+                    ),
                   ),
                   if (entry.notes.isNotEmpty)
                     Text(entry.notes,
@@ -400,6 +437,8 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
               onPressed: () => _deleteEntry(entry),
               tooltip: l10n.delete,
               visualDensity: VisualDensity.compact,
+            ),
+          ],
             ),
           ],
         ),

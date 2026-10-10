@@ -774,4 +774,7 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get noRouteData =>
       'لا توجد بيانات خط سير لهذا الأوردر (تم قبل تفعيل التتبع)';
+
+  @override
+  String get tapToStartTracking => 'دوس عشان تبدأ التتبع بالـ GPS';
 }

@@ -302,5 +302,6 @@
   "customerLabel": "Customer",
   "outgoingLegShort": "Outgoing",
   "returnLegShort": "Return",
-  "noRouteData": "No route data for this order (created before tracking)"
+  "noRouteData": "No route data for this order (created before tracking)",
+  "tapToStartTracking": "Tap to start GPS tracking"
 }

@@ -1561,6 +1561,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No route data for this order (created before tracking)'**
   String get noRouteData;
+
+  /// No description provided for @tapToStartTracking.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to start GPS tracking'**
+  String get tapToStartTracking;
 }
 
 class _AppLocalizationsDelegate

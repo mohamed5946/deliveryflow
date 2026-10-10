@@ -254,5 +254,6 @@
   "customerLabel": "العميل",
   "outgoingLegShort": "الذهاب",
   "returnLegShort": "الرجوع",
-  "noRouteData": "لا توجد بيانات خط سير لهذا الأوردر (تم قبل تفعيل التتبع)"
+  "noRouteData": "لا توجد بيانات خط سير لهذا الأوردر (تم قبل تفعيل التتبع)",
+  "tapToStartTracking": "دوس عشان تبدأ التتبع بالـ GPS"
 }

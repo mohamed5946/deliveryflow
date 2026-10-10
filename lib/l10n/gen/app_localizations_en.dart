@@ -775,4 +775,7 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get noRouteData =>
       'No route data for this order (created before tracking)';
+
+  @override
+  String get tapToStartTracking => 'Tap to start GPS tracking';
 }
