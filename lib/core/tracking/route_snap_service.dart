@@ -17,6 +17,26 @@ class SnappedRoute {
   });
 }
 
+/// Point-to-point driving directions (the route you SHOULD take from
+/// A to B). This is the correct use of the /route endpoint — unlike
+/// trip finalization, which must use /match on the traveled trail.
+class RouteDirections {
+  /// Road distance in km.
+  final double distanceKm;
+
+  /// Duration in seconds.
+  final double durationSec;
+
+  /// Road geometry (list of [lng, lat] converted to LatLng).
+  final List<LatLng> geometry;
+
+  const RouteDirections({
+    required this.distanceKm,
+    required this.durationSec,
+    required this.geometry,
+  });
+}
+
 /// Snaps a GPS breadcrumb trail to real roads using the free OSRM
 /// **map-matching** API (`/match/v1/driving`).
 ///
@@ -110,5 +130,57 @@ class RouteSnapService {
   }) async {
     final r = await snapRoute(lat: lat, lng: lng);
     return r?.distanceKm;
+  }
+
+  static const _routeBase =
+      'https://router.project-osrm.org/route/v1/driving';
+
+  /// Point-to-point driving directions from [from] to [to].
+  ///
+  /// Used ONLY for in-app navigation preview (show the road you should
+  /// take). Never for trip finalization — that must use [snapRoute]
+  /// (map matching) on the actually traveled trail.
+  Future<RouteDirections?> fetchDirections({
+    required LatLng from,
+    required LatLng to,
+  }) async {
+    final url = Uri.parse(
+        '$_routeBase/${from.longitude},${from.latitude};${to.longitude},${to.latitude}'
+        '?overview=full&geometries=geojson');
+    try {
+      final res = await http
+          .get(url, headers: {'User-Agent': 'DeliveryFlow/1.0'})
+          .timeout(const Duration(seconds: 15));
+      if (res.statusCode != 200) return null;
+      final body = json.decode(res.body) as Map<String, dynamic>;
+      if (body['code'] != 'Ok') return null;
+      final routes = body['routes'] as List?;
+      if (routes == null || routes.isEmpty) return null;
+      final route = routes.first as Map<String, dynamic>;
+      final meters = (route['distance'] as num?)?.toDouble();
+      final seconds = (route['duration'] as num?)?.toDouble();
+      if (meters == null || meters <= 0) return null;
+      final geometry = <LatLng>[];
+      try {
+        final geoJson = route['geometry'] as Map<String, dynamic>?;
+        final coordsList = geoJson?['coordinates'] as List?;
+        if (coordsList != null) {
+          for (final c in coordsList) {
+            final pair = c as List;
+            geometry.add(LatLng(
+              (pair[1] as num).toDouble(),
+              (pair[0] as num).toDouble(),
+            ));
+          }
+        }
+      } catch (_) {}
+      return RouteDirections(
+        distanceKm: meters / 1000.0,
+        durationSec: seconds ?? 0,
+        geometry: geometry,
+      );
+    } catch (_) {
+      return null;
+    }
   }
 }

@@ -6,13 +6,15 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import 'package:latlong2/latlong.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/database/models.dart';
 import '../../core/providers.dart';
 import '../../core/tracking/delivery_tracking_service.dart';
 import '../../theme/design_system.dart';
+import '../../theme/page_transitions.dart';
 import '../../theme/pressable.dart';
+import '../navigation/navigation_screen.dart';
+import 'phone_sheet.dart';
 
 /// Order detail + GPS-tracked delivery lifecycle.
 ///
@@ -582,15 +584,43 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
     return null;
   }
 
-  /// Opens Google Maps driving navigation to [loc].
-  void _openNavigation(LatLng loc) {
-    launchUrl(Uri.parse(
-        'https://www.google.com/maps/dir/?api=1&destination=${loc.latitude},${loc.longitude}&travelmode=driving'));
+  /// Opens the in-app navigation screen ("التوصيل الآن") with live
+  /// position, camera follow, and the OSRM driving route to [loc].
+  /// Mohamed explicitly wants navigation INSIDE the app, not Google Maps.
+  void _openNavigation(BuildContext context, LatLng loc, OrderEntry entry) {
+    final l10n = AppLocalizations.of(context);
+    final shortId = entry.id.length > 6
+        ? entry.id.substring(entry.id.length - 6)
+        : entry.id;
+    final String statusLine;
+    if (entry.isToCustomer) {
+      statusLine = l10n.onWayToCustomer;
+    } else if (entry.isToMart) {
+      statusLine = l10n.onWayToMart;
+    } else if (entry.isCompleted) {
+      statusLine = l10n.statusCompleted;
+    } else {
+      statusLine = l10n.statusPending;
+    }
+    Navigator.of(context).push(
+      SmoothPageRoute(
+        builder: (_) => NavigationScreen(
+          dateKey: widget.dateKey,
+          entryId: entry.id,
+          shortOrderId: shortId,
+          destination: loc,
+          statusLine: statusLine,
+          address: entry.notes,
+          phone: entry.phone,
+        ),
+      ),
+    );
   }
 
-  Widget _navigateButton(LatLng loc) {
+  Widget _navigateButton(
+      BuildContext context, LatLng loc, OrderEntry entry) {
     return Pressable(
-      onTap: () => _openNavigation(loc),
+      onTap: () => _openNavigation(context, loc, entry),
       child: Container(
         width: 44,
         height: 44,
@@ -837,17 +867,19 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                         scheme.onSurface.withValues(alpha: 0.55)),
                 const SizedBox(width: 6),
                 Expanded(
-                  child: Text(entry.phone,
-                      textDirection: TextDirection.ltr,
-                      style: text.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w700)),
+                  child: Pressable(
+                    onTap: () =>
+                        showCustomerPhoneSheet(context, entry.phone),
+                    child: Text(entry.phone,
+                        textDirection: TextDirection.ltr,
+                        style: text.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w700)),
+                  ),
                 ),
                 const SizedBox(width: 8),
                 Pressable(
-                  onTap: () {
-                    launchUrl(
-                        Uri(scheme: 'tel', path: entry.phone));
-                  },
+                  onTap: () =>
+                      showCustomerPhoneSheet(context, entry.phone),
                   child: Container(
                     width: 44,
                     height: 44,
@@ -869,7 +901,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                 ),
                 if (customerLoc != null) ...[
                   const SizedBox(width: 8),
-                  _navigateButton(customerLoc),
+                  _navigateButton(context, customerLoc, entry),
                 ],
               ],
             ),
@@ -890,7 +922,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                           color: LiquidPalette.primaryBlue)),
                 ),
                 const SizedBox(width: 8),
-                _navigateButton(customerLoc),
+                _navigateButton(context, customerLoc, entry),
               ],
             ),
           ],

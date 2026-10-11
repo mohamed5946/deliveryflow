@@ -61,6 +61,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           data: (report) {
             final hasAnyData = report.recordedDaysCount > 0 ||
                 db.scheduleForWeek(_today) != null;
+            final weekday = DateFormat(
+                    'EEEE', settings.languageCode == 'ar' ? 'ar' : 'en')
+                .format(now);
+            final date = DateFormat(
+                    'd MMMM', settings.languageCode == 'ar' ? 'ar' : 'en')
+                .format(now);
             return SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
               physics: const AlwaysScrollableScrollPhysics(),
@@ -89,7 +95,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         ),
                       ),
                       Pressable(
-                        scaleOnly: true,
                         onTap: () => context.go('/profile'),
                         child: _avatarContent(context, settings, name),
                       ),
@@ -126,27 +131,108 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                           context.push('/orders?date=$todayKey'),
                     )
                   else ...[
-                    // Today chips row
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Pressable(
-                            onTap: () => _showTodayDialog(
-                                context, l10n, completedToday,
-                                todayMinutes, todayOrder),
-                            child: _todayChip(
-                              context,
-                              DateFormat('EEEE', settings.languageCode == 'ar' ? 'ar' : 'en').format(now),
-                              DateFormat('d MMMM', settings.languageCode == 'ar' ? 'ar' : 'en').format(now),
+                    // Today + completed: ONE card like the mockup — the right
+                    // half shows today's completed count (tappable → today's
+                    // orders list), the left half shows the date (tappable →
+                    // today summary dialog).
+                    GlassCard(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 6),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Pressable(
+                              onTap: () =>
+                                  Navigator.of(context).push(
+                                SmoothPageRoute(
+                                    builder: (_) => DayOrdersScreen(
+                                        dateKey: todayKey)),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 8),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: LiquidPalette.primaryBlue
+                                            .withValues(alpha: 0.12),
+                                        borderRadius:
+                                            BorderRadius.circular(12),
+                                      ),
+                                      child: const Icon(
+                                          Icons.inventory_2_rounded,
+                                          color: LiquidPalette.primaryBlue,
+                                          size: 20),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text('$completedToday',
+                                              style: text.titleLarge?.copyWith(
+                                                  fontWeight:
+                                                      FontWeight.w800,
+                                                  color: LiquidPalette
+                                                      .primaryBlue,
+                                                  height: 1.0)),
+                                          Text(l10n.completedOrdersLabel,
+                                              style: text.bodySmall?.copyWith(
+                                                  color: text.bodySmall?.color
+                                                      ?.withValues(
+                                                          alpha: 0.65))),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: _completedChip(
-                              context, l10n, completedToday, todayKey),
-                        ),
-                      ],
+                          Container(
+                            width: 1,
+                            height: 44,
+                            color: text.bodySmall?.color
+                                    ?.withValues(alpha: 0.12) ??
+                                Colors.grey.withValues(alpha: 0.2),
+                          ),
+                          Expanded(
+                            child: Pressable(
+                              onTap: () => _showTodayDialog(
+                                  context,
+                                  l10n,
+                                  completedToday,
+                                  todayMinutes,
+                                  todayOrder),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 8),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Text('اليوم',
+                                        style: text.bodySmall?.copyWith(
+                                            color: text.bodySmall?.color
+                                                ?.withValues(alpha: 0.6),
+                                            fontWeight: FontWeight.w600)),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                        '$weekday $date',
+                                        style: text.titleSmall?.copyWith(
+                                            fontWeight: FontWeight.w800),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 12),
                     // Stat cards: total orders / work hours
@@ -205,7 +291,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         Expanded(
                           child: GlassButton(
                             label: l10n.viewWeekDetails,
-                            icon: Icons.arrow_forward_rounded,
+                            icon: Icons.chevron_right_rounded,
                             onPressed: () => context.go('/reports'),
                           ),
                         ),
@@ -225,7 +311,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   Widget _headerIconButton(
       BuildContext context, IconData icon, VoidCallback onTap) {
     return Pressable(
-      scaleOnly: true,
       onTap: onTap,
       child: Container(
         width: 44,
@@ -244,73 +329,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           color: LiquidPalette.primaryBlue,
           size: 22,
         ),
-      ),
-    );
-  }
-
-  Widget _todayChip(BuildContext context, String weekday, String date) {
-    final text = Theme.of(context).textTheme;
-    return GlassCard(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('اليوم',
-              style: text.bodySmall?.copyWith(
-                  color: text.bodySmall?.color
-                      ?.withValues(alpha: 0.6),
-                  fontWeight: FontWeight.w600)),
-          const SizedBox(height: 2),
-          Text('$weekday $date',
-              style: text.titleSmall
-                  ?.copyWith(fontWeight: FontWeight.w800)),
-        ],
-      ),
-    );
-  }
-
-  Widget _completedChip(BuildContext context, AppLocalizations l10n,
-      int completed, String dateKey) {
-    final text = Theme.of(context).textTheme;
-    // Tappable: opens today's orders list (v9 DayOrdersScreen).
-    return Pressable(
-      onTap: () => Navigator.of(context).push(
-        SmoothPageRoute(builder: (_) => DayOrdersScreen(dateKey: dateKey)),
-      ),
-      child: GlassCard(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: LiquidPalette.primaryBlue.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.inventory_2_rounded,
-                color: LiquidPalette.primaryBlue, size: 20),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('$completed',
-                    style: text.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: LiquidPalette.primaryBlue,
-                        height: 1.0)),
-                Text(l10n.completedOrdersLabel,
-                    style: text.bodySmall?.copyWith(
-                        color: text.bodySmall?.color
-                            ?.withValues(alpha: 0.65))),
-              ],
-            ),
-          ),
-        ],
-      ),
       ),
     );
   }

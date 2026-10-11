@@ -854,7 +854,6 @@ class WeekDayStrip extends StatelessWidget {
                 );
                 if (onSelect == null) return cell;
                 return Pressable(
-                  scaleOnly: true,
                   onTap: () => onSelect!(dayKey),
                   child: cell,
                 );

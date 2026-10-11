@@ -1,5 +1,6 @@
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
+
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -998,4 +999,28 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get notifManualKm => 'Manual distance recorded';
+
+  @override
+  String get showDetails => 'Show details';
+
+  @override
+  String get call => 'Call';
+
+  @override
+  String get copyNumber => 'Copy number';
+
+  @override
+  String get copied => 'Number copied';
+
+  @override
+  String get navigatingNow => 'Navigating now';
+
+  @override
+  String get locatingYou => 'Locating you…';
+
+  @override
+  String get minute => 'min';
+
+  @override
+  String get navRouteFailed => 'Could not calculate the route, try again';
 }

@@ -63,7 +63,7 @@ import 'app_localizations_en.dart';
 /// property.
 abstract class AppLocalizations {
   AppLocalizations(String locale)
-      : localeName = intl.Intl.canonicalizedLocale(locale.toString());
+    : localeName = intl.Intl.canonicalizedLocale(locale.toString());
 
   final String localeName;
 
@@ -86,16 +86,16 @@ abstract class AppLocalizations {
   /// of delegates is preferred or required.
   static const List<LocalizationsDelegate<dynamic>> localizationsDelegates =
       <LocalizationsDelegate<dynamic>>[
-    delegate,
-    GlobalMaterialLocalizations.delegate,
-    GlobalCupertinoLocalizations.delegate,
-    GlobalWidgetsLocalizations.delegate,
-  ];
+        delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+      ];
 
   /// A list of this localizations delegate's supported locales.
   static const List<Locale> supportedLocales = <Locale>[
     Locale('ar'),
-    Locale('en')
+    Locale('en'),
   ];
 
   /// No description provided for @aboutApp.
@@ -1987,6 +1987,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Manual distance recorded'**
   String get notifManualKm;
+
+  /// No description provided for @showDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Show details'**
+  String get showDetails;
+
+  /// No description provided for @call.
+  ///
+  /// In en, this message translates to:
+  /// **'Call'**
+  String get call;
+
+  /// No description provided for @copyNumber.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy number'**
+  String get copyNumber;
+
+  /// No description provided for @copied.
+  ///
+  /// In en, this message translates to:
+  /// **'Number copied'**
+  String get copied;
+
+  /// No description provided for @navigatingNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Navigating now'**
+  String get navigatingNow;
+
+  /// No description provided for @locatingYou.
+  ///
+  /// In en, this message translates to:
+  /// **'Locating you…'**
+  String get locatingYou;
+
+  /// No description provided for @minute.
+  ///
+  /// In en, this message translates to:
+  /// **'min'**
+  String get minute;
+
+  /// No description provided for @navRouteFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not calculate the route, try again'**
+  String get navRouteFailed;
 }
 
 class _AppLocalizationsDelegate
@@ -2016,8 +2064,9 @@ AppLocalizations lookupAppLocalizations(Locale locale) {
   }
 
   throw FlutterError(
-      'AppLocalizations.delegate failed to load unsupported locale "$locale". This is likely '
-      'an issue with the localizations generation tool. Please file an issue '
-      'on GitHub with a reproducible sample app and the gen-l10n configuration '
-      'that was used.');
+    'AppLocalizations.delegate failed to load unsupported locale "$locale". This is likely '
+    'an issue with the localizations generation tool. Please file an issue '
+    'on GitHub with a reproducible sample app and the gen-l10n configuration '
+    'that was used.',
+  );
 }

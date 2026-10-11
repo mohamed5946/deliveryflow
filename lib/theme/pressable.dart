@@ -32,7 +32,12 @@ class Pressable extends StatefulWidget {
     this.pressedDip = 4.0,
     this.borderRadius,
     this.scaleOnly = false,
-  });
+  }) : assert(
+          !(scaleOnly && onTap != null),
+          'Pressable: scaleOnly:true suppresses onTap — remove scaleOnly '
+          'when Pressable is the tap handler, or drop onTap when it only '
+          'adds animation around another handler (e.g. InkWell).',
+        );
 
   @override
   State<Pressable> createState() => _PressableState();

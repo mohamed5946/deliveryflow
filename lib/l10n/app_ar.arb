@@ -332,5 +332,13 @@
   "notificationsTitle": "الإشعارات",
   "noNotifications": "لا توجد إشعارات بعد",
   "notifOrderCompleted": "تم إكمال الأوردر",
-  "notifManualKm": "مسافة يدوية مسجلة"
+  "notifManualKm": "مسافة يدوية مسجلة",
+  "showDetails": "عرض التفاصيل",
+  "call": "اتصال",
+  "copyNumber": "نسخ الرقم",
+  "copied": "تم نسخ الرقم",
+  "navigatingNow": "التوصيل الآن",
+  "locatingYou": "جاري تحديد موقعك…",
+  "minute": "دقيقة",
+  "navRouteFailed": "تعذر حساب الطريق، حاول مرة أخرى"
 }
