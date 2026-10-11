@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app/app.dart';
@@ -10,6 +11,9 @@ import 'core/providers.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Communication port for background GPS tracking isolate.
+  FlutterForegroundTask.initCommunicationPort();
 
   // Edge-to-edge: draw behind system bars so the aurora theme reaches
   // the screen edges instead of black bars.

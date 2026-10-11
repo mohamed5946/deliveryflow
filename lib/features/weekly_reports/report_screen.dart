@@ -9,6 +9,7 @@ import '../../core/database/models.dart';
 import '../../core/date_time/week_calendar.dart';
 import '../../core/providers.dart';
 import '../../theme/design_system.dart';
+import 'weekly_heatmap_screen.dart';
 
 /// Weekly report: totals, averages (recorded days only), best day,
 /// previous-week comparison, charts, share-as-text and CSV export.
@@ -39,6 +40,15 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
       appBar: AppBar(
         title: Text(l10n.reportTitle),
         actions: [
+          IconButton(
+            tooltip: l10n.weeklyHeatmap,
+            icon: const Icon(Icons.local_fire_department_outlined),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const WeeklyHeatmapScreen(),
+              ),
+            ),
+          ),
           IconButton(
             tooltip: l10n.previousWeek,
             icon: const Icon(Icons.chevron_left_rounded),

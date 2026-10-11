@@ -778,4 +778,25 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get tapToStartTracking => 'Tap to start GPS tracking';
+
+  @override
+  String get weeklyHeatmap => 'Heatmap';
+
+  @override
+  String get noHeatmapData =>
+      'No route data for this week yet. Track orders with GPS and they will appear here.';
+
+  @override
+  String get heatmapHot => 'Most visited';
+
+  @override
+  String get heatmapWarm => 'Average';
+
+  @override
+  String get heatmapCold => 'Rare';
+
+  @override
+  String heatmapSubtitle(int count) {
+    return 'Recorded points this week: $count';
+  }
 }

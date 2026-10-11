@@ -255,5 +255,18 @@
   "outgoingLegShort": "الذهاب",
   "returnLegShort": "الرجوع",
   "noRouteData": "لا توجد بيانات خط سير لهذا الأوردر (تم قبل تفعيل التتبع)",
-  "tapToStartTracking": "دوس عشان تبدأ التتبع بالـ GPS"
+  "tapToStartTracking": "دوس عشان تبدأ التتبع بالـ GPS",
+  "weeklyHeatmap": "الخريطة الحرارية",
+  "noHeatmapData": "لا توجد بيانات خط سير لهذا الأسبوع بعد. ابدأ تتبع أوردرات بالـ GPS وهتظهر هنا.",
+  "heatmapHot": "الأكثر زيارة",
+  "heatmapWarm": "متوسط",
+  "heatmapCold": "نادر",
+  "heatmapSubtitle": "عدد النقاط المسجلة هذا الأسبوع: {count}",
+  "@heatmapSubtitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

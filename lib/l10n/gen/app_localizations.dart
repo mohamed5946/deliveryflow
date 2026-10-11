@@ -1567,6 +1567,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Tap to start GPS tracking'**
   String get tapToStartTracking;
+
+  /// No description provided for @weeklyHeatmap.
+  ///
+  /// In en, this message translates to:
+  /// **'Heatmap'**
+  String get weeklyHeatmap;
+
+  /// No description provided for @noHeatmapData.
+  ///
+  /// In en, this message translates to:
+  /// **'No route data for this week yet. Track orders with GPS and they will appear here.'**
+  String get noHeatmapData;
+
+  /// No description provided for @heatmapHot.
+  ///
+  /// In en, this message translates to:
+  /// **'Most visited'**
+  String get heatmapHot;
+
+  /// No description provided for @heatmapWarm.
+  ///
+  /// In en, this message translates to:
+  /// **'Average'**
+  String get heatmapWarm;
+
+  /// No description provided for @heatmapCold.
+  ///
+  /// In en, this message translates to:
+  /// **'Rare'**
+  String get heatmapCold;
+
+  /// No description provided for @heatmapSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Recorded points this week: {count}'**
+  String heatmapSubtitle(int count);
 }
 
 class _AppLocalizationsDelegate

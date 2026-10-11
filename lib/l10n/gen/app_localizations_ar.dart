@@ -777,4 +777,25 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get tapToStartTracking => 'دوس عشان تبدأ التتبع بالـ GPS';
+
+  @override
+  String get weeklyHeatmap => 'الخريطة الحرارية';
+
+  @override
+  String get noHeatmapData =>
+      'لا توجد بيانات خط سير لهذا الأسبوع بعد. ابدأ تتبع أوردرات بالـ GPS وهتظهر هنا.';
+
+  @override
+  String get heatmapHot => 'الأكثر زيارة';
+
+  @override
+  String get heatmapWarm => 'متوسط';
+
+  @override
+  String get heatmapCold => 'نادر';
+
+  @override
+  String heatmapSubtitle(int count) {
+    return 'عدد النقاط المسجلة هذا الأسبوع: $count';
+  }
 }
