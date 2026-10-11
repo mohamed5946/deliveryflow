@@ -276,6 +276,55 @@ class DatabaseService {
     return (record.totalKmOut, record.totalKmBack);
   }
 
+  /// Normalizes a phone number for comparison: strips spaces, dashes,
+  /// and any other non-digit characters (keeps a leading `+`).
+  static String _normalizePhone(String phone) =>
+      phone.replaceAll(RegExp(r'[^0-9+]'), '');
+
+  bool _phoneMatchesPrefix(String phone, String prefix) {
+    final raw = phone.trim();
+    if (raw.isEmpty || prefix.isEmpty) return false;
+    // Compare raw (as typed) and normalized (spaces/dashes stripped).
+    return raw.startsWith(prefix) ||
+        _normalizePhone(raw).startsWith(_normalizePhone(prefix));
+  }
+
+  /// All order entries whose saved phone number starts with [prefix],
+  /// paired with their day's dateKey, newest first. Only orders with a
+  /// non-empty phone are considered.
+  List<({String dateKey, OrderEntry entry})> searchOrdersByPhone(
+      String prefix) {
+    final p = prefix.trim();
+    if (p.isEmpty) return const [];
+    final out = <({String dateKey, OrderEntry entry})>[];
+    for (final record in _orders.values) {
+      for (final entry in record.entries) {
+        if (_phoneMatchesPrefix(entry.phone, p)) {
+          out.add((dateKey: record.dateKey, entry: entry));
+        }
+      }
+    }
+    out.sort((a, b) => b.entry.timestampMillis
+        .compareTo(a.entry.timestampMillis));
+    return out;
+  }
+
+  /// Distinct saved phone numbers starting with [prefix], sorted.
+  /// Backs the live suggestions of the customer search screen.
+  List<String> distinctPhonesByPrefix(String prefix) {
+    final p = prefix.trim();
+    if (p.isEmpty) return const [];
+    final phones = <String>{};
+    for (final record in _orders.values) {
+      for (final entry in record.entries) {
+        final phone = entry.phone.trim();
+        if (_phoneMatchesPrefix(phone, p)) phones.add(phone);
+      }
+    }
+    final list = phones.toList()..sort();
+    return list;
+  }
+
   // ------------------------------------------------------------- sessions --
   Future<WorkSession> startSession(String dateKey, {String notes = ''}) async {
     final active = activeSession();

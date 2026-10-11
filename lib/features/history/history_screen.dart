@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:deliveryflow/l10n/gen/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/date_time/week_calendar.dart';
@@ -37,7 +38,9 @@ class HistoryScreen extends ConsumerWidget {
               title: l10n.emptyStateTitle,
               body: l10n.emptyStateBody,
               actionLabel: l10n.getStarted,
-              onAction: () {},
+              onAction: () => context.push(
+                '/orders?date=${WeekCalendar.dateKey(DateTime.now())}',
+              ),
             );
           }
           return ListView.builder(

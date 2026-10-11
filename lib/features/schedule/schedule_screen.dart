@@ -8,6 +8,7 @@ import '../../core/database/models.dart';
 import '../../core/date_time/week_calendar.dart';
 import '../../core/providers.dart';
 import '../../theme/design_system.dart';
+import '../../theme/pressable.dart';
 
 /// Weekly schedule editor (Sunday–Saturday).
 ///
@@ -290,6 +291,23 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
   }
 
   Widget _dayCard(BuildContext context, int i, AppLocalizations l10n) {
+    // In view mode the card shows a chevron, so it must be tappable —
+    // tapping enters edit mode for this week.
+    final card = GlassCard(
+      child: _dayCardBody(context, i, l10n),
+    );
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: _editing
+          ? card
+          : Pressable(
+              onTap: () => setState(() => _editing = true),
+              child: card,
+            ),
+    );
+  }
+
+  Widget _dayCardBody(BuildContext context, int i, AppLocalizations l10n) {
     final d = _days[i];
     final date = WeekCalendar.parseDateKey(d.dateKey);
     final locale =
@@ -299,10 +317,7 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
     final dayDate = DateFormat.Md(loc).format(date);
     final text = Theme.of(context).textTheme;
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: GlassCard(
-        child: Column(
+    return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
@@ -376,9 +391,7 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
               ),
             ],
           ],
-        ),
-      ),
-    );
+        );
   }
 
   /// Status badge + completed-orders count for a day (view mode).

@@ -1921,6 +1921,72 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Not started'**
   String get statusNotStarted;
+
+  /// No description provided for @navigate.
+  ///
+  /// In en, this message translates to:
+  /// **'Navigate'**
+  String get navigate;
+
+  /// No description provided for @searchCustomers.
+  ///
+  /// In en, this message translates to:
+  /// **'Search customers'**
+  String get searchCustomers;
+
+  /// No description provided for @searchPhoneHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Type customer phone number'**
+  String get searchPhoneHint;
+
+  /// No description provided for @customerVisits.
+  ///
+  /// In en, this message translates to:
+  /// **'Visited this customer {count} times'**
+  String customerVisits(Object count);
+
+  /// No description provided for @customerOrdersTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Customer orders'**
+  String get customerOrdersTitle;
+
+  /// No description provided for @noCustomersFound.
+  ///
+  /// In en, this message translates to:
+  /// **'No customers with this number'**
+  String get noCustomersFound;
+
+  /// No description provided for @typeMoreDigits.
+  ///
+  /// In en, this message translates to:
+  /// **'Type at least 3 digits'**
+  String get typeMoreDigits;
+
+  /// No description provided for @notificationsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications'**
+  String get notificationsTitle;
+
+  /// No description provided for @noNotifications.
+  ///
+  /// In en, this message translates to:
+  /// **'No notifications yet'**
+  String get noNotifications;
+
+  /// No description provided for @notifOrderCompleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Order completed'**
+  String get notifOrderCompleted;
+
+  /// No description provided for @notifManualKm.
+  ///
+  /// In en, this message translates to:
+  /// **'Manual distance recorded'**
+  String get notifManualKm;
 }
 
 class _AppLocalizationsDelegate

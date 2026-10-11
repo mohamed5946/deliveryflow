@@ -963,4 +963,39 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get statusNotStarted => 'Not started';
+
+  @override
+  String get navigate => 'Navigate';
+
+  @override
+  String get searchCustomers => 'Search customers';
+
+  @override
+  String get searchPhoneHint => 'Type customer phone number';
+
+  @override
+  String customerVisits(Object count) {
+    return 'Visited this customer $count times';
+  }
+
+  @override
+  String get customerOrdersTitle => 'Customer orders';
+
+  @override
+  String get noCustomersFound => 'No customers with this number';
+
+  @override
+  String get typeMoreDigits => 'Type at least 3 digits';
+
+  @override
+  String get notificationsTitle => 'Notifications';
+
+  @override
+  String get noNotifications => 'No notifications yet';
+
+  @override
+  String get notifOrderCompleted => 'Order completed';
+
+  @override
+  String get notifManualKm => 'Manual distance recorded';
 }

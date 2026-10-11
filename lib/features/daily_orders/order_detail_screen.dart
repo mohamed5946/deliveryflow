@@ -568,6 +568,45 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
     }
   }
 
+  /// Customer location for the "توجيه" (Navigate) button: last point of
+  /// the recorded OUTGOING trail, falling back to the snapped road
+  /// geometry end. Null when no trail was recorded (e.g. orders from
+  /// before tracking) — the button is hidden then.
+  LatLng? _customerLocation(OrderEntry entry) {
+    if (entry.routeOutLat.isNotEmpty && entry.routeOutLng.isNotEmpty) {
+      return LatLng(entry.routeOutLat.last, entry.routeOutLng.last);
+    }
+    if (entry.roadOutLat.isNotEmpty && entry.roadOutLng.isNotEmpty) {
+      return LatLng(entry.roadOutLat.last, entry.roadOutLng.last);
+    }
+    return null;
+  }
+
+  /// Opens Google Maps driving navigation to [loc].
+  void _openNavigation(LatLng loc) {
+    launchUrl(Uri.parse(
+        'https://www.google.com/maps/dir/?api=1&destination=${loc.latitude},${loc.longitude}&travelmode=driving'));
+  }
+
+  Widget _navigateButton(LatLng loc) {
+    return Pressable(
+      onTap: () => _openNavigation(loc),
+      child: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: LiquidPalette.primaryBlue.withValues(alpha: 0.12),
+          border: Border.all(
+            color: LiquidPalette.primaryBlue.withValues(alpha: 0.35),
+          ),
+        ),
+        child: const Icon(Icons.navigation_rounded,
+            color: LiquidPalette.primaryBlue, size: 20),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -674,6 +713,9 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
     final shortId = entry.id.length > 6
         ? entry.id.substring(entry.id.length - 6)
         : entry.id;
+
+    // Customer location for the "توجيه" button (null = hide it).
+    final customerLoc = _customerLocation(entry);
 
     // Km + elapsed for the chips. Pending orders have no trip yet, so
     // the chips row is hidden for them.
@@ -825,6 +867,30 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                         color: Colors.white, size: 20),
                   ),
                 ),
+                if (customerLoc != null) ...[
+                  const SizedBox(width: 8),
+                  _navigateButton(customerLoc),
+                ],
+              ],
+            ),
+          ],
+          // Navigate button on its own row when there's no phone
+          // number but a recorded customer location exists.
+          if (entry.phone.isEmpty && customerLoc != null) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                const Icon(Icons.navigation_outlined,
+                    size: 17, color: LiquidPalette.primaryBlue),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(l10n.navigate,
+                      style: text.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: LiquidPalette.primaryBlue)),
+                ),
+                const SizedBox(width: 8),
+                _navigateButton(customerLoc),
               ],
             ),
           ],

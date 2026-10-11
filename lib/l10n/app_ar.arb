@@ -321,5 +321,16 @@
   "workSmarterTagline": "Work Smarter • Deliver Faster",
   "deliverFaster": "توصيل أسرع بذكاء أكبر",
   "completedOrdersLabel": "أوردرات مكتملة",
-  "statusNotStarted": "لم يبدأ"
+  "statusNotStarted": "لم يبدأ",
+  "navigate": "توجيه",
+  "searchCustomers": "بحث عن عميل",
+  "searchPhoneHint": "اكتب رقم موبايل العميل",
+  "customerVisits": "رحت للعميل ده {count} مرة",
+  "customerOrdersTitle": "أوردرات العميل",
+  "noCustomersFound": "لا يوجد عملاء بهذا الرقم",
+  "typeMoreDigits": "اكتب 3 أرقام على الأقل",
+  "notificationsTitle": "الإشعارات",
+  "noNotifications": "لا توجد إشعارات بعد",
+  "notifOrderCompleted": "تم إكمال الأوردر",
+  "notifManualKm": "مسافة يدوية مسجلة"
 }

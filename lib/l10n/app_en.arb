@@ -369,5 +369,16 @@
   "workSmarterTagline": "Work Smarter • Deliver Faster",
   "deliverFaster": "Work smarter, deliver faster",
   "completedOrdersLabel": "completed orders",
-  "statusNotStarted": "Not started"
+  "statusNotStarted": "Not started",
+  "navigate": "Navigate",
+  "searchCustomers": "Search customers",
+  "searchPhoneHint": "Type customer phone number",
+  "customerVisits": "Visited this customer {count} times",
+  "customerOrdersTitle": "Customer orders",
+  "noCustomersFound": "No customers with this number",
+  "typeMoreDigits": "Type at least 3 digits",
+  "notificationsTitle": "Notifications",
+  "noNotifications": "No notifications yet",
+  "notifOrderCompleted": "Order completed",
+  "notifManualKm": "Manual distance recorded"
 }

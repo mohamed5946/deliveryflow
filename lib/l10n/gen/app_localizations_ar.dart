@@ -962,4 +962,39 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get statusNotStarted => 'لم يبدأ';
+
+  @override
+  String get navigate => 'توجيه';
+
+  @override
+  String get searchCustomers => 'بحث عن عميل';
+
+  @override
+  String get searchPhoneHint => 'اكتب رقم موبايل العميل';
+
+  @override
+  String customerVisits(Object count) {
+    return 'رحت للعميل ده $count مرة';
+  }
+
+  @override
+  String get customerOrdersTitle => 'أوردرات العميل';
+
+  @override
+  String get noCustomersFound => 'لا يوجد عملاء بهذا الرقم';
+
+  @override
+  String get typeMoreDigits => 'اكتب 3 أرقام على الأقل';
+
+  @override
+  String get notificationsTitle => 'الإشعارات';
+
+  @override
+  String get noNotifications => 'لا توجد إشعارات بعد';
+
+  @override
+  String get notifOrderCompleted => 'تم إكمال الأوردر';
+
+  @override
+  String get notifManualKm => 'مسافة يدوية مسجلة';
 }

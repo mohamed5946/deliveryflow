@@ -14,6 +14,8 @@ import '../../theme/page_transitions.dart';
 import '../../theme/pressable.dart';
 import '../daily_orders/order_detail_screen.dart';
 import '../history/day_orders_screen.dart';
+import '../notifications/notifications_screen.dart';
+import '../search/customer_search_screen.dart';
 
 /// Home dashboard mirroring the approved Arabic mockup:
 /// greeting header, today chips, stat cards, week-progress ring,
@@ -92,29 +94,23 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         child: _avatarContent(context, settings, name),
                       ),
                       const SizedBox(width: 10),
-                      Pressable(
-                        scaleOnly: true,
-                        onTap: () => _showTodayDialog(
-                            context, l10n, completedToday,
-                            todayMinutes, todayOrder),
-                        child: Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Theme.of(context).brightness ==
-                                    Brightness.dark
-                                ? Colors.white.withValues(alpha: 0.08)
-                                : Colors.white.withValues(alpha: 0.7),
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.6),
-                            ),
-                          ),
-                          child: const Icon(
-                            Icons.notifications_outlined,
-                            color: LiquidPalette.primaryBlue,
-                            size: 22,
-                          ),
+                      _headerIconButton(
+                        context,
+                        Icons.search_rounded,
+                        () => Navigator.of(context).push(
+                          SmoothPageRoute(
+                              builder: (_) =>
+                                  const CustomerSearchScreen()),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      _headerIconButton(
+                        context,
+                        Icons.notifications_outlined,
+                        () => Navigator.of(context).push(
+                          SmoothPageRoute(
+                              builder: (_) =>
+                                  const NotificationsScreen()),
                         ),
                       ),
                     ],
@@ -134,10 +130,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     Row(
                       children: [
                         Expanded(
-                          child: _todayChip(
-                            context,
-                            DateFormat('EEEE', settings.languageCode == 'ar' ? 'ar' : 'en').format(now),
-                            DateFormat('d MMMM', settings.languageCode == 'ar' ? 'ar' : 'en').format(now),
+                          child: Pressable(
+                            onTap: () => _showTodayDialog(
+                                context, l10n, completedToday,
+                                todayMinutes, todayOrder),
+                            child: _todayChip(
+                              context,
+                              DateFormat('EEEE', settings.languageCode == 'ar' ? 'ar' : 'en').format(now),
+                              DateFormat('d MMMM', settings.languageCode == 'ar' ? 'ar' : 'en').format(now),
+                            ),
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -216,6 +217,32 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               ),
             );
           },
+        ),
+      ),
+    );
+  }
+
+  Widget _headerIconButton(
+      BuildContext context, IconData icon, VoidCallback onTap) {
+    return Pressable(
+      scaleOnly: true,
+      onTap: onTap,
+      child: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Theme.of(context).brightness == Brightness.dark
+              ? Colors.white.withValues(alpha: 0.08)
+              : Colors.white.withValues(alpha: 0.7),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.6),
+          ),
+        ),
+        child: Icon(
+          icon,
+          color: LiquidPalette.primaryBlue,
+          size: 22,
         ),
       ),
     );
