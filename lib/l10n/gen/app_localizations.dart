@@ -356,6 +356,72 @@ abstract class AppLocalizations {
   /// **'Contact'**
   String get contactLabel;
 
+  /// No description provided for @navProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'My Account'**
+  String get navProfile;
+
+  /// No description provided for @profileSetup.
+  ///
+  /// In en, this message translates to:
+  /// **'Set Up Account'**
+  String get profileSetup;
+
+  /// No description provided for @fullName.
+  ///
+  /// In en, this message translates to:
+  /// **'Full Name'**
+  String get fullName;
+
+  /// No description provided for @driverRole.
+  ///
+  /// In en, this message translates to:
+  /// **'Delivery Driver'**
+  String get driverRole;
+
+  /// No description provided for @changePhoto.
+  ///
+  /// In en, this message translates to:
+  /// **'Change Photo'**
+  String get changePhoto;
+
+  /// No description provided for @tapToAddPhoto.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to add photo'**
+  String get tapToAddPhoto;
+
+  /// No description provided for @helpSupport.
+  ///
+  /// In en, this message translates to:
+  /// **'Help & Support'**
+  String get helpSupport;
+
+  /// No description provided for @quickActions.
+  ///
+  /// In en, this message translates to:
+  /// **'Quick actions'**
+  String get quickActions;
+
+  /// No description provided for @greetingHello.
+  ///
+  /// In en, this message translates to:
+  /// **'Hello'**
+  String get greetingHello;
+
+  /// No description provided for @reportsMenu.
+  ///
+  /// In en, this message translates to:
+  /// **'Reports & Statistics'**
+  String get reportsMenu;
+
+  /// No description provided for @callUs.
+  ///
+  /// In en, this message translates to:
+  /// **'Call us'**
+  String get callUs;
+
   /// No description provided for @displayNameHint.
   ///
   /// In en, this message translates to:
@@ -1789,6 +1855,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'On your way to the customer'**
   String get onWayToCustomer;
+
+  /// No description provided for @onWayToMart.
+  ///
+  /// In en, this message translates to:
+  /// **'On your way back to the mart'**
+  String get onWayToMart;
 
   /// No description provided for @viewDetails.
   ///

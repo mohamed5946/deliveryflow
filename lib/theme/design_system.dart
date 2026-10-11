@@ -359,6 +359,9 @@ class AuroraBackground extends ConsumerWidget {
     // Static (no animation) for maximum smoothness: the blobs are pre-blurred
     // once and cached by the RepaintBoundary. The glass cards above still
     // provide depth via their own backdrop blur.
+    // Dark mode: keep blobs VERY subtle so the background reads as true
+    // near-black #1C1C1E (per the mockup) instead of navy blue — just a
+    // hint of brand glow.
     return RepaintBoundary(
       child: Container(
         decoration: BoxDecoration(
@@ -375,28 +378,28 @@ class AuroraBackground extends ConsumerWidget {
               left: -70,
               size: 330,
               color: blobs[0],
-              opacity: isDark ? 0.38 : 0.55,
+              opacity: isDark ? 0.14 : 0.55,
             ),
             _blob(
               top: 130,
               right: -90,
               size: 290,
               color: blobs[1],
-              opacity: isDark ? 0.32 : 0.5,
+              opacity: isDark ? 0.10 : 0.5,
             ),
             _blob(
               bottom: -70,
               left: 30,
               size: 310,
               color: blobs[2],
-              opacity: isDark ? 0.28 : 0.45,
+              opacity: isDark ? 0.08 : 0.45,
             ),
             _blob(
               bottom: 90,
               right: 50,
               size: 240,
               color: blobs[3],
-              opacity: isDark ? 0.2 : 0.38,
+              opacity: isDark ? 0.06 : 0.38,
             ),
           ],
         ),

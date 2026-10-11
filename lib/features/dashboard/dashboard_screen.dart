@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:deliveryflow/l10n/gen/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,7 +10,10 @@ import '../../core/database/models.dart';
 import '../../core/date_time/week_calendar.dart';
 import '../../core/providers.dart';
 import '../../theme/design_system.dart';
+import '../../theme/page_transitions.dart';
 import '../../theme/pressable.dart';
+import '../daily_orders/order_detail_screen.dart';
+import '../history/day_orders_screen.dart';
 
 /// Home dashboard mirroring the approved Arabic mockup:
 /// greeting header, today chips, stat cards, week-progress ring,
@@ -38,12 +43,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final todayMinutes = db.recordedMinutesForDate(todayKey);
     final completedToday = todayOrder?.completedOrders ?? 0;
 
-    final hour = _today.hour;
-    final greeting = hour < 12
-        ? l10n.greetingMorning
-        : hour < 18
-            ? l10n.greetingAfternoon
-            : l10n.greetingEvening;
+    // Mockup greeting: fixed "مرحباً" + profile name.
+    final greeting = l10n.greetingHello;
     final name =
         settings.displayName.isEmpty ? 'محمد' : settings.displayName;
 
@@ -85,29 +86,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                           ],
                         ),
                       ),
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: LiquidPalette.brandGradientLg,
-                          boxShadow: [
-                            BoxShadow(
-                              color: LiquidPalette.primaryBlue
-                                  .withValues(alpha: 0.35),
-                              blurRadius: 14,
-                              offset: const Offset(0, 5),
-                            ),
-                          ],
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          name.isEmpty ? 'م' : name.characters.first,
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 20),
-                        ),
+                      Pressable(
+                        scaleOnly: true,
+                        onTap: () => context.go('/profile'),
+                        child: _avatarContent(context, settings, name),
                       ),
                       const SizedBox(width: 10),
                       Pressable(
@@ -161,7 +143,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         const SizedBox(width: 10),
                         Expanded(
                           child: _completedChip(
-                              context, l10n, completedToday),
+                              context, l10n, completedToday, todayKey),
                         ),
                       ],
                     ),
@@ -175,6 +157,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                             l10n.totalOrders,
                             '${report.totalOrders}',
                             Icons.shopping_bag_rounded,
+                            onTap: () => context.go('/history'),
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -185,6 +168,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                             WeekCalendar.formatHoursMinutes(
                                 (report.totalRecordedHours * 60).round()),
                             Icons.schedule_rounded,
+                            onTap: () =>
+                                context.push('/hours?date=$todayKey'),
                           ),
                         ),
                       ],
@@ -204,11 +189,26 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    // CTA
-                    GlassButton(
-                      label: l10n.viewWeekDetails,
-                      icon: Icons.arrow_forward_rounded,
-                      onPressed: () => context.go('/reports'),
+                    // Quick actions: add order + week details
+                    SectionHeader(title: l10n.quickActions),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: GlassButton(
+                            label: l10n.addOrder,
+                            icon: Icons.add_rounded,
+                            onPressed: _addOrderNow,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: GlassButton(
+                            label: l10n.viewWeekDetails,
+                            icon: Icons.arrow_forward_rounded,
+                            onPressed: () => context.go('/reports'),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 8),
                   ],
@@ -243,10 +243,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  Widget _completedChip(
-      BuildContext context, AppLocalizations l10n, int completed) {
+  Widget _completedChip(BuildContext context, AppLocalizations l10n,
+      int completed, String dateKey) {
     final text = Theme.of(context).textTheme;
-    return GlassCard(
+    // Tappable: opens today's orders list (v9 DayOrdersScreen).
+    return Pressable(
+      onTap: () => Navigator.of(context).push(
+        SmoothPageRoute(builder: (_) => DayOrdersScreen(dateKey: dateKey)),
+      ),
+      child: GlassCard(
       padding:
           const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       child: Row(
@@ -279,13 +284,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           ),
         ],
       ),
+      ),
     );
   }
 
   Widget _statCard(BuildContext context, String label, String value,
-      IconData icon) {
+      IconData icon, {VoidCallback? onTap}) {
     final text = Theme.of(context).textTheme;
-    return GlassCard(
+    final card = GlassCard(
       child: Row(
         children: [
           Container(
@@ -328,6 +334,30 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         ],
       ),
     );
+    // Tappable cards use the Pressable dip feedback.
+    if (onTap == null) return card;
+    return Pressable(onTap: onTap, child: card);
+  }
+
+  /// v5.1 instant-create flow: creates a pending order immediately and
+  /// opens its detail screen so GPS tracking can start.
+  Future<void> _addOrderNow() async {
+    final todayKey = WeekCalendar.dateKey(_today);
+    final db = ref.read(databaseServiceProvider);
+    final entry = await db.addOrderEntry(
+      dateKey: todayKey,
+      timestampMillis: DateTime.now().millisecondsSinceEpoch,
+    );
+    if (!mounted) return;
+    bumpDataVersion(ref);
+    await Navigator.of(context).push(
+      SmoothPageRoute(
+        builder: (_) => OrderDetailScreen(
+          dateKey: todayKey,
+          entryId: entry.id,
+        ),
+      ),
+    );
   }
 
   Widget _weekProgressCard(BuildContext context, AppLocalizations l10n,
@@ -364,6 +394,43 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _avatarContent(
+      BuildContext context, UserSettings settings, String name) {
+    final photoPath = settings.photoPath;
+    final photoFile =
+        photoPath.isNotEmpty ? File(photoPath) : null;
+    final hasPhoto = photoFile != null && photoFile.existsSync();
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: hasPhoto ? null : LiquidPalette.brandGradientLg,
+        image: hasPhoto
+            ? DecorationImage(image: FileImage(photoFile), fit: BoxFit.cover)
+            : null,
+        boxShadow: [
+          BoxShadow(
+            color:
+                LiquidPalette.primaryBlue.withValues(alpha: 0.35),
+            blurRadius: 14,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      alignment: Alignment.center,
+      child: hasPhoto
+          ? null
+          : Text(
+              name.isEmpty ? 'م' : name.characters.first,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 20),
+            ),
     );
   }
 

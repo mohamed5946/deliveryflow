@@ -2,17 +2,17 @@ import 'dart:async';
 
 import 'package:deliveryflow/l10n/gen/app_localizations.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
+import 'package:intl/intl.dart' hide TextDirection;
+import 'package:latlong2/latlong.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/database/models.dart';
 import '../../core/providers.dart';
 import '../../core/tracking/delivery_tracking_service.dart';
 import '../../theme/design_system.dart';
 import '../../theme/pressable.dart';
-import 'live_trip_map_card.dart';
-import 'route_map_card.dart';
 
 /// Order detail + GPS-tracked delivery lifecycle.
 ///
@@ -48,6 +48,8 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
   final _phoneController = TextEditingController();
   Timer? _phoneSaveTimer;
   bool _phoneDirty = false;
+  final _scrollController = ScrollController();
+  final _detailsKey = GlobalKey();
 
   @override
   void initState() {
@@ -80,6 +82,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
     }
     _noteController.dispose();
     _phoneController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -573,78 +576,53 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
       return const GlassScaffold(body: GlassLoading());
     }
 
+    // Map-first hero (mockup's "التوصيل الآن"): live map while the trip
+    // is being tracked, recorded route once completed. Pending orders and
+    // completed orders without route points get no hero.
+    final hasHero = entry.isTracking || entry.hasRoute;
+    // The info card is pulled up over the map's lower edge like the
+    // mockup; everything below it is pulled up by the same overlap
+    // minus the visual gap, so the layout stays seamless.
+    const overlap = 40.0;
+    const gap = 12.0;
+
     return GlassScaffold(
       appBar: AppBar(title: Text(l10n.orderDetails)),
       body: ListView(
-        padding: GlassTokens.screenPadding,
+        controller: _scrollController,
+        padding: EdgeInsets.zero,
         children: [
-          _statusCard(context, entry),
-          const SizedBox(height: 12),
-          if (entry.isTracking) ...[
-            // Mockup's "التوصيل الآن": map on top, trip card below.
-            LiveTripMapCard(
-              entryId: entry.id,
-              isOutgoing: entry.isToCustomer,
+          if (hasHero)
+            _DeliveryHeroMap(
+              entry: entry,
+              height: MediaQuery.of(context).size.height * 0.48,
             ),
-            const SizedBox(height: 12),
-            _tripInfoCard(context, entry),
-            const SizedBox(height: 12),
-          ],
-          if (entry.isCompleted) ...[
-            _breakdownCard(context, entry),
-            const SizedBox(height: 12),
-            RouteMapCard(entry: entry),
-            const SizedBox(height: 12),
-          ],
-          _noteCard(context, entry),
-          const SizedBox(height: 12),
-          _actionButton(context, entry),
-          const SizedBox(height: 24),
-        ],
-      ),
-    );
-  }
-
-  Widget _statusCard(BuildContext context, OrderEntry entry) {
-    final l10n = AppLocalizations.of(context);
-    final text = Theme.of(context).textTheme;
-    final scheme = Theme.of(context).colorScheme;
-
-    final (label, color, icon) = switch (entry.status) {
-      1 => (l10n.statusToCustomer, Colors.orange, Icons.delivery_dining_rounded),
-      2 => (l10n.statusToMart, Colors.blue, Icons.keyboard_return_rounded),
-      3 => (l10n.statusCompleted, Colors.green, Icons.check_circle_rounded),
-      _ => (l10n.statusPending, scheme.onSurface.withValues(alpha: 0.6),
-          Icons.pending_outlined),
-    };
-
-    return GlassCard(
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(14),
+          Transform.translate(
+            offset: Offset(0, hasHero ? -overlap : 0),
+            child: Padding(
+              padding:
+                  EdgeInsets.fromLTRB(16, hasHero ? 0 : 16, 16, 0),
+              child: _tripInfoCard(context, entry),
             ),
-            child: Icon(icon, color: color, size: 28),
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label,
-                    style: text.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800, color: color)),
-                if (entry.notes.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(entry.notes,
-                      style: text.bodySmall?.copyWith(
-                          color:
-                              scheme.onSurface.withValues(alpha: 0.6))),
+          Transform.translate(
+            offset: Offset(0, hasHero ? -(overlap - gap) : 0),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, gap, 16, 0),
+              child: Column(
+                key: _detailsKey,
+                children: [
+                  if (entry.isCompleted) ...[
+                    _breakdownCard(context, entry),
+                    const SizedBox(height: 12),
+                  ],
+                  _noteCard(context, entry),
+                  const SizedBox(height: 12),
+                  _actionButton(context, entry),
+                  SizedBox(
+                      height: 24 + (hasHero ? (overlap - gap) : 0)),
                 ],
-              ],
+              ),
             ),
           ),
         ],
@@ -652,8 +630,23 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
     );
   }
 
-  /// Mockup's "التوصيل الآن" bottom card: order number, destination
-  /// line, address, live km + time chips, call action.
+  /// Smooth-scrolls the details section below the info card into view
+  /// (the mockup's "عرض التفاصيل" button).
+  void _scrollToDetails() {
+    final ctx = _detailsKey.currentContext;
+    if (ctx == null) return;
+    Scrollable.ensureVisible(
+      ctx,
+      duration: const Duration(milliseconds: 450),
+      curve: Curves.easeOut,
+      alignment: 0.02,
+    );
+  }
+
+  /// Mockup's "التوصيل الآن" card, shown for every status: order number,
+  /// status line, address row (notes), phone row with tap-to-call, km +
+  /// time chips with the manual "يدوي" badges + edit affordance, and the
+  /// gradient "عرض التفاصيل" button.
   Widget _tripInfoCard(BuildContext context, OrderEntry entry) {
     final l10n = AppLocalizations.of(context);
     final text = Theme.of(context).textTheme;
@@ -662,25 +655,52 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
     final isMine =
         snapshot != null && snapshot.orderId == entry.id;
 
-    final manualKm = entry.isToCustomer ? entry.kmOut : entry.kmBack;
-    final km = isMine ? snapshot.kmSoFar : manualKm;
-    final showingManual = !isMine && manualKm > 0;
-    final elapsed = isMine
-        ? snapshot.elapsed
-        : (entry.pickupTimeMillis == null
-            ? Duration.zero
-            : DateTime.now().difference(
-                DateTime.fromMillisecondsSinceEpoch(
-                    entry.pickupTimeMillis!)));
-    final heading =
-        entry.isToCustomer ? l10n.onWayToCustomer : l10n.trackingToMart;
+    final String heading;
+    final Color headingColor;
+    if (entry.isToCustomer) {
+      heading = l10n.onWayToCustomer;
+      headingColor = Colors.orange;
+    } else if (entry.isToMart) {
+      heading = l10n.onWayToMart;
+      headingColor = LiquidPalette.primaryBlue;
+    } else if (entry.isCompleted) {
+      heading = l10n.statusCompleted;
+      headingColor = Colors.green;
+    } else {
+      heading = l10n.statusPending;
+      headingColor = scheme.onSurface.withValues(alpha: 0.6);
+    }
+
     final shortId = entry.id.length > 6
         ? entry.id.substring(entry.id.length - 6)
         : entry.id;
-    final address =
-        entry.notes.isNotEmpty ? entry.notes : entry.phone;
 
-    Widget chip(IconData icon, String value) {
+    // Km + elapsed for the chips. Pending orders have no trip yet, so
+    // the chips row is hidden for them.
+    final showChips = !entry.isPending;
+    double km = 0;
+    Duration elapsed = Duration.zero;
+    bool showManualBadge = false;
+    if (entry.isTracking) {
+      final manualKm = entry.isToCustomer ? entry.kmOut : entry.kmBack;
+      km = isMine ? snapshot.kmSoFar : manualKm;
+      showManualBadge = !isMine && manualKm > 0;
+      elapsed = isMine
+          ? snapshot.elapsed
+          : (entry.pickupTimeMillis == null
+              ? Duration.zero
+              : DateTime.now().difference(
+                  DateTime.fromMillisecondsSinceEpoch(
+                      entry.pickupTimeMillis!)));
+    } else if (entry.isCompleted) {
+      km = entry.effectiveKmTotal;
+      showManualBadge = entry.hasManualKm;
+      elapsed = Duration(
+          seconds:
+              entry.outgoingDurationSec + entry.returnDurationSec);
+    }
+
+    Widget chip(IconData icon, String value, {bool manual = false}) {
       return Container(
         padding:
             const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -697,7 +717,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                 style: text.bodySmall?.copyWith(
                     fontWeight: FontWeight.w800,
                     color: LiquidPalette.primaryBlue)),
-            if (showingManual && icon == Icons.route_rounded) ...[
+            if (manual) ...[
               const SizedBox(width: 4),
               const ManualBadge(),
             ],
@@ -713,7 +733,17 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
         children: [
           Row(
             children: [
-              _pulsingDot(LiquidPalette.primaryBlue),
+              if (entry.isTracking)
+                _pulsingDot(LiquidPalette.primaryBlue)
+              else
+                Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: headingColor,
+                  ),
+                ),
               const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(
@@ -731,54 +761,54 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(heading,
-                    style: text.titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w800)),
+                    style: text.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: headingColor)),
               ),
             ],
           ),
-          if (address.isNotEmpty) ...[
-            const SizedBox(height: 8),
+          if (entry.notes.isNotEmpty) ...[
+            const SizedBox(height: 10),
             Row(
               children: [
-                Icon(Icons.location_on_outlined,
-                    size: 16,
-                    color: scheme.onSurface
-                        .withValues(alpha: 0.55)),
-                const SizedBox(width: 4),
+                const Icon(Icons.location_on_rounded,
+                    size: 17, color: LiquidPalette.primaryBlue),
+                const SizedBox(width: 6),
                 Expanded(
-                  child: Text(address,
+                  child: Text(entry.notes,
                       style: text.bodySmall?.copyWith(
                           color: scheme.onSurface
-                              .withValues(alpha: 0.7)),
+                              .withValues(alpha: 0.75)),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis),
                 ),
               ],
             ),
           ],
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              chip(Icons.route_rounded,
-                  '${_fmtKm(km)} ${l10n.kmUnit}'),
-              const SizedBox(width: 8),
-              chip(Icons.schedule_rounded, _fmtDuration(elapsed)),
-              const Spacer(),
-              if (entry.phone.isNotEmpty)
+          if (entry.phone.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Icon(Icons.phone_outlined,
+                    size: 17,
+                    color:
+                        scheme.onSurface.withValues(alpha: 0.55)),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(entry.phone,
+                      textDirection: TextDirection.ltr,
+                      style: text.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w700)),
+                ),
+                const SizedBox(width: 8),
                 Pressable(
-                  scaleOnly: true,
                   onTap: () {
-                    Clipboard.setData(
-                        ClipboardData(text: entry.phone));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                          content: Text(
-                              '${l10n.phoneNumber}: ${entry.phone}')),
-                    );
+                    launchUrl(
+                        Uri(scheme: 'tel', path: entry.phone));
                   },
                   child: Container(
-                    width: 42,
-                    height: 42,
+                    width: 44,
+                    height: 44,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       gradient: LiquidPalette.brandGradientLg,
@@ -791,23 +821,46 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                         ),
                       ],
                     ),
-                    child: const Icon(Icons.phone_rounded,
+                    child: const Icon(Icons.call_rounded,
                         color: Colors.white, size: 20),
                   ),
                 ),
-            ],
-          ),
-          // Manual fallback affordance (kept from the old card).
-          Align(
-            alignment: AlignmentDirectional.centerStart,
-            child: TextButton.icon(
-              onPressed: () => _showManualKmDialog(
-                outgoing: entry.isToCustomer,
-                onSave: (km) => _saveManualKm(
-                    outgoing: entry.isToCustomer, km: km),
+              ],
+            ),
+          ],
+          if (showChips) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                chip(Icons.route_rounded,
+                    '${_fmtKm(km)} ${l10n.kmUnit}',
+                    manual: showManualBadge),
+                const SizedBox(width: 8),
+                chip(Icons.schedule_rounded, _fmtDuration(elapsed)),
+              ],
+            ),
+            // Manual fallback affordance, exactly as before.
+            if (entry.isTracking)
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: TextButton.icon(
+                  onPressed: () => _showManualKmDialog(
+                    outgoing: entry.isToCustomer,
+                    onSave: (km) => _saveManualKm(
+                        outgoing: entry.isToCustomer, km: km),
+                  ),
+                  icon: const Icon(Icons.edit_rounded, size: 16),
+                  label: Text(l10n.editManualDistance),
+                ),
               ),
-              icon: const Icon(Icons.edit_rounded, size: 16),
-              label: Text(l10n.editManualDistance),
+          ],
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: GlassButton(
+              label: l10n.viewDetails,
+              icon: Icons.keyboard_arrow_down_rounded,
+              onPressed: _scrollToDetails,
             ),
           ),
         ],
@@ -1042,6 +1095,296 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
       );
     }
     return const SizedBox.shrink();
+  }
+}
+
+/// Map-first hero for the order detail screen (mockup's "التوصيل الآن").
+///
+/// - While tracking: live map fed by the background isolate's progress
+///   file, polled every 5s and rebuilt only when km/point count actually
+///   change (same update mechanism as the old LiveTripMapCard).
+/// - When completed: the recorded outgoing/return route with mart +
+///   customer pins (same data as the old RouteMapCard).
+///
+/// Mockup styling: rounded ~24 corners, subtle brand-blue border, route
+/// polyline in brand blue #0A84FF (5-6px), courier marker + destination
+/// pins in brand colors. No continuous animations.
+class _DeliveryHeroMap extends ConsumerStatefulWidget {
+  final OrderEntry entry;
+  final double height;
+
+  const _DeliveryHeroMap({
+    required this.entry,
+    required this.height,
+  });
+
+  @override
+  ConsumerState<_DeliveryHeroMap> createState() =>
+      _DeliveryHeroMapState();
+}
+
+class _DeliveryHeroMapState extends ConsumerState<_DeliveryHeroMap> {
+  Timer? _timer;
+  LiveTripProgress? _progress;
+  double _lastKm = -1;
+  int _lastPoints = -1;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.entry.isTracking) _startPolling();
+  }
+
+  @override
+  void didUpdateWidget(covariant _DeliveryHeroMap oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.entry.id != oldWidget.entry.id ||
+        widget.entry.isTracking != oldWidget.entry.isTracking) {
+      _timer?.cancel();
+      _timer = null;
+      _progress = null;
+      _lastKm = -1;
+      _lastPoints = -1;
+      if (widget.entry.isTracking) _startPolling();
+    }
+  }
+
+  void _startPolling() {
+    _tick();
+    _timer = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => _tick(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _tick() async {
+    final svc = ref.read(deliveryTrackingServiceProvider);
+    final p = await svc.readLiveProgress(widget.entry.id);
+    if (!mounted) return;
+    final km = p?.km ?? -1;
+    final points = p?.pointCount ?? -1;
+    // Only rebuild when something actually changed.
+    if (km != _lastKm || points != _lastPoints) {
+      setState(() {
+        _progress = p;
+        _lastKm = km;
+        _lastPoints = points;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: widget.height,
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: LiquidPalette.primaryBlue.withValues(alpha: 0.18),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(22),
+        child: widget.entry.isTracking ? _liveMap() : _routeMap(),
+      ),
+    );
+  }
+
+  /// Live trip: traveled route in brand blue + courier position marker.
+  Widget _liveMap() {
+    final l10n = AppLocalizations.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final progress = _progress;
+    final n = progress?.pointCount ?? 0;
+    if (progress == null || n == 0) {
+      return Container(
+        color: LiquidPalette.cardTint(isDark),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 30,
+                height: 30,
+                child: CircularProgressIndicator(
+                  strokeWidth: 3,
+                  color: scheme.primary,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                l10n.waitingForGps,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurface.withValues(alpha: 0.6)),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final points = List<LatLng>.generate(
+      n,
+      (i) => LatLng(progress.lat[i], progress.lng[i]),
+    );
+    final current = points.last;
+
+    return FlutterMap(
+      options: MapOptions(
+        initialCenter: current,
+        initialZoom: 15,
+        interactionOptions: const InteractionOptions(
+          flags: InteractiveFlag.all,
+        ),
+      ),
+      children: [
+        TileLayer(
+          urlTemplate:
+              'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          userAgentPackageName: 'com.valor.deliveryflow',
+        ),
+        PolylineLayer(
+          polylines: [
+            if (points.length > 1)
+              Polyline(
+                points: points,
+                strokeWidth: 5.5,
+                color: LiquidPalette.primaryBlue,
+              ),
+          ],
+        ),
+        MarkerLayer(
+          markers: [
+            Marker(
+              point: current,
+              width: 46,
+              height: 46,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: LiquidPalette.primaryBlue,
+                  shape: BoxShape.circle,
+                  border:
+                      Border.all(color: Colors.white, width: 3),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.35),
+                      blurRadius: 8,
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.delivery_dining_rounded,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  List<LatLng> _pts(List<double> lat, List<double> lng) {
+    final n = lat.length < lng.length ? lat.length : lng.length;
+    return List.generate(n, (i) => LatLng(lat[i], lng[i]));
+  }
+
+  /// Completed trip: outgoing leg in brand blue, return leg in sky
+  /// blue, mart + customer pins in brand colors.
+  Widget _routeMap() {
+    final entry = widget.entry;
+    final out = _pts(entry.displayOutLat, entry.displayOutLng);
+    final back = _pts(entry.displayBackLat, entry.displayBackLng);
+    final bounds = LatLngBounds.fromPoints([...out, ...back]);
+
+    return FlutterMap(
+      options: MapOptions(
+        initialCenter: bounds.center,
+        initialZoom: 14,
+        initialCameraFit: CameraFit.bounds(
+          bounds: bounds,
+          padding: const EdgeInsets.all(48),
+        ),
+        interactionOptions: const InteractionOptions(
+          flags: InteractiveFlag.all,
+        ),
+      ),
+      children: [
+        TileLayer(
+          urlTemplate:
+              'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          userAgentPackageName: 'com.valor.deliveryflow',
+        ),
+        PolylineLayer(
+          polylines: [
+            if (out.length > 1)
+              Polyline(
+                points: out,
+                strokeWidth: 5,
+                color: LiquidPalette.primaryBlue,
+              ),
+            if (back.length > 1)
+              Polyline(
+                points: back,
+                strokeWidth: 5,
+                color: LiquidPalette.skyBlue,
+              ),
+          ],
+        ),
+        MarkerLayer(
+          markers: [
+            if (out.isNotEmpty)
+              _pin(out.first, Icons.store_rounded,
+                  LiquidPalette.skyBlue),
+            if (out.isNotEmpty)
+              _pin(out.last, Icons.person_pin_rounded,
+                  LiquidPalette.primaryBlue),
+            if (back.isNotEmpty)
+              _pin(back.last, Icons.store_rounded,
+                  LiquidPalette.skyBlue),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Marker _pin(LatLng point, IconData icon, Color color) {
+    return Marker(
+      point: point,
+      width: 40,
+      height: 40,
+      child: Container(
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.3),
+              blurRadius: 6,
+            ),
+          ],
+        ),
+        child: Icon(icon, color: Colors.white, size: 22),
+      ),
+    );
   }
 }
 

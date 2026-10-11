@@ -141,6 +141,39 @@ class AppLocalizationsAr extends AppLocalizations {
   String get contactLabel => 'للتواصل';
 
   @override
+  String get navProfile => 'حسابي';
+
+  @override
+  String get profileSetup => 'إعداد الحساب';
+
+  @override
+  String get fullName => 'الاسم الكامل';
+
+  @override
+  String get driverRole => 'سائق توصيل';
+
+  @override
+  String get changePhoto => 'تغيير الصورة';
+
+  @override
+  String get tapToAddPhoto => 'اضغط لإضافة صورة';
+
+  @override
+  String get helpSupport => 'مساعدة ودعم';
+
+  @override
+  String get quickActions => 'إجراءات سريعة';
+
+  @override
+  String get greetingHello => 'مرحباً';
+
+  @override
+  String get reportsMenu => 'التقارير والإحصائيات';
+
+  @override
+  String get callUs => 'اتصل بنا';
+
+  @override
   String get displayNameHint => 'مثال: أحمد';
 
   @override
@@ -894,6 +927,9 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get onWayToCustomer => 'في طريقك للعميل';
+
+  @override
+  String get onWayToMart => 'في طريقك للمارت';
 
   @override
   String get viewDetails => 'عرض التفاصيل';

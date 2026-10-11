@@ -10,12 +10,12 @@ import '../features/daily_orders/order_entry_screen.dart';
 import '../features/history/history_screen.dart';
 import '../features/onboarding/onboarding_screen.dart';
 import '../features/onboarding/splash_screen.dart';
+import '../features/profile/profile_screen.dart';
 import '../features/schedule/schedule_screen.dart';
-import '../features/settings/settings_screen.dart';
 import '../features/weekly_reports/report_screen.dart';
 import '../features/work_sessions/session_screen.dart';
 
-const _paths = ['/home', '/schedule', '/reports', '/history', '/settings'];
+const _paths = ['/home', '/schedule', '/reports', '/history', '/profile'];
 
 IconData _iconFor(int index, bool selected) {
   switch (index) {
@@ -30,7 +30,7 @@ IconData _iconFor(int index, bool selected) {
     case 3:
       return selected ? Icons.history_rounded : Icons.history_outlined;
     case 4:
-      return selected ? Icons.settings_rounded : Icons.settings_outlined;
+      return selected ? Icons.person_rounded : Icons.person_outlined;
     default:
       return Icons.circle;
   }
@@ -47,7 +47,7 @@ String _labelFor(AppLocalizations l10n, int index) {
     case 3:
       return l10n.navHistory;
     case 4:
-      return l10n.navSettings;
+      return l10n.navProfile;
     default:
       return '';
   }
@@ -145,10 +145,17 @@ GoRouter buildRouter(WidgetRef ref) {
             body: Stack(
               children: [
                 const AuroraBackground(),
+                // Top padding: header content on the tab screens must sit
+                // well BELOW the phone's status bar (time/battery/icons)
+                // with comfortable breathing space, like the mockup.
                 // Bottom padding keeps list content from hiding under
-                // the floating bar; the background still bleeds behind.
+                // the floating bar; the background still bleeds behind
+                // on all edges (no black bands).
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 96),
+                  padding: EdgeInsets.only(
+                    top: MediaQuery.of(context).padding.top + 20,
+                    bottom: 96,
+                  ),
                   child: _TabTransition(
                     index: navigationShell.currentIndex,
                     child: navigationShell,
@@ -203,8 +210,8 @@ GoRouter buildRouter(WidgetRef ref) {
           ]),
           StatefulShellBranch(routes: [
             GoRoute(
-                path: '/settings',
-                builder: (context, state) => const SettingsScreen()),
+                path: '/profile',
+                builder: (context, state) => const ProfileScreen()),
           ]),
         ],
       ),

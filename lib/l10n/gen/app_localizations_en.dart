@@ -141,6 +141,39 @@ class AppLocalizationsEn extends AppLocalizations {
   String get contactLabel => 'Contact';
 
   @override
+  String get navProfile => 'My Account';
+
+  @override
+  String get profileSetup => 'Set Up Account';
+
+  @override
+  String get fullName => 'Full Name';
+
+  @override
+  String get driverRole => 'Delivery Driver';
+
+  @override
+  String get changePhoto => 'Change Photo';
+
+  @override
+  String get tapToAddPhoto => 'Tap to add photo';
+
+  @override
+  String get helpSupport => 'Help & Support';
+
+  @override
+  String get quickActions => 'Quick actions';
+
+  @override
+  String get greetingHello => 'Hello';
+
+  @override
+  String get reportsMenu => 'Reports & Statistics';
+
+  @override
+  String get callUs => 'Call us';
+
+  @override
   String get displayNameHint => 'e.g. Ahmed';
 
   @override
@@ -895,6 +928,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get onWayToCustomer => 'On your way to the customer';
+
+  @override
+  String get onWayToMart => 'On your way back to the mart';
 
   @override
   String get viewDetails => 'View details';

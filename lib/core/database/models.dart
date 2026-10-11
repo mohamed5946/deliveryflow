@@ -55,6 +55,8 @@ class UserSettings extends HiveObject {
   double? orderPrice; // EGP per order (salary calc)
   @HiveField(22)
   double? dailyFixedPay; // EGP per attended day (salary calc)
+  @HiveField(23)
+  String photoPath; // absolute path of the saved profile photo ('', if none)
 
   UserSettings({
     this.displayName = '',
@@ -80,6 +82,7 @@ class UserSettings extends HiveObject {
     this.themePreset = 0,
     this.orderPrice,
     this.dailyFixedPay,
+    this.photoPath = '',
   });
 
   Map<String, dynamic> toJson() => {
@@ -106,6 +109,7 @@ class UserSettings extends HiveObject {
         'themePreset': themePreset,
         'orderPrice': orderPrice,
         'dailyFixedPay': dailyFixedPay,
+        'photoPath': photoPath,
         'schemaVersion': kSchemaVersion,
       };
 
@@ -142,6 +146,7 @@ class UserSettings extends HiveObject {
         themePreset: (json['themePreset'] as num?)?.toInt() ?? 0,
         orderPrice: (json['orderPrice'] as num?)?.toDouble(),
         dailyFixedPay: (json['dailyFixedPay'] as num?)?.toDouble(),
+        photoPath: (json['photoPath'] as String?) ?? '',
       );
 }
 
@@ -179,13 +184,14 @@ class UserSettingsAdapter extends TypeAdapter<UserSettings> {
       themePreset: (fields[20] as int?) ?? 0,
       orderPrice: (fields[21] as num?)?.toDouble(),
       dailyFixedPay: (fields[22] as num?)?.toDouble(),
+      photoPath: (fields[23] as String?) ?? '',
     );
   }
 
   @override
   void write(BinaryWriter writer, UserSettings obj) {
     writer
-      ..writeByte(23)
+      ..writeByte(24)
       ..writeByte(0)
       ..write(obj.displayName)
       ..writeByte(1)
@@ -231,7 +237,9 @@ class UserSettingsAdapter extends TypeAdapter<UserSettings> {
       ..writeByte(21)
       ..write(obj.orderPrice)
       ..writeByte(22)
-      ..write(obj.dailyFixedPay);
+      ..write(obj.dailyFixedPay)
+      ..writeByte(23)
+      ..write(obj.photoPath);
   }
 }
 

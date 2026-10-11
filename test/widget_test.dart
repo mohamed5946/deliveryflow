@@ -5,7 +5,7 @@ import 'package:deliveryflow/core/notifications/notification_service.dart';
 import 'package:deliveryflow/core/providers.dart';
 import 'package:deliveryflow/features/daily_orders/order_entry_screen.dart';
 import 'package:deliveryflow/features/dashboard/dashboard_screen.dart';
-import 'package:deliveryflow/features/settings/settings_screen.dart';
+import 'package:deliveryflow/features/profile/profile_screen.dart';
 import 'package:deliveryflow/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:deliveryflow/l10n/gen/app_localizations.dart';
@@ -87,10 +87,10 @@ void main() {
       await tester.runAsync(
           () => db.upsertOrderRecord(dateKey: key, completedOrders: 5));
       await pumpScreen(tester, const DashboardScreen(), db: db);
-      expect(find.textContaining('صباح الخير'), findsOneWidget);
-      // Quick-action button only (no separate section header anymore).
-      expect(find.text('تسجيل أوردرات اليوم'), findsOneWidget);
-      expect(find.text('تسجيل ساعات العمل'), findsOneWidget);
+      expect(find.textContaining('مرحباً'), findsOneWidget);
+      // Quick actions: add order + week details.
+      expect(find.text('أضف أوردر'), findsOneWidget);
+      expect(find.text('عرض تفاصيل الأسبوع'), findsOneWidget);
       // RTL directionality for Arabic.
       final dir = tester.widget<Directionality>(
           find.byType(Directionality).first);
@@ -172,7 +172,14 @@ void main() {
 
   group('Settings', () {
     testWidgets('theme radio changes persisted theme', (tester) async {
-      await pumpScreen(tester, const SettingsScreen(), db: db);
+      // Tall viewport: the theme rows sit below the profile header cards.
+      tester.view.physicalSize = const Size(800, 4000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      await pumpScreen(tester, const ProfileScreen(), db: db);
       await tester.runAsync(() async {
         await tester.tap(find.text('الوضع الداكن'));
         for (var i = 0; i < 50; i++) {
@@ -184,7 +191,7 @@ void main() {
     });
 
     testWidgets('language switch is offered', (tester) async {
-      await pumpScreen(tester, const SettingsScreen(), db: db);
+      await pumpScreen(tester, const ProfileScreen(), db: db);
       expect(find.text('العربية', skipOffstage: false), findsOneWidget);
       expect(find.text('English', skipOffstage: false), findsOneWidget);
     });
@@ -197,7 +204,7 @@ void main() {
         tester.view.resetPhysicalSize();
         tester.view.resetDevicePixelRatio();
       });
-      await pumpScreen(tester, const SettingsScreen(), db: db);
+      await pumpScreen(tester, const ProfileScreen(), db: db);
       expect(find.text('تفعيل الإشعارات'), findsOneWidget);
       expect(find.text('تذكير الأوردرات اليومي'), findsOneWidget);
     });
