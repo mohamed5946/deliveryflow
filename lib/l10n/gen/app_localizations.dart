@@ -1253,7 +1253,7 @@ abstract class AppLocalizations {
   /// No description provided for @invalidKm.
   ///
   /// In en, this message translates to:
-  /// **'Enter a valid distance (a positive number)'**
+  /// **'Enter a number greater than zero'**
   String get invalidKm;
 
   /// No description provided for @kmOutLabel.
@@ -1627,6 +1627,102 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Are you sure? Deletion is permanent — the whole week with all its orders will be removed.'**
   String get deleteWeekBody;
+
+  /// No description provided for @liveTripMapTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Live trip map'**
+  String get liveTripMapTitle;
+
+  /// No description provided for @waitingForGps.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for GPS signal…'**
+  String get waitingForGps;
+
+  /// No description provided for @tripNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Note'**
+  String get tripNote;
+
+  /// No description provided for @tripNoteHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Write the address or any note…'**
+  String get tripNoteHint;
+
+  /// No description provided for @trackingFailedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Tracking failed to start'**
+  String get trackingFailedTitle;
+
+  /// No description provided for @returnTrackingFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Outgoing distance was saved, but return tracking failed to start.'**
+  String get returnTrackingFailed;
+
+  /// No description provided for @retry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get retry;
+
+  /// No description provided for @trackingStartFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t start tracking'**
+  String get trackingStartFailed;
+
+  /// No description provided for @enterManualKm.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter kilometers manually'**
+  String get enterManualKm;
+
+  /// No description provided for @manualKmLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Distance (km)'**
+  String get manualKmLabel;
+
+  /// No description provided for @manualKmHint.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. 3.5'**
+  String get manualKmHint;
+
+  /// No description provided for @manualBadge.
+  ///
+  /// In en, this message translates to:
+  /// **'Manual'**
+  String get manualBadge;
+
+  /// No description provided for @editManualDistance.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit distance manually'**
+  String get editManualDistance;
+
+  /// No description provided for @trackingStoppedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Tracking stopped'**
+  String get trackingStoppedTitle;
+
+  /// No description provided for @trackingStoppedBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Tracking isn\'t running for this order, so kilometers aren\'t being counted. Restart it or enter the distance manually?'**
+  String get trackingStoppedBody;
+
+  /// No description provided for @startTracking.
+  ///
+  /// In en, this message translates to:
+  /// **'Start tracking'**
+  String get startTracking;
 }
 
 class _AppLocalizationsDelegate

@@ -615,7 +615,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get deleteOrderConfirm => 'هيتمسح الأوردر ده من سجل اليوم.';
 
   @override
-  String get invalidKm => 'دخل مسافة صحيحة (رقم موجب)';
+  String get invalidKm => 'أدخل رقمًا أكبر من صفر';
 
   @override
   String get kmOutLabel => 'رايح';
@@ -811,4 +811,54 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get deleteWeekBody =>
       'متأكد؟ الحذف نهائي — هيتمسح الأسبوع كامل بكل أوردراته.';
+
+  @override
+  String get liveTripMapTitle => 'خريطة الرحلة المباشرة';
+
+  @override
+  String get waitingForGps => 'في انتظار إشارة الـ GPS…';
+
+  @override
+  String get tripNote => 'ملاحظة';
+
+  @override
+  String get tripNoteHint => 'اكتب العنوان أو أي ملاحظة…';
+
+  @override
+  String get trackingFailedTitle => 'فشل تشغيل التتبع';
+
+  @override
+  String get returnTrackingFailed =>
+      'تم حفظ مسافة الذهاب، لكن تعذر تشغيل تتبع العودة.';
+
+  @override
+  String get retry => 'حاول تاني';
+
+  @override
+  String get trackingStartFailed => 'تعذر تشغيل التتبع';
+
+  @override
+  String get enterManualKm => 'إدخال الكيلومترات يدويًا';
+
+  @override
+  String get manualKmLabel => 'المسافة (كم)';
+
+  @override
+  String get manualKmHint => 'مثال: 3.5';
+
+  @override
+  String get manualBadge => 'يدوي';
+
+  @override
+  String get editManualDistance => 'تعديل يدوي للمسافة';
+
+  @override
+  String get trackingStoppedTitle => 'التتبع متوقف';
+
+  @override
+  String get trackingStoppedBody =>
+      'التتبع مش شغال للأوردر ده، والكيلومترات مش بتتحسب. تحب تشغله تاني ولا تدخل المسافة يدويًا؟';
+
+  @override
+  String get startTracking => 'تشغيل التتبع';
 }

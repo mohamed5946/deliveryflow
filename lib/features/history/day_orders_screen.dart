@@ -114,11 +114,19 @@ class DayOrdersScreen extends ConsumerWidget {
                               crossAxisAlignment:
                                   CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  '${entry.effectiveKmTotal.toStringAsFixed(2)} ${l10n.kmUnit}',
-                                  style: text.bodyMedium?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                  ),
+                                Row(
+                                  children: [
+                                    Text(
+                                      '${entry.effectiveKmTotal.toStringAsFixed(2)} ${l10n.kmUnit}',
+                                      style: text.bodyMedium?.copyWith(
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    if (entry.hasManualKm) ...[
+                                      const SizedBox(width: 6),
+                                      const ManualBadge(),
+                                    ],
+                                  ],
                                 ),
                                 if (entry.notes.isNotEmpty)
                                   Text(

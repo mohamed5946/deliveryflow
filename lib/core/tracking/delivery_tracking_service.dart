@@ -32,6 +32,30 @@ class TrackingSnapshot {
   });
 }
 
+/// Raw progress written by the background isolate's JSON file.
+/// Read directly by the live trip map so it works even when the main
+/// isolate was restarted mid-trip.
+class LiveTripProgress {
+  final String orderId;
+  final String segment; // 'outgoing' | 'returning'
+  final double km;
+  final int startedAtMillis;
+  final List<double> lat;
+  final List<double> lng;
+
+  const LiveTripProgress({
+    required this.orderId,
+    required this.segment,
+    required this.km,
+    required this.startedAtMillis,
+    required this.lat,
+    required this.lng,
+  });
+
+  int get pointCount =>
+      lat.length < lng.length ? lat.length : lng.length;
+}
+
 /// GPS tracking service for the delivery lifecycle.
 ///
 /// Tracking runs in a BACKGROUND isolate (via flutter_foreground_task),
@@ -60,6 +84,10 @@ class DeliveryTrackingService {
   Timer? _uiTimer;
 
   bool get isTracking => _trackingOrderId != null;
+
+  /// The order id currently tracked by this service instance (null when
+  /// idle). Used to stop tracking when the tracked order is deleted.
+  String? get trackingOrderId => _trackingOrderId;
 
   void _onBackgroundData(Object data) {
     if (data is! Map) return;
@@ -125,6 +153,10 @@ class DeliveryTrackingService {
     required String orderId,
     required TrackingSegment segment,
   }) async {
+    // Guard: never start on top of a leaked/stale service (e.g. after a
+    // crash) — the plugin throws ServiceAlreadyStartedException.
+    await _stopBackgroundTracking();
+
     // Save init data for the background isolate.
     await FlutterForegroundTask.saveData(
       key: 'tracking_init',
@@ -157,11 +189,31 @@ class DeliveryTrackingService {
 
     final label =
         segment == TrackingSegment.outgoing ? 'إلى العميل' : 'عودة للمارت';
-    await FlutterForegroundTask.startService(
-      notificationTitle: 'DeliveryFlow — $label',
-      notificationText: 'يتم حساب مسافة التوصيل في الخلفية…',
-      callback: trackingTaskEntryPoint,
-    );
+    try {
+      await FlutterForegroundTask.startService(
+        notificationTitle: 'DeliveryFlow — $label',
+        notificationText: 'يتم حساب مسافة التوصيل في الخلفية…',
+        callback: trackingTaskEntryPoint,
+      );
+    } catch (_) {
+      throw StateError('تعذر تشغيل التتبع في الخلفية');
+    }
+
+    // Verify the service actually came up — a silent no-start is what
+    // burned us before (zero GPS fixes were ever requested because the
+    // service never started). Poll briefly: the native side flips its
+    // running state asynchronously after startService returns.
+    var running = false;
+    for (var i = 0; i < 10; i++) {
+      if (await FlutterForegroundTask.isRunningService) {
+        running = true;
+        break;
+      }
+      await Future.delayed(const Duration(milliseconds: 300));
+    }
+    if (!running) {
+      throw StateError('تعذر تشغيل التتبع في الخلفية');
+    }
 
     _trackingOrderId = orderId;
     _segment = segment;
@@ -193,8 +245,17 @@ class DeliveryTrackingService {
   Future<void> _stopBackgroundTracking() async {
     if (await FlutterForegroundTask.isRunningService) {
       FlutterForegroundTask.sendDataToTask('stop');
-      await Future.delayed(const Duration(seconds: 2));
-      await FlutterForegroundTask.stopService();
+      // Poll until the background isolate actually stops (up to ~6s).
+      // A fixed delay is not enough on slow devices: restarting the
+      // service while the old one is still alive throws
+      // ServiceAlreadyStartedException and kills the return leg.
+      for (var i = 0; i < 20; i++) {
+        await Future.delayed(const Duration(milliseconds: 300));
+        if (!await FlutterForegroundTask.isRunningService) break;
+      }
+      if (await FlutterForegroundTask.isRunningService) {
+        await FlutterForegroundTask.stopService();
+      }
     }
     _uiTimer?.cancel();
     _uiTimer = null;
@@ -203,13 +264,74 @@ class DeliveryTrackingService {
     _segmentStart = null;
   }
 
+  /// Re-attaches to an in-progress background tracking session, e.g.
+  /// after the app was killed/swiped away and reopened mid-trip. The
+  /// background isolate keeps writing its progress file independently;
+  /// this restores the main-isolate bookkeeping so live snapshots flow
+  /// again. Returns true when a session for [entryId] was recovered.
+  Future<bool> recoverTracking(String entryId) async {
+    if (_trackingOrderId != null) return true;
+    final running = await FlutterForegroundTask.isRunningService;
+    final progress = await _readProgress(entryId);
+    if (!running || progress == null) return false;
+    if (progress['orderId'] != entryId) return false;
+    _trackingOrderId = entryId;
+    _segment =
+        (progress['segment'] as String?) == 'returning'
+            ? TrackingSegment.returning
+            : TrackingSegment.outgoing;
+    _segmentStart = DateTime.fromMillisecondsSinceEpoch(
+      (progress['startedAt'] as num?)?.toInt() ??
+          DateTime.now().millisecondsSinceEpoch,
+    );
+    _uiTimer?.cancel();
+    _uiTimer = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => _emitSnapshotFromFile(),
+    );
+    return true;
+  }
+
+  /// Live progress written by the background isolate for [orderId],
+  /// or null when nothing is being tracked for it.
+  Future<LiveTripProgress?> readLiveProgress(String orderId) async {
+    final p = await _readProgress(orderId);
+    if (p == null || p['orderId'] != orderId) return null;
+    final lat =
+        ((p['lat'] as List?) ?? [])
+            .map((e) => (e as num).toDouble())
+            .toList();
+    final lng =
+        ((p['lng'] as List?) ?? [])
+            .map((e) => (e as num).toDouble())
+            .toList();
+    return LiveTripProgress(
+      orderId: orderId,
+      segment: (p['segment'] as String?) ?? '',
+      km: (p['km'] as num?)?.toDouble() ?? 0,
+      startedAtMillis:
+          (p['startedAt'] as num?)?.toInt() ??
+          DateTime.now().millisecondsSinceEpoch,
+      lat: lat,
+      lng: lng,
+    );
+  }
+
   /// Courier picked up the order from the mart and pressed "بدأ التوصيل".
+  ///
+  /// Background tracking is started AND verified BEFORE the order is
+  /// marked as tracking in the DB — an order must never sit in
+  /// "tracking" state with no tracking actually running.
   Future<void> startOutgoing({
     required String dateKey,
     required String entryId,
   }) async {
     final ok = await ensurePermissions();
     if (!ok) throw StateError('Location permission not granted');
+    await _startBackgroundTracking(
+      orderId: entryId,
+      segment: TrackingSegment.outgoing,
+    );
     final now = DateTime.now().millisecondsSinceEpoch;
     await _db.updateOrderEntry(
       dateKey: dateKey,
@@ -217,9 +339,47 @@ class DeliveryTrackingService {
       status: 1,
       pickupTimeMillis: now,
     );
+  }
+
+  /// Starts the outgoing leg in MANUAL mode (no background tracking).
+  /// [kmOut] may be 0 when the courier doesn't know the distance yet —
+  /// they can fill it later via the manual-edit affordance on the trip
+  /// screen. The order is never blocked on GPS.
+  Future<void> startManualOutgoing({
+    required String dateKey,
+    required String entryId,
+    double kmOut = 0,
+  }) async {
+    if (kmOut < 0) throw ArgumentError('Distance cannot be negative');
+    final now = DateTime.now().millisecondsSinceEpoch;
+    await _db.updateOrderEntry(
+      dateKey: dateKey,
+      entryId: entryId,
+      status: 1,
+      pickupTimeMillis: now,
+      kmOut: kmOut,
+    );
+  }
+
+  /// Restarts tracking for [entryId]'s current leg without modifying the
+  /// order's DB state. Used to resume after the system killed the service
+  /// mid-trip (the handler reloads partial progress from its file).
+  Future<void> resumeTracking({
+    required String entryId,
+    required TrackingSegment segment,
+  }) async {
     await _startBackgroundTracking(
       orderId: entryId,
-      segment: TrackingSegment.outgoing,
+      segment: segment,
+    );
+  }
+
+  /// Starts (or restarts) the return-leg background tracking, verified.
+  /// Used by [markDelivered] and by the UI retry after a failed start.
+  Future<void> startReturnLeg({required String entryId}) async {
+    await _startBackgroundTracking(
+      orderId: entryId,
+      segment: TrackingSegment.returning,
     );
   }
 
@@ -272,11 +432,9 @@ class DeliveryTrackingService {
       roadOutLng: roadLng,
     );
 
-    // Start return leg.
-    await _startBackgroundTracking(
-      orderId: entryId,
-      segment: TrackingSegment.returning,
-    );
+    // Start return leg (verified — throws loudly on failure so the UI
+    // can offer a retry instead of silently losing the return trip).
+    await startReturnLeg(entryId: entryId);
     return finalKmOut;
   }
 

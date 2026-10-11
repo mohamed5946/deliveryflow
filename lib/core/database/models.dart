@@ -567,6 +567,13 @@ class OrderEntry extends HiveObject {
   double get effectiveKmBack => gpsKmBack > 0 ? gpsKmBack : kmBack;
   double get effectiveKmTotal => effectiveKmOut + effectiveKmBack;
 
+  /// True when this leg's distance came from manual entry (GPS produced
+  /// nothing). Used for the "يدوي" badge so reports distinguish GPS vs
+  /// manual distances.
+  bool get isManualOut => gpsKmOut == 0 && kmOut > 0;
+  bool get isManualBack => gpsKmBack == 0 && kmBack > 0;
+  bool get hasManualKm => isManualOut || isManualBack;
+
   bool get isPending => status == 0;
   bool get isToCustomer => status == 1;
   bool get isToMart => status == 2;

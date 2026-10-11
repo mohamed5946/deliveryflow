@@ -615,7 +615,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'This order will be removed from the day\'s log.';
 
   @override
-  String get invalidKm => 'Enter a valid distance (a positive number)';
+  String get invalidKm => 'Enter a number greater than zero';
 
   @override
   String get kmOutLabel => 'Going';
@@ -812,4 +812,54 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get deleteWeekBody =>
       'Are you sure? Deletion is permanent — the whole week with all its orders will be removed.';
+
+  @override
+  String get liveTripMapTitle => 'Live trip map';
+
+  @override
+  String get waitingForGps => 'Waiting for GPS signal…';
+
+  @override
+  String get tripNote => 'Note';
+
+  @override
+  String get tripNoteHint => 'Write the address or any note…';
+
+  @override
+  String get trackingFailedTitle => 'Tracking failed to start';
+
+  @override
+  String get returnTrackingFailed =>
+      'Outgoing distance was saved, but return tracking failed to start.';
+
+  @override
+  String get retry => 'Retry';
+
+  @override
+  String get trackingStartFailed => 'Couldn\'t start tracking';
+
+  @override
+  String get enterManualKm => 'Enter kilometers manually';
+
+  @override
+  String get manualKmLabel => 'Distance (km)';
+
+  @override
+  String get manualKmHint => 'e.g. 3.5';
+
+  @override
+  String get manualBadge => 'Manual';
+
+  @override
+  String get editManualDistance => 'Edit distance manually';
+
+  @override
+  String get trackingStoppedTitle => 'Tracking stopped';
+
+  @override
+  String get trackingStoppedBody =>
+      'Tracking isn\'t running for this order, so kilometers aren\'t being counted. Restart it or enter the distance manually?';
+
+  @override
+  String get startTracking => 'Start tracking';
 }

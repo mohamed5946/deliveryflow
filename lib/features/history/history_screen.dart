@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/date_time/week_calendar.dart';
 import '../../core/providers.dart';
+import '../../core/tracking/delivery_tracking_service.dart';
 import '../../theme/design_system.dart';
 import '../../theme/page_transitions.dart';
 import '../../theme/pressable.dart';
@@ -180,6 +181,26 @@ class HistoryScreen extends ConsumerWidget {
       ),
     );
     if (ok == true && context.mounted) {
+      // If the week being deleted contains the currently tracked order,
+      // stop the background service first — otherwise it keeps recording
+      // + notifying for deleted data (orphaned tracking).
+      final svc = ref.read(deliveryTrackingServiceProvider);
+      final trackedId = svc.trackingOrderId;
+      if (svc.isTracking && trackedId != null) {
+        final db = ref.read(databaseServiceProvider);
+        final start = WeekCalendar.parseDateKey(startKey);
+        var trackedInWeek = false;
+        for (var i = 0; i < 7 && !trackedInWeek; i++) {
+          final key =
+              WeekCalendar.dateKey(WeekCalendar.addDays(start, i));
+          final rec = db.orderRecord(key);
+          if (rec != null &&
+              rec.entries.any((e) => e.id == trackedId)) {
+            trackedInWeek = true;
+          }
+        }
+        if (trackedInWeek) await svc.cancelTracking();
+      }
       await ref.read(databaseServiceProvider).deleteWeek(startKey);
       bumpDataVersion(ref);
     }
@@ -200,7 +221,7 @@ class _WeekDetailSheet extends ConsumerWidget {
     final loc = locale == 'ar' ? 'ar' : 'en';
     final reportAsync = ref.watch(weeklyReportProvider(weekStart));
 
-    return Scaffold(
+    return GlassScaffold(
       appBar: AppBar(title: Text(l10n.openWeek)),
       body: reportAsync.when(
         loading: () => const GlassLoading(),

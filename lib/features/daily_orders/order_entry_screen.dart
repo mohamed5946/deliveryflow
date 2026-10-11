@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../../core/database/models.dart';
 import '../../core/date_time/week_calendar.dart';
 import '../../core/providers.dart';
+import '../../core/tracking/delivery_tracking_service.dart';
 import '../../theme/design_system.dart';
 import '../../theme/page_transitions.dart';
 import '../../theme/pressable.dart';
@@ -150,6 +151,13 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
     );
     if (confirmed != true || !mounted) return;
     final db = ref.read(databaseServiceProvider);
+    // If the deleted order was being tracked, stop the background
+    // service too — otherwise it keeps recording + notifying for a
+    // deleted order (orphaned tracking).
+    final svc = ref.read(deliveryTrackingServiceProvider);
+    if (svc.isTracking && svc.trackingOrderId == entry.id) {
+      await svc.cancelTracking();
+    }
     await db.deleteOrderEntry(dateKey: _dateKey, entryId: entry.id);
     if (!mounted) return;
     bumpDataVersion(ref);

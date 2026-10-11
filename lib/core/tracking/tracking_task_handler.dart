@@ -48,7 +48,12 @@ class TrackingTaskHandler extends TaskHandler {
         _startedAt = DateTime.now().millisecondsSinceEpoch;
       } catch (_) {}
     }
-    if (_orderId.isEmpty) return;
+    if (_orderId.isEmpty) {
+      // No order to track (e.g. stale restart): don't sit idle with a
+      // notification — shut down.
+      FlutterForegroundTask.stopService();
+      return;
+    }
 
     // Load any existing progress (e.g. after service restart).
     await _loadProgress();

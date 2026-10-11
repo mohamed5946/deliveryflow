@@ -1,5 +1,6 @@
 import 'dart:ui';
 
+import 'package:deliveryflow/l10n/gen/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -405,19 +406,61 @@ class GlassScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Status-bar inset read above the Scaffold: with
+    // extendBodyBehindAppBar the body (aurora) bleeds behind the
+    // transparent app bar, so the body content is padded to start
+    // below it — the title and back button stay exactly where they are,
+    // only the black band behind them becomes the page background.
+    final topInset = MediaQuery.paddingOf(context).top;
     return Scaffold(
       backgroundColor: Colors.transparent,
       // Extend the aurora body behind the floating nav bar so no black
       // shows around its rounded corners.
       extendBody: true,
+      extendBodyBehindAppBar: true,
       appBar: appBar,
       floatingActionButton: floatingActionButton,
       bottomNavigationBar: bottomNavigationBar,
       body: Stack(
         children: [
           const AuroraBackground(),
-          body,
+          if (appBar != null)
+            Padding(
+              padding:
+                  EdgeInsets.only(top: topInset + kToolbarHeight),
+              child: body,
+            )
+          else
+            body,
         ],
+      ),
+    );
+  }
+}
+
+/// Tiny "يدوي / Manual" pill marking manually entered distances,
+/// so reports visually distinguish GPS vs manual values.
+class ManualBadge extends StatelessWidget {
+  const ManualBadge({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: Colors.amber.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(6),
+        border:
+            Border.all(color: Colors.amber.withValues(alpha: 0.55)),
+      ),
+      child: Text(
+        l10n.manualBadge,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          color: Colors.amber.shade800,
+        ),
       ),
     );
   }
