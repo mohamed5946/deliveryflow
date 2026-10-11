@@ -39,6 +39,15 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!-- Foreground service for background GPS tracking (flutter_foreground_task).
+             The plugin requires this declaration; without it the service can
+             never start. foregroundServiceType="location" is mandatory on
+             Android 14+ for location tracking. -->
+        <service
+            android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
+            android:foregroundServiceType="location"
+            android:exported="false" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
