@@ -1,7 +1,7 @@
 import 'package:hive/hive.dart';
 
 /// Schema version for migrations. Bump when a model changes shape.
-const int kSchemaVersion = 5;
+const int kSchemaVersion = 6;
 
 // ---------------------------------------------------------------------------
 // UserSettings (typeId 0)
@@ -533,6 +533,9 @@ class OrderEntry extends HiveObject {
   List<double> roadBackLat;
   @HiveField(21)
   List<double> roadBackLng;
+  // --- Optional phone number (v11) ---
+  @HiveField(22)
+  String phone;
 
   OrderEntry({
     required this.id,
@@ -557,6 +560,7 @@ class OrderEntry extends HiveObject {
     this.roadOutLng = const [],
     this.roadBackLat = const [],
     this.roadBackLng = const [],
+    this.phone = '',
   })  : assert(kmOut >= 0, 'kmOut cannot be negative'),
         assert(kmBack >= 0, 'kmBack cannot be negative');
 
@@ -623,6 +627,7 @@ class OrderEntry extends HiveObject {
         'roadOutLng': roadOutLng,
         'roadBackLat': roadBackLat,
         'roadBackLng': roadBackLng,
+        'phone': phone,
       };
 
   static OrderEntry fromJson(Map<String, dynamic> json) => OrderEntry(
@@ -672,6 +677,7 @@ class OrderEntry extends HiveObject {
                 ?.map((e) => (e as num).toDouble())
                 .toList() ??
             const [],
+        phone: (json['phone'] as String?) ?? '',
       );
 }
 
@@ -708,13 +714,14 @@ class OrderEntryAdapter extends TypeAdapter<OrderEntry> {
       roadOutLng: (fields[19] as List?)?.cast<double>() ?? const [],
       roadBackLat: (fields[20] as List?)?.cast<double>() ?? const [],
       roadBackLng: (fields[21] as List?)?.cast<double>() ?? const [],
+      phone: (fields[22] as String?) ?? '',
     );
   }
 
   @override
   void write(BinaryWriter writer, OrderEntry obj) {
     writer
-      ..writeByte(22)
+      ..writeByte(23)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -758,7 +765,9 @@ class OrderEntryAdapter extends TypeAdapter<OrderEntry> {
       ..writeByte(20)
       ..write(obj.roadBackLat)
       ..writeByte(21)
-      ..write(obj.roadBackLng);
+      ..write(obj.roadBackLng)
+      ..writeByte(22)
+      ..write(obj.phone);
   }
 }
 

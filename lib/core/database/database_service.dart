@@ -171,6 +171,7 @@ class DatabaseService {
     double? kmOut,
     double? kmBack,
     String? notes,
+    String? phone,
     int? status,
     int? pickupTimeMillis,
     int? deliveredTimeMillis,
@@ -203,6 +204,7 @@ class DatabaseService {
       entry.kmBack = kmBack;
     }
     if (notes != null) entry.notes = notes;
+    if (phone != null) entry.phone = phone;
     if (status != null) entry.status = status;
     if (pickupTimeMillis != null) entry.pickupTimeMillis = pickupTimeMillis;
     if (deliveredTimeMillis != null) {

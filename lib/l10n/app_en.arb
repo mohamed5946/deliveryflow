@@ -325,6 +325,8 @@
   "waitingForGps": "Waiting for GPS signal…",
   "tripNote": "Note",
   "tripNoteHint": "Write the address or any note…",
+  "phoneNumber": "Phone number",
+  "phoneNumberHint": "Optional",
   "trackingFailedTitle": "Tracking failed to start",
   "returnTrackingFailed": "Outgoing distance was saved, but return tracking failed to start.",
   "retry": "Retry",

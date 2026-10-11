@@ -245,7 +245,7 @@ class _WeekDetailSheet extends ConsumerWidget {
                       label: l10n.totalOrders,
                       value: '${r.totalOrders}',
                       icon: Icons.shopping_bag_rounded,
-                      accent: const Color(0xFF38E1FF),
+                      accent: LiquidPalette.accentCyan,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -255,7 +255,7 @@ class _WeekDetailSheet extends ConsumerWidget {
                       value: WeekCalendar.formatHours(
                           r.totalRecordedHours),
                       icon: Icons.schedule_rounded,
-                      accent: const Color(0xFF8A6BFF),
+                      accent: LiquidPalette.primaryPurple,
                     ),
                   ),
                 ],

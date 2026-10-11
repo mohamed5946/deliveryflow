@@ -21,6 +21,30 @@ abstract class GlassTokens {
   static const EdgeInsets screenPadding = EdgeInsets.all(16);
 }
 
+/// Brand palette from the Liquid Glass design language.
+/// Used for brand-gradient elements (primary buttons, selected nav pill,
+/// chart bars, hero accents). Theme presets still drive backgrounds.
+abstract class LiquidPalette {
+  static const Color primaryBlue = Color(0xFF0EA5E9);
+  static const Color primaryPurple = Color(0xFF8B5CF6);
+  static const Color accentCyan = Color(0xFF06B6D4);
+  static const Color accentViolet = Color(0xFFA855F7);
+
+  static const Color success = Color(0xFF10B981);
+  static const Color warning = Color(0xFFF59E0B);
+  static const Color error = Color(0xFFEF4444);
+  static const Color info = Color(0xFF3B82F6);
+
+  /// The signature brand gradient: blue → purple.
+  static const List<Color> brandGradient = [primaryBlue, primaryPurple];
+
+  static LinearGradient get brandGradientLg => const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: brandGradient,
+      );
+}
+
 /// A translucent frosted-glass card.
 ///
 /// Uses [BackdropFilter] blur over a semi-transparent gradient fill with a
@@ -116,9 +140,7 @@ class GlassButton extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final colors = primary
-        ? (isDark
-            ? [const Color(0xFF38E1FF), const Color(0xFF4D7CFE)]
-            : [const Color(0xFF2E7CF6), const Color(0xFF6A5CF5)])
+        ? LiquidPalette.brandGradient
         : (isDark
             ? [Colors.white.withValues(alpha: 0.16), Colors.white.withValues(alpha: 0.08)]
             : [Colors.white.withValues(alpha: 0.9), Colors.white.withValues(alpha: 0.6)]);
@@ -204,21 +226,34 @@ class StatTile extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(9),
             decoration: BoxDecoration(
-              color: accent.withValues(alpha: 0.16),
-              borderRadius: BorderRadius.circular(12),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  accent.withValues(alpha: 0.28),
+                  accent.withValues(alpha: 0.10),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: accent.withValues(alpha: 0.25),
+                width: 1,
+              ),
             ),
             child: Icon(icon, color: accent, size: 22),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Text(value,
               style: text.headlineSmall
-                  ?.copyWith(fontWeight: FontWeight.w800)),
-          const SizedBox(height: 2),
+                  ?.copyWith(fontWeight: FontWeight.w800, height: 1.0)),
+          const SizedBox(height: 4),
           Text(label,
-              style: text.bodySmall
-                  ?.copyWith(color: text.bodySmall?.color?.withValues(alpha: 0.75))),
+              style: text.bodySmall?.copyWith(
+                  color:
+                      text.bodySmall?.color?.withValues(alpha: 0.75),
+                  fontWeight: FontWeight.w600)),
         ],
       ),
     );
@@ -548,12 +583,11 @@ class GlassNavBar extends StatelessWidget {
         decoration: selected
             ? BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF2E7CF6), Color(0xFF7A5CFF)],
-                ),
+                gradient: LiquidPalette.brandGradientLg,
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF2E7CF6).withValues(alpha: 0.4),
+                    color: LiquidPalette.primaryBlue
+                        .withValues(alpha: 0.4),
                     blurRadius: 14,
                     offset: const Offset(0, 4),
                   ),

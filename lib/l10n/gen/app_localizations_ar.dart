@@ -825,6 +825,12 @@ class AppLocalizationsAr extends AppLocalizations {
   String get tripNoteHint => 'اكتب العنوان أو أي ملاحظة…';
 
   @override
+  String get phoneNumber => 'رقم الموبايل';
+
+  @override
+  String get phoneNumberHint => 'اختياري';
+
+  @override
   String get trackingFailedTitle => 'فشل تشغيل التتبع';
 
   @override

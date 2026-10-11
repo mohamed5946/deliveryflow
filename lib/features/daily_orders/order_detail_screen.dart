@@ -43,6 +43,9 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
   final _noteController = TextEditingController();
   Timer? _noteSaveTimer;
   bool _noteDirty = false;
+  final _phoneController = TextEditingController();
+  Timer? _phoneSaveTimer;
+  bool _phoneDirty = false;
 
   @override
   void initState() {
@@ -54,7 +57,8 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
   @override
   void dispose() {
     _noteSaveTimer?.cancel();
-    // Flush any unsaved note text silently (no provider notifications
+    _phoneSaveTimer?.cancel();
+    // Flush any unsaved note/phone text silently (no provider notifications
     // during teardown).
     if (_noteDirty) {
       _noteDirty = false;
@@ -64,7 +68,16 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
             notes: _noteController.text.trim(),
           );
     }
+    if (_phoneDirty) {
+      _phoneDirty = false;
+      ref.read(databaseServiceProvider).updateOrderEntry(
+            dateKey: widget.dateKey,
+            entryId: widget.entryId,
+            phone: _phoneController.text.trim(),
+          );
+    }
     _noteController.dispose();
+    _phoneController.dispose();
     super.dispose();
   }
 
@@ -74,12 +87,17 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
     final entries = rec?.entries ?? const <OrderEntry>[];
     final idx = entries.indexWhere((e) => e.id == widget.entryId);
     final entry = idx >= 0 ? entries[idx] : null;
-    // Sync the field from the DB, but never clobber text the user is
+    // Sync the fields from the DB, but never clobber text the user is
     // currently typing.
     if (entry != null &&
         !_noteDirty &&
         _noteController.text != entry.notes) {
       _noteController.text = entry.notes;
+    }
+    if (entry != null &&
+        !_phoneDirty &&
+        _phoneController.text != entry.phone) {
+      _phoneController.text = entry.phone;
     }
     setState(() {
       _entry = entry;
@@ -180,9 +198,33 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
     bumpDataVersion(ref);
   }
 
+  void _onPhoneChanged(String value) {
+    _phoneDirty = true;
+    _phoneSaveTimer?.cancel();
+    _phoneSaveTimer = Timer(
+      const Duration(milliseconds: 800),
+      () {
+        if (mounted) _persistPhone();
+      },
+    );
+  }
+
+  void _persistPhone() {
+    _phoneSaveTimer?.cancel();
+    if (!_phoneDirty) return;
+    _phoneDirty = false;
+    ref.read(databaseServiceProvider).updateOrderEntry(
+          dateKey: widget.dateKey,
+          entryId: widget.entryId,
+          phone: _phoneController.text.trim(),
+        );
+    bumpDataVersion(ref);
+  }
+
   Future<void> _startDelivery() async {
     if (_busy) return;
     _persistNote();
+    _persistPhone();
     setState(() => _busy = true);
     try {
       final svc = ref.read(deliveryTrackingServiceProvider);
@@ -811,16 +853,18 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
     );
   }
 
-  /// Trip note (address etc.): editable while the order is active,
-  /// read-only after completion when non-empty, hidden when empty.
-  /// Max 500 characters, saved debounced to the DB.
+  /// Trip note (address etc.) + optional phone number: editable while the
+  /// order is active, read-only after completion when non-empty, hidden
+  /// when empty. Note max 500 characters, both saved debounced to the DB.
   Widget _noteCard(BuildContext context, OrderEntry entry) {
     final l10n = AppLocalizations.of(context);
     final text = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
 
     if (entry.isCompleted) {
-      if (entry.notes.isEmpty) return const SizedBox.shrink();
+      if (entry.notes.isEmpty && entry.phone.isEmpty) {
+        return const SizedBox.shrink();
+      }
       return GlassCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -835,8 +879,25 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                         ?.copyWith(fontWeight: FontWeight.w800)),
               ],
             ),
-            const SizedBox(height: 8),
-            Text(entry.notes, style: text.bodyMedium),
+            if (entry.notes.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(entry.notes, style: text.bodyMedium),
+            ],
+            if (entry.phone.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(Icons.phone_outlined,
+                      size: 18,
+                      color: scheme.onSurface
+                          .withValues(alpha: 0.6)),
+                  const SizedBox(width: 6),
+                  Text(entry.phone,
+                      style: text.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ],
           ],
         ),
       );
@@ -869,6 +930,18 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
               counterStyle: text.bodySmall?.copyWith(
                   color:
                       scheme.onSurface.withValues(alpha: 0.45)),
+            ),
+          ),
+          const SizedBox(height: 4),
+          TextField(
+            controller: _phoneController,
+            keyboardType: TextInputType.phone,
+            textInputAction: TextInputAction.done,
+            onChanged: _onPhoneChanged,
+            decoration: InputDecoration(
+              hintText: l10n.phoneNumberHint,
+              labelText: l10n.phoneNumber,
+              prefixIcon: const Icon(Icons.phone_outlined),
             ),
           ),
         ],

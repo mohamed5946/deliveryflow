@@ -69,18 +69,55 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _saturdayPrompt(context, ref, l10n),
-                  // Greeting
-                  Text('$greeting$name',
-                      style: text.headlineSmall
-                          ?.copyWith(fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 4),
-                  Text(
-                    DateFormat.yMMMMEEEEd(
-                            settings.languageCode == 'ar' ? 'ar' : 'en')
-                        .format(now),
-                    style: text.bodyMedium?.copyWith(
-                        color: text.bodyMedium?.color
-                            ?.withValues(alpha: 0.7)),
+                  // Greeting header
+                  Row(
+                    children: [
+                      Container(
+                        width: 52,
+                        height: 52,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LiquidPalette.brandGradientLg,
+                          boxShadow: [
+                            BoxShadow(
+                              color: LiquidPalette.primaryBlue
+                                  .withValues(alpha: 0.35),
+                              blurRadius: 16,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.delivery_dining_rounded,
+                          color: Colors.white,
+                          size: 28,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
+                          children: [
+                            Text('$greeting$name',
+                                style: text.headlineSmall?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                    height: 1.2)),
+                            const SizedBox(height: 2),
+                            Text(
+                              DateFormat.yMMMMEEEEd(
+                                      settings.languageCode == 'ar'
+                                          ? 'ar'
+                                          : 'en')
+                                  .format(now),
+                              style: text.bodyMedium?.copyWith(
+                                  color: text.bodyMedium?.color
+                                      ?.withValues(alpha: 0.7)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 16),
                   if (!hasAnyData)
@@ -196,7 +233,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     Icons.schedule_rounded,
                     hoursValue,
                     l10n.todayHours,
-                    const Color(0xFF8A6BFF)),
+                    LiquidPalette.primaryPurple),
               ),
               Expanded(
                 child: _heroSubStat(
@@ -204,7 +241,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     Icons.route_rounded,
                     kmValue,
                     l10n.todayKm,
-                    const Color(0xFF38E1FF)),
+                    LiquidPalette.accentCyan),
               ),
             ],
           ),
@@ -248,13 +285,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               '${report.totalOrders}',
               l10n.weekOrders,
               Icons.shopping_bag_rounded,
-              const Color(0xFF38E1FF)),
+              LiquidPalette.accentCyan),
           _miniStat(
               context,
               WeekCalendar.formatHours(report.totalRecordedHours),
               l10n.weekHours,
               Icons.schedule_rounded,
-              const Color(0xFF8A6BFF)),
+              LiquidPalette.primaryPurple),
           _miniStat(
               context,
               report.averageOrdersPerWorkingDay == null
@@ -262,13 +299,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   : report.averageOrdersPerWorkingDay!.toStringAsFixed(1),
               l10n.avgOrdersWorkingDay,
               Icons.trending_up_rounded,
-              const Color(0xFFF59E0B)),
+              LiquidPalette.warning),
           _miniStat(
               context,
               '${report.recordedDaysCount}/7',
               l10n.recordedDays,
               Icons.check_circle_rounded,
-              const Color(0xFF10B981)),
+              LiquidPalette.success),
         ],
       ),
     );
@@ -319,13 +356,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          SizedBox(
-            height: 170,
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 250),
-              child: _chartTab == _ChartTab.orders
-                  ? _ordersBarChart(report, scheme)
-                  : _hoursBarChart(report, scheme),
+          RepaintBoundary(
+            child: SizedBox(
+              height: 170,
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 250),
+                child: _chartTab == _ChartTab.orders
+                    ? _ordersBarChart(report, scheme)
+                    : _hoursBarChart(report, scheme),
+              ),
             ),
           ),
         ],
@@ -476,6 +515,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             child: LinearProgressIndicator(
               value: progress,
               minHeight: 10,
+              valueColor: const AlwaysStoppedAnimation<Color>(
+                  LiquidPalette.primaryBlue),
               backgroundColor: Theme.of(context)
                   .colorScheme
                   .surfaceContainerHighest,
@@ -498,10 +539,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               toY: (d.orders ?? 0).toDouble(),
               width: 16,
               borderRadius: BorderRadius.circular(6),
-              gradient: LinearGradient(colors: [
-                scheme.primary,
-                scheme.primary.withValues(alpha: 0.55),
-              ]),
+              gradient: const LinearGradient(
+                begin: Alignment.bottomCenter,
+                end: Alignment.topCenter,
+                colors: LiquidPalette.brandGradient,
+              ),
             ),
           ],
         ),
@@ -522,10 +564,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               toY: d.workMinutes / 60.0,
               width: 16,
               borderRadius: BorderRadius.circular(6),
-              gradient: LinearGradient(colors: [
-                scheme.secondary,
-                scheme.secondary.withValues(alpha: 0.55),
-              ]),
+              gradient: const LinearGradient(
+                begin: Alignment.bottomCenter,
+                end: Alignment.topCenter,
+                colors: [
+                  LiquidPalette.accentCyan,
+                  LiquidPalette.primaryBlue
+                ],
+              ),
             ),
           ],
         ),
@@ -537,7 +583,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   Widget _barChart(
       List<BarChartGroupData> groups, ColorScheme scheme,
       {required Key key}) {
-    const dayLetters = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+    // Sunday..Saturday, Arabic initials (RTL).
+    const dayLetters = ['ح', 'ن', 'ث', 'ر', 'خ', 'ج', 'س'];
     return BarChart(
       key: key,
       BarChartData(
@@ -567,7 +614,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           ),
         ),
       ),
-      swapAnimationDuration: const Duration(milliseconds: 500),
+      swapAnimationDuration: const Duration(milliseconds: 250),
       swapAnimationCurve: Curves.easeOut,
     );
   }

@@ -277,6 +277,8 @@
   "waitingForGps": "في انتظار إشارة الـ GPS…",
   "tripNote": "ملاحظة",
   "tripNoteHint": "اكتب العنوان أو أي ملاحظة…",
+  "phoneNumber": "رقم الموبايل",
+  "phoneNumberHint": "اختياري",
   "trackingFailedTitle": "فشل تشغيل التتبع",
   "returnTrackingFailed": "تم حفظ مسافة الذهاب، لكن تعذر تشغيل تتبع العودة.",
   "retry": "حاول تاني",

@@ -280,6 +280,14 @@ class AppTheme {
           borderSide: BorderSide(color: preset.seed, width: 1.6),
         ),
       ),
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith((states) =>
+            states.contains(WidgetState.selected) ? Colors.white : null),
+        trackColor: WidgetStateProperty.resolveWith((states) =>
+            states.contains(WidgetState.selected)
+                ? const Color(0xFF0EA5E9)
+                : null),
+      ),
       textTheme: _textTheme(Brightness.dark),
       pageTransitionsTheme: const PageTransitionsTheme(
         builders: {
@@ -331,6 +339,14 @@ class AppTheme {
           borderSide: BorderSide(color: preset.seed, width: 1.6),
         ),
       ),
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith((states) =>
+            states.contains(WidgetState.selected) ? Colors.white : null),
+        trackColor: WidgetStateProperty.resolveWith((states) =>
+            states.contains(WidgetState.selected)
+                ? const Color(0xFF0EA5E9)
+                : null),
+      ),
       textTheme: _textTheme(Brightness.light),
       pageTransitionsTheme: const PageTransitionsTheme(
         builders: {
@@ -341,14 +357,20 @@ class AppTheme {
   }
 
   static TextTheme _textTheme(Brightness b) {
-    const family = null; // system fonts with good Arabic shaping
+    // Cairo: the app's Arabic-first typeface (variable font, full weights).
+    const family = 'Cairo';
     return const TextTheme(
       displayLarge: TextStyle(fontFamily: family, fontWeight: FontWeight.w800),
+      displayMedium: TextStyle(fontFamily: family, fontWeight: FontWeight.w800),
       headlineSmall: TextStyle(fontFamily: family, fontWeight: FontWeight.w800),
+      headlineMedium: TextStyle(fontFamily: family, fontWeight: FontWeight.w800),
       titleLarge: TextStyle(fontFamily: family, fontWeight: FontWeight.w700),
       titleMedium: TextStyle(fontFamily: family, fontWeight: FontWeight.w600),
+      titleSmall: TextStyle(fontFamily: family, fontWeight: FontWeight.w600),
       bodyLarge: TextStyle(fontFamily: family),
       bodyMedium: TextStyle(fontFamily: family),
+      bodySmall: TextStyle(fontFamily: family),
+      labelLarge: TextStyle(fontFamily: family, fontWeight: FontWeight.w700),
     );
   }
 

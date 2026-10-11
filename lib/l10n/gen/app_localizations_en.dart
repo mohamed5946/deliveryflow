@@ -826,6 +826,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get tripNoteHint => 'Write the address or any note…';
 
   @override
+  String get phoneNumber => 'Phone number';
+
+  @override
+  String get phoneNumberHint => 'Optional';
+
+  @override
   String get trackingFailedTitle => 'Tracking failed to start';
 
   @override

@@ -1652,6 +1652,18 @@ abstract class AppLocalizations {
   /// **'Write the address or any note…'**
   String get tripNoteHint;
 
+  /// No description provided for @phoneNumber.
+  ///
+  /// In en, this message translates to:
+  /// **'Phone number'**
+  String get phoneNumber;
+
+  /// No description provided for @phoneNumberHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Optional'**
+  String get phoneNumberHint;
+
   /// No description provided for @trackingFailedTitle.
   ///
   /// In en, this message translates to:

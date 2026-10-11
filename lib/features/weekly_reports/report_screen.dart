@@ -95,7 +95,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
                       label: l10n.totalOrders,
                       value: '${r.totalOrders}',
                       icon: Icons.shopping_bag_rounded,
-                      accent: const Color(0xFF38E1FF),
+                      accent: LiquidPalette.accentCyan,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -105,7 +105,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
                       value: WeekCalendar.formatHours(
                           r.totalRecordedHours),
                       icon: Icons.schedule_rounded,
-                      accent: const Color(0xFF8A6BFF),
+                      accent: LiquidPalette.primaryPurple,
                     ),
                   ),
                 ],
@@ -119,7 +119,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
                       value: WeekCalendar.formatHours(
                           r.totalPlannedHours),
                       icon: Icons.event_note_rounded,
-                      accent: const Color(0xFF4D7CFE),
+                      accent: LiquidPalette.primaryBlue,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -131,7 +131,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
                           : r.ordersPerWorkingHour!
                               .toStringAsFixed(1),
                       icon: Icons.speed_rounded,
-                      accent: const Color(0xFF22C55E),
+                      accent: LiquidPalette.success,
                     ),
                   ),
                 ],
@@ -147,7 +147,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
                           : r.averageOrdersPerWorkingDay!
                               .toStringAsFixed(1),
                       icon: Icons.trending_up_rounded,
-                      accent: const Color(0xFFF59E0B),
+                      accent: LiquidPalette.warning,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -159,7 +159,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
                           : WeekCalendar.formatHours(
                               r.averageHoursPerWorkingDay!),
                       icon: Icons.timelapse_rounded,
-                      accent: const Color(0xFF10B981),
+                      accent: LiquidPalette.accentViolet,
                     ),
                   ),
                 ],
@@ -173,7 +173,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
                     Row(
                       children: [
                         const Icon(Icons.route_rounded,
-                            size: 20, color: Color(0xFF38E1FF)),
+                            size: 20, color: LiquidPalette.accentCyan),
                         const SizedBox(width: 8),
                         Text(l10n.weekKmLabel,
                             style: text.titleSmall?.copyWith(
@@ -183,7 +183,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
                           '${WeekCalendar.formatKm(r.totalKm)} ${l10n.kmUnit}',
                           style: text.titleLarge?.copyWith(
                               fontWeight: FontWeight.w800,
-                              color: const Color(0xFF38E1FF)),
+                              color: LiquidPalette.accentCyan),
                         ),
                       ],
                     ),
@@ -266,9 +266,11 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
                         style: text.titleSmall?.copyWith(
                             fontWeight: FontWeight.w700)),
                     const SizedBox(height: 12),
-                    SizedBox(
-                        height: 180,
-                        child: _ordersChart(r, scheme)),
+                    RepaintBoundary(
+                      child: SizedBox(
+                          height: 180,
+                          child: _ordersChart(r, scheme)),
+                    ),
                   ],
                 ),
               ),
@@ -462,7 +464,8 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
   }
 
   Widget _ordersChart(WeeklyReport r, ColorScheme scheme) {
-    const dayLetters = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+    // Sunday..Saturday, Arabic initials (RTL).
+    const dayLetters = ['ح', 'ن', 'ث', 'ر', 'خ', 'ج', 'س'];
     return BarChart(
       BarChartData(
         barGroups: [
@@ -474,10 +477,11 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
                   toY: (r.days[i].orders ?? 0).toDouble(),
                   width: 16,
                   borderRadius: BorderRadius.circular(6),
-                  gradient: LinearGradient(colors: [
-                    scheme.primary,
-                    scheme.primary.withValues(alpha: 0.55),
-                  ]),
+                  gradient: const LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: LiquidPalette.brandGradient,
+                  ),
                 ),
               ],
             ),
