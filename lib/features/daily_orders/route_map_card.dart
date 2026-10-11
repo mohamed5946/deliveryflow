@@ -32,8 +32,8 @@ class RouteMapCard extends StatelessWidget {
     final text = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
 
-    final outPoints = _points(entry.routeOutLat, entry.routeOutLng);
-    final backPoints = _points(entry.routeBackLat, entry.routeBackLng);
+    final outPoints = _points(entry.displayOutLat, entry.displayOutLng);
+    final backPoints = _points(entry.displayBackLat, entry.displayBackLng);
 
     if (outPoints.isEmpty && backPoints.isEmpty) {
       return GlassCard(

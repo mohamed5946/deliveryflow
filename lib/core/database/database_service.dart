@@ -183,6 +183,10 @@ class DatabaseService {
     List<double>? routeOutLng,
     List<double>? routeBackLat,
     List<double>? routeBackLng,
+    List<double>? roadOutLat,
+    List<double>? roadOutLng,
+    List<double>? roadBackLat,
+    List<double>? roadBackLng,
   }) async {
     final record = _orders.get(dateKey);
     if (record == null) return;
@@ -217,6 +221,10 @@ class DatabaseService {
     if (routeOutLng != null) entry.routeOutLng = routeOutLng;
     if (routeBackLat != null) entry.routeBackLat = routeBackLat;
     if (routeBackLng != null) entry.routeBackLng = routeBackLng;
+    if (roadOutLat != null) entry.roadOutLat = roadOutLat;
+    if (roadOutLng != null) entry.roadOutLng = roadOutLng;
+    if (roadBackLat != null) entry.roadBackLat = roadBackLat;
+    if (roadBackLng != null) entry.roadBackLng = roadBackLng;
     record.updatedAtMillis = DateTime.now().millisecondsSinceEpoch;
     await record.save();
   }

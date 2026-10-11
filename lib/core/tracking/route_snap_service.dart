@@ -1,23 +1,35 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:latlong2/latlong.dart';
+
+/// Result of snapping a GPS trail to roads.
+class SnappedRoute {
+  /// Road distance in km.
+  final double distanceKm;
+
+  /// The actual road path (follows streets like Google Maps).
+  final List<LatLng> geometry;
+
+  const SnappedRoute({
+    required this.distanceKm,
+    required this.geometry,
+  });
+}
 
 /// Snaps a GPS breadcrumb trail to real roads using the free OSRM
-/// public API and returns the true road distance.
+/// public API.
 ///
-/// Why: raw GPS distance sums straight lines between fixes, which cuts
-/// corners on winding roads and undercounts (user saw 2.0 km for a
-/// real 2.8 km trip). OSRM matches the points to the road network and
-/// returns the driven distance, like Google Maps.
+/// Returns both the true road distance AND the road geometry (the
+/// actual path on streets), so the map can draw the real driven
+/// route instead of straight lines between sparse points.
 ///
-/// Offline/no-internet: throws, and the caller falls back to the
-/// GPS-summed distance.
+/// Offline/no-internet: returns null, and the caller falls back to
+/// the GPS-summed distance + raw trail.
 class RouteSnapService {
   static const _base = 'https://router.project-osrm.org/route/v1/driving';
 
-  /// Returns road distance in km for the given trail, or null when the
-  /// trail is too short / the service is unreachable.
-  Future<double?> snappedDistanceKm({
+  Future<SnappedRoute?> snapRoute({
     required List<double> lat,
     required List<double> lng,
   }) async {
@@ -36,21 +48,51 @@ class RouteSnapService {
     }
 
     final url = Uri.parse(
-        '$_base/${coords.join(';')}?overview=false&geometries=geojson');
+        '$_base/${coords.join(';')}?overview=full&geometries=geojson');
     try {
       final res = await http
           .get(url, headers: {'User-Agent': 'DeliveryFlow/1.0'})
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 20));
       if (res.statusCode != 200) return null;
       final body = json.decode(res.body) as Map<String, dynamic>;
       if (body['code'] != 'Ok') return null;
       final routes = body['routes'] as List?;
       if (routes == null || routes.isEmpty) return null;
-      final meters = (routes.first['distance'] as num?)?.toDouble();
+      final route = routes.first as Map<String, dynamic>;
+      final meters = (route['distance'] as num?)?.toDouble();
       if (meters == null || meters <= 0) return null;
-      return meters / 1000.0;
+
+      // Extract the road geometry (list of [lng, lat] pairs).
+      final geometry = <LatLng>[];
+      try {
+        final geoJson = route['geometry'] as Map<String, dynamic>?;
+        final coordsList = geoJson?['coordinates'] as List?;
+        if (coordsList != null) {
+          for (final c in coordsList) {
+            final pair = c as List;
+            geometry.add(LatLng(
+              (pair[1] as num).toDouble(),
+              (pair[0] as num).toDouble(),
+            ));
+          }
+        }
+      } catch (_) {}
+
+      return SnappedRoute(
+        distanceKm: meters / 1000.0,
+        geometry: geometry,
+      );
     } catch (_) {
       return null;
     }
+  }
+
+  /// Backwards-compatible: distance only.
+  Future<double?> snappedDistanceKm({
+    required List<double> lat,
+    required List<double> lng,
+  }) async {
+    final r = await snapRoute(lat: lat, lng: lng);
+    return r?.distanceKm;
   }
 }

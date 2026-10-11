@@ -188,8 +188,8 @@ class DeliveryTrackingService {
   }
 
   /// Records a downsampled breadcrumb point for the route map.
-  /// Stores a point every ~15m to keep the polyline smooth without
-  /// bloating storage.
+  /// Stores a point every ~5m so the trail follows the actual roads
+  /// moment-by-moment like Google Maps, not straight lines.
   void _recordRoutePoint(Position pos) {
     final last = _lastRoutePoint;
     if (last != null) {
@@ -199,13 +199,13 @@ class DeliveryTrackingService {
         pos.latitude,
         pos.longitude,
       );
-      if (distM < 15) return;
+      if (distM < 5) return;
     }
     _lastRoutePoint = pos;
     _routeLat.add(pos.latitude);
     _routeLng.add(pos.longitude);
-    // Safety cap: ~4 hours of tracking at 15m intervals.
-    if (_routeLat.length > 1000) {
+    // Safety cap: ~8 hours of tracking at 5m intervals.
+    if (_routeLat.length > 3000) {
       _routeLat.removeAt(0);
       _routeLng.removeAt(0);
     }
@@ -268,14 +268,15 @@ class DeliveryTrackingService {
     final outLat = List<double>.from(_routeLat);
     final outLng = List<double>.from(_routeLng);
     await _stopTrackingInternal();
-    // Final distance: snap the trail to real roads for Google-Maps-like
-    // accuracy. Falls back to the live GPS sum when offline.
-    final snappedKm = await _snap.snappedDistanceKm(
-      lat: outLat,
-      lng: outLng,
-    );
+    // Final distance + road geometry: snap the trail to real roads for
+    // Google-Maps-like accuracy. Falls back to the live GPS sum when offline.
+    final snapped = await _snap.snapRoute(lat: outLat, lng: outLng);
     final finalKmOut =
-        snappedKm != null && snappedKm > 0 ? snappedKm : kmOut;
+        snapped != null && snapped.distanceKm > 0 ? snapped.distanceKm : kmOut;
+    final roadLat = snapped?.geometry.map((p) => p.latitude).toList() ??
+        const <double>[];
+    final roadLng = snapped?.geometry.map((p) => p.longitude).toList() ??
+        const <double>[];
     final now = DateTime.now().millisecondsSinceEpoch;
     await _db.updateOrderEntry(
       dateKey: dateKey,
@@ -286,6 +287,8 @@ class DeliveryTrackingService {
       outgoingDurationSec: durationSec,
       routeOutLat: outLat,
       routeOutLng: outLng,
+      roadOutLat: roadLat,
+      roadOutLng: roadLng,
     );
     await _beginSegment(
       orderId: entryId,
@@ -308,12 +311,13 @@ class DeliveryTrackingService {
     final backLat = List<double>.from(_routeLat);
     final backLng = List<double>.from(_routeLng);
     await _stopTrackingInternal();
-    final snappedKm = await _snap.snappedDistanceKm(
-      lat: backLat,
-      lng: backLng,
-    );
+    final snapped = await _snap.snapRoute(lat: backLat, lng: backLng);
     final finalKmBack =
-        snappedKm != null && snappedKm > 0 ? snappedKm : kmBack;
+        snapped != null && snapped.distanceKm > 0 ? snapped.distanceKm : kmBack;
+    final roadLat = snapped?.geometry.map((p) => p.latitude).toList() ??
+        const <double>[];
+    final roadLng = snapped?.geometry.map((p) => p.longitude).toList() ??
+        const <double>[];
     final now = DateTime.now().millisecondsSinceEpoch;
     await _db.updateOrderEntry(
       dateKey: dateKey,
@@ -325,6 +329,8 @@ class DeliveryTrackingService {
       timestampMillis: now,
       routeBackLat: backLat,
       routeBackLng: backLng,
+      roadBackLat: roadLat,
+      roadBackLng: roadLng,
     );
   }
 

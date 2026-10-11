@@ -1,7 +1,7 @@
 import 'package:hive/hive.dart';
 
 /// Schema version for migrations. Bump when a model changes shape.
-const int kSchemaVersion = 4;
+const int kSchemaVersion = 5;
 
 // ---------------------------------------------------------------------------
 // UserSettings (typeId 0)
@@ -524,6 +524,15 @@ class OrderEntry extends HiveObject {
   List<double> routeBackLat;
   @HiveField(17)
   List<double> routeBackLng;
+  // --- Snapped road geometry (v6): actual street path from OSRM ---
+  @HiveField(18)
+  List<double> roadOutLat;
+  @HiveField(19)
+  List<double> roadOutLng;
+  @HiveField(20)
+  List<double> roadBackLat;
+  @HiveField(21)
+  List<double> roadBackLng;
 
   OrderEntry({
     required this.id,
@@ -544,6 +553,10 @@ class OrderEntry extends HiveObject {
     this.routeOutLng = const [],
     this.routeBackLat = const [],
     this.routeBackLng = const [],
+    this.roadOutLat = const [],
+    this.roadOutLng = const [],
+    this.roadBackLat = const [],
+    this.roadBackLng = const [],
   })  : assert(kmOut >= 0, 'kmOut cannot be negative'),
         assert(kmBack >= 0, 'kmBack cannot be negative');
 
@@ -567,6 +580,16 @@ class OrderEntry extends HiveObject {
   bool get hasRoute =>
       routeOutLat.isNotEmpty || routeBackLat.isNotEmpty;
 
+  /// Prefers the OSRM-snapped road path; falls back to raw GPS trail.
+  List<double> get displayOutLat =>
+      roadOutLat.isNotEmpty ? roadOutLat : routeOutLat;
+  List<double> get displayOutLng =>
+      roadOutLng.isNotEmpty ? roadOutLng : routeOutLng;
+  List<double> get displayBackLat =>
+      roadBackLat.isNotEmpty ? roadBackLat : routeBackLat;
+  List<double> get displayBackLng =>
+      roadBackLng.isNotEmpty ? roadBackLng : routeBackLng;
+
   DateTime get timestamp =>
       DateTime.fromMillisecondsSinceEpoch(timestampMillis);
 
@@ -589,6 +612,10 @@ class OrderEntry extends HiveObject {
         'routeOutLng': routeOutLng,
         'routeBackLat': routeBackLat,
         'routeBackLng': routeBackLng,
+        'roadOutLat': roadOutLat,
+        'roadOutLng': roadOutLng,
+        'roadBackLat': roadBackLat,
+        'roadBackLng': roadBackLng,
       };
 
   static OrderEntry fromJson(Map<String, dynamic> json) => OrderEntry(
@@ -619,6 +646,22 @@ class OrderEntry extends HiveObject {
                 .toList() ??
             const [],
         routeBackLng: (json['routeBackLng'] as List?)
+                ?.map((e) => (e as num).toDouble())
+                .toList() ??
+            const [],
+        roadOutLat: (json['roadOutLat'] as List?)
+                ?.map((e) => (e as num).toDouble())
+                .toList() ??
+            const [],
+        roadOutLng: (json['roadOutLng'] as List?)
+                ?.map((e) => (e as num).toDouble())
+                .toList() ??
+            const [],
+        roadBackLat: (json['roadBackLat'] as List?)
+                ?.map((e) => (e as num).toDouble())
+                .toList() ??
+            const [],
+        roadBackLng: (json['roadBackLng'] as List?)
                 ?.map((e) => (e as num).toDouble())
                 .toList() ??
             const [],
@@ -654,13 +697,17 @@ class OrderEntryAdapter extends TypeAdapter<OrderEntry> {
       routeOutLng: (fields[15] as List?)?.cast<double>() ?? const [],
       routeBackLat: (fields[16] as List?)?.cast<double>() ?? const [],
       routeBackLng: (fields[17] as List?)?.cast<double>() ?? const [],
+      roadOutLat: (fields[18] as List?)?.cast<double>() ?? const [],
+      roadOutLng: (fields[19] as List?)?.cast<double>() ?? const [],
+      roadBackLat: (fields[20] as List?)?.cast<double>() ?? const [],
+      roadBackLng: (fields[21] as List?)?.cast<double>() ?? const [],
     );
   }
 
   @override
   void write(BinaryWriter writer, OrderEntry obj) {
     writer
-      ..writeByte(18)
+      ..writeByte(22)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -696,7 +743,15 @@ class OrderEntryAdapter extends TypeAdapter<OrderEntry> {
       ..writeByte(16)
       ..write(obj.routeBackLat)
       ..writeByte(17)
-      ..write(obj.routeBackLng);
+      ..write(obj.routeBackLng)
+      ..writeByte(18)
+      ..write(obj.roadOutLat)
+      ..writeByte(19)
+      ..write(obj.roadOutLng)
+      ..writeByte(20)
+      ..write(obj.roadBackLat)
+      ..writeByte(21)
+      ..write(obj.roadBackLng);
   }
 }
 
