@@ -52,6 +52,62 @@ String _labelFor(AppLocalizations l10n, int index) {
   }
 }
 
+/// Tab-switch transition: the 5 main tabs live in a go_router
+/// [StatefulShellRoute.indexedStack], so branch switches are instant by
+/// default. This wrapper plays a quick fade + subtle rise every time the
+/// tab index changes, and also masks the one-time hitch of a lazily-built
+/// branch. The [child] (the navigation shell) keeps a stable identity, so
+/// each tab's navigator state is preserved.
+class _TabTransition extends StatefulWidget {
+  final int index;
+  final Widget child;
+
+  const _TabTransition({required this.index, required this.child});
+
+  @override
+  State<_TabTransition> createState() => _TabTransitionState();
+}
+
+class _TabTransitionState extends State<_TabTransition>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 260),
+  );
+  late final Animation<double> _opacity =
+      CurvedAnimation(parent: _c, curve: Curves.easeOutCubic);
+  late final Animation<Offset> _offset = Tween<Offset>(
+    begin: const Offset(0, 0.035),
+    end: Offset.zero,
+  ).animate(CurvedAnimation(parent: _c, curve: Curves.easeOutCubic));
+
+  @override
+  void initState() {
+    super.initState();
+    _c.value = 1.0; // first build: visible immediately, no animation
+  }
+
+  @override
+  void didUpdateWidget(_TabTransition oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.index != widget.index) _c.forward(from: 0.0);
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _opacity,
+      child: SlideTransition(position: _offset, child: widget.child),
+    );
+  }
+}
+
 GoRouter buildRouter(WidgetRef ref) {
   return GoRouter(
     initialLocation: '/home',
@@ -85,7 +141,10 @@ GoRouter buildRouter(WidgetRef ref) {
                 // the floating bar; the background still bleeds behind.
                 Padding(
                   padding: const EdgeInsets.only(bottom: 96),
-                  child: navigationShell,
+                  child: _TabTransition(
+                    index: navigationShell.currentIndex,
+                    child: navigationShell,
+                  ),
                 ),
                 Positioned(
                   left: 0,

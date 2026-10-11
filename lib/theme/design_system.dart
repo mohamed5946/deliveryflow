@@ -13,7 +13,7 @@ abstract class GlassTokens {
   static const double radiusM = 18;
   static const double radiusS = 12;
 
-  static const double blurSigma = 18;
+  static const double blurSigma = 12;
 
   static const EdgeInsets cardPadding =
       EdgeInsets.symmetric(horizontal: 18, vertical: 16);
@@ -448,7 +448,7 @@ class GlassNavBar extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(30),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 26, sigmaY: 26),
+          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
           child: Container(
             padding:
                 const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
