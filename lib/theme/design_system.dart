@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/providers.dart';
 import 'app_theme.dart';
+import 'pressable.dart';
 
 /// Central design tokens for the Liquid Glass aesthetic.
 abstract class GlassTokens {
@@ -139,7 +140,11 @@ class GlassButton extends StatelessWidget {
           ),
         ],
       ),
-      child: Material(
+      child: Pressable(
+        // InkWell below handles the tap + ripple; Pressable adds the
+        // tactile scale even when onPressed is null (disabled button).
+        scaleOnly: true,
+        child: Material(
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(GlassTokens.radiusM),
@@ -169,6 +174,7 @@ class GlassButton extends StatelessWidget {
             ),
           ),
         ),
+      ),
       ),
     );
   }
@@ -488,9 +494,9 @@ class GlassNavBar extends StatelessWidget {
   Widget _item(BuildContext context, int i) {
     final selected = i == selectedIndex;
     final scheme = Theme.of(context).colorScheme;
-    return GestureDetector(
+    return Pressable(
       onTap: () => onDestinationSelected(i),
-      behavior: HitTestBehavior.opaque,
+      pressedScale: 0.9,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOut,

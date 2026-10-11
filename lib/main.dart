@@ -18,6 +18,14 @@ Future<void> main() async {
   // Edge-to-edge: draw behind system bars so the aurora theme reaches
   // the screen edges instead of black bars.
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  // Transparent system bars: no black rectangle behind the floating
+  // nav bar in the Android gesture/button navigation area.
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      systemNavigationBarColor: Colors.transparent,
+    ),
+  );
 
   // Local-first storage.
   final db = DatabaseService();

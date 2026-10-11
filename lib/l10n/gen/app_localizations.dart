@@ -1603,6 +1603,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Recorded points this week: {count}'**
   String heatmapSubtitle(int count);
+
+  /// No description provided for @dayOrdersTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Day\'s orders'**
+  String get dayOrdersTitle;
+
+  /// No description provided for @noOrdersThisDay.
+  ///
+  /// In en, this message translates to:
+  /// **'No orders recorded this day'**
+  String get noOrdersThisDay;
+
+  /// No description provided for @deleteWeekTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete week?'**
+  String get deleteWeekTitle;
+
+  /// No description provided for @deleteWeekBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure? Deletion is permanent — the whole week with all its orders will be removed.'**
+  String get deleteWeekBody;
 }
 
 class _AppLocalizationsDelegate

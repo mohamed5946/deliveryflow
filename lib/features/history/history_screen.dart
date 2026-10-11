@@ -6,6 +6,9 @@ import 'package:intl/intl.dart';
 import '../../core/date_time/week_calendar.dart';
 import '../../core/providers.dart';
 import '../../theme/design_system.dart';
+import '../../theme/page_transitions.dart';
+import '../../theme/pressable.dart';
+import 'day_orders_screen.dart';
 
 /// Chronological list of past work weeks with drill-down into the
 /// weekly report of any week.
@@ -60,8 +63,15 @@ class HistoryScreen extends ConsumerWidget {
                     final range =
                         '${DateFormat.yMMMd(loc).format(start)} – ${DateFormat.yMMMd(loc).format(end)}';
                     return GlassCard(
-                      onTap: () => _openWeek(context, start),
-                      child: Column(
+                      child: Row(
+                        crossAxisAlignment:
+                            CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Pressable(
+                              onTap: () =>
+                                  _openWeek(context, start),
+                              child: Column(
                         crossAxisAlignment:
                             CrossAxisAlignment.start,
                         children: [
@@ -105,6 +115,22 @@ class HistoryScreen extends ConsumerWidget {
                           ),
                         ],
                       ),
+                      ),
+                          ),
+                          IconButton(
+                            icon: Icon(
+                              Icons.delete_outline_rounded,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .error,
+                            ),
+                            tooltip: l10n.delete,
+                            onPressed: () =>
+                                _confirmDeleteWeek(
+                                    context, ref, startKey),
+                          ),
+                        ],
+                      ),
                     );
                   },
                 ),
@@ -123,10 +149,40 @@ class HistoryScreen extends ConsumerWidget {
 
   void _openWeek(BuildContext context, DateTime weekStart) {
     Navigator.of(context).push(
-      MaterialPageRoute(
+      SmoothPageRoute(
         builder: (_) => _WeekDetailSheet(weekStart: weekStart),
       ),
     );
+  }
+
+  Future<void> _confirmDeleteWeek(
+      BuildContext context, WidgetRef ref, String startKey) async {
+    final l10n = AppLocalizations.of(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.deleteWeekTitle),
+        content: Text(l10n.deleteWeekBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(l10n.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor:
+                  Theme.of(ctx).colorScheme.error,
+            ),
+            child: Text(l10n.delete),
+          ),
+        ],
+      ),
+    );
+    if (ok == true && context.mounted) {
+      await ref.read(databaseServiceProvider).deleteWeek(startKey);
+      bumpDataVersion(ref);
+    }
   }
 }
 
@@ -191,7 +247,18 @@ class _WeekDetailSheet extends ConsumerWidget {
               for (final d in r.days)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
-                  child: GlassCard(
+                  child: Pressable(
+                    // Only days with orders are tappable.
+                    onTap: (d.orders ?? 0) > 0
+                        ? () => Navigator.of(context).push(
+                              SmoothPageRoute(
+                                builder: (_) => DayOrdersScreen(
+                                  dateKey: d.dateKey,
+                                ),
+                              ),
+                            )
+                        : null,
+                    child: GlassCard(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 14, vertical: 10),
                     child: Row(
@@ -205,13 +272,29 @@ class _WeekDetailSheet extends ConsumerWidget {
                           style: text.bodyMedium?.copyWith(
                               fontWeight: FontWeight.w600),
                         ),
-                        Text(
-                          d.orders == null
-                              ? l10n.unrecorded
-                              : '${l10n.ordersCount(d.orders!)} • ${WeekCalendar.formatHours(d.workMinutes / 60.0)}',
-                          style: text.bodyMedium,
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              d.orders == null
+                                  ? l10n.unrecorded
+                                  : '${l10n.ordersCount(d.orders!)} • ${WeekCalendar.formatHours(d.workMinutes / 60.0)}',
+                              style: text.bodyMedium,
+                            ),
+                            if ((d.orders ?? 0) > 0) ...[
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.chevron_right_rounded,
+                                size: 18,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .primary,
+                              ),
+                            ],
+                          ],
                         ),
                       ],
+                    ),
                     ),
                   ),
                 ),

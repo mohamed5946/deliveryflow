@@ -246,6 +246,27 @@ class DatabaseService {
     }
   }
 
+  /// Permanently deletes a whole week's data: the daily order records
+  /// (orders + all recorded route/road geometry, which also feeds the
+  /// heatmap) and the work sessions of all 7 days starting at
+  /// [weekStartKey]. Work schedules are kept. Used by History's
+  /// "delete week" (storage saving).
+  Future<void> deleteWeek(String weekStartKey) async {
+    final start = WeekCalendar.parseDateKey(weekStartKey);
+    for (var i = 0; i < 7; i++) {
+      final key =
+          WeekCalendar.dateKey(WeekCalendar.addDays(start, i));
+      await _orders.delete(key);
+      final sessionKeys = _sessions.toMap().entries
+          .where((e) => e.value.dateKey == key)
+          .map((e) => e.key)
+          .toList();
+      for (final k in sessionKeys) {
+        await _sessions.delete(k);
+      }
+    }
+  }
+
   /// Total driven km (out, back) for a day from detailed entries.
   (double, double) kmForDate(String dateKey) {
     final record = _orders.get(dateKey);

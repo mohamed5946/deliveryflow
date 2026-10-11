@@ -798,4 +798,17 @@ class AppLocalizationsAr extends AppLocalizations {
   String heatmapSubtitle(int count) {
     return 'عدد النقاط المسجلة هذا الأسبوع: $count';
   }
+
+  @override
+  String get dayOrdersTitle => 'أوردرات اليوم';
+
+  @override
+  String get noOrdersThisDay => 'لا توجد أوردرات مسجلة في هذا اليوم';
+
+  @override
+  String get deleteWeekTitle => 'حذف الأسبوع؟';
+
+  @override
+  String get deleteWeekBody =>
+      'متأكد؟ الحذف نهائي — هيتمسح الأسبوع كامل بكل أوردراته.';
 }

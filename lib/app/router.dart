@@ -73,23 +73,42 @@ GoRouter buildRouter(WidgetRef ref) {
           final l10n = AppLocalizations.of(context);
           return Scaffold(
             backgroundColor: Colors.transparent,
+            // True floating bar: the nav bar is an overlay above the
+            // content (not in the bottomNavigationBar slot), and the
+            // aurora background extends edge-to-edge behind it — no
+            // black rectangle where the old bar used to be.
+            extendBody: true,
             body: Stack(
               children: [
                 const AuroraBackground(),
-                navigationShell,
-              ],
-            ),
-            bottomNavigationBar: GlassNavBar(
-              selectedIndex: navigationShell.currentIndex,
-              onDestinationSelected: (i) => navigationShell.goBranch(i),
-              icons: [
-                for (var i = 0; i < _paths.length; i++) _iconFor(i, false),
-              ],
-              selectedIcons: [
-                for (var i = 0; i < _paths.length; i++) _iconFor(i, true),
-              ],
-              labels: [
-                for (var i = 0; i < _paths.length; i++) _labelFor(l10n, i),
+                // Bottom padding keeps list content from hiding under
+                // the floating bar; the background still bleeds behind.
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 96),
+                  child: navigationShell,
+                ),
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: GlassNavBar(
+                    selectedIndex: navigationShell.currentIndex,
+                    onDestinationSelected: (i) =>
+                        navigationShell.goBranch(i),
+                    icons: [
+                      for (var i = 0; i < _paths.length; i++)
+                        _iconFor(i, false),
+                    ],
+                    selectedIcons: [
+                      for (var i = 0; i < _paths.length; i++)
+                        _iconFor(i, true),
+                    ],
+                    labels: [
+                      for (var i = 0; i < _paths.length; i++)
+                        _labelFor(l10n, i),
+                    ],
+                  ),
+                ),
               ],
             ),
           );

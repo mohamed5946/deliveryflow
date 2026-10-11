@@ -316,5 +316,9 @@
         "type": "int"
       }
     }
-  }
+  },
+  "dayOrdersTitle": "Day's orders",
+  "noOrdersThisDay": "No orders recorded this day",
+  "deleteWeekTitle": "Delete week?",
+  "deleteWeekBody": "Are you sure? Deletion is permanent — the whole week with all its orders will be removed."
 }

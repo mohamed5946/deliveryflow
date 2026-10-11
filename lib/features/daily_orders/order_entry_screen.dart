@@ -8,6 +8,8 @@ import '../../core/database/models.dart';
 import '../../core/date_time/week_calendar.dart';
 import '../../core/providers.dart';
 import '../../theme/design_system.dart';
+import '../../theme/page_transitions.dart';
+import '../../theme/pressable.dart';
 import 'order_detail_screen.dart';
 
 /// Per-order tracking: each order gets its own entry with the driven
@@ -94,7 +96,7 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
     if (!mounted) return;
     // Open the detail screen so the courier can start GPS tracking.
     await Navigator.of(context).push(
-      MaterialPageRoute(
+      SmoothPageRoute(
         builder: (_) => OrderDetailScreen(
           dateKey: _dateKey,
           entryId: entry.id,
@@ -343,11 +345,13 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: InkWell(
+      child: Pressable(
+        scaleOnly: true,
+        child: InkWell(
         borderRadius: BorderRadius.circular(18),
         onTap: () async {
           await Navigator.of(context).push(
-            MaterialPageRoute(
+            SmoothPageRoute(
               builder: (_) => OrderDetailScreen(
                 dateKey: _dateKey,
                 entryId: entry.id,
@@ -443,6 +447,7 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
           ],
         ),
         ),
+      ),
       ),
     );
   }

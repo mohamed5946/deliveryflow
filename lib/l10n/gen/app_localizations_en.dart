@@ -799,4 +799,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String heatmapSubtitle(int count) {
     return 'Recorded points this week: $count';
   }
+
+  @override
+  String get dayOrdersTitle => 'Day\'s orders';
+
+  @override
+  String get noOrdersThisDay => 'No orders recorded this day';
+
+  @override
+  String get deleteWeekTitle => 'Delete week?';
+
+  @override
+  String get deleteWeekBody =>
+      'Are you sure? Deletion is permanent — the whole week with all its orders will be removed.';
 }
