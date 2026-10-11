@@ -31,6 +31,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   bool _saturdayPromptShown = false;
   late final DateTime _today = DateTime.now();
 
+  /// Day-filter: tapping a week-strip cell selects that day and the cards
+  /// above reflect it. Days with no recorded work show zero.
+  late DateTime _selectedDay =
+      DateTime(_today.year, _today.month, _today.day);
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -38,12 +43,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final settings = ref.watch(settingsProvider);
     final reportAsync = ref.watch(weeklyReportProvider(_today));
 
-    final now = DateTime.now();
     final todayKey = WeekCalendar.dateKey(_today);
     final db = ref.watch(databaseServiceProvider);
-    final todayOrder = db.orderRecord(todayKey);
-    final todayMinutes = db.recordedMinutesForDate(todayKey);
-    final completedToday = todayOrder?.completedOrders ?? 0;
+    // Selected-day data for the filterable cards (defaults to today).
+    final selectedKey = WeekCalendar.dateKey(_selectedDay);
+    final selectedOrder = db.orderRecord(selectedKey);
+    final selectedMinutes = db.recordedMinutesForDate(selectedKey);
+    final selectedCompleted = selectedOrder?.completedOrders ?? 0;
+    final selectedTotalOrders = selectedOrder?.entries.length ?? 0;
+    final isTodaySelected = selectedKey == todayKey;
 
     // Mockup greeting: fixed "مرحباً" + profile name.
     final greeting = l10n.greetingHello;
@@ -61,12 +69,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           data: (report) {
             final hasAnyData = report.recordedDaysCount > 0 ||
                 db.scheduleForWeek(_today) != null;
-            final weekday = DateFormat(
-                    'EEEE', settings.languageCode == 'ar' ? 'ar' : 'en')
-                .format(now);
-            final date = DateFormat(
-                    'd MMMM', settings.languageCode == 'ar' ? 'ar' : 'en')
-                .format(now);
+            final lang = settings.languageCode == 'ar' ? 'ar' : 'en';
+            final selWeekday =
+                DateFormat('EEEE', lang).format(_selectedDay);
+            final selDate =
+                DateFormat('d MMMM', lang).format(_selectedDay);
             return SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
               physics: const AlwaysScrollableScrollPhysics(),
@@ -146,7 +153,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                   Navigator.of(context).push(
                                 SmoothPageRoute(
                                     builder: (_) => DayOrdersScreen(
-                                        dateKey: todayKey)),
+                                        dateKey: selectedKey)),
                               ),
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(
@@ -172,7 +179,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
                                         children: [
-                                          Text('$completedToday',
+                                          Text('$selectedCompleted',
                                               style: text.titleLarge?.copyWith(
                                                   fontWeight:
                                                       FontWeight.w800,
@@ -201,12 +208,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                           ),
                           Expanded(
                             child: Pressable(
-                              onTap: () => _showTodayDialog(
+                              onTap: () => _showDayDialog(
                                   context,
                                   l10n,
-                                  completedToday,
-                                  todayMinutes,
-                                  todayOrder),
+                                  selectedCompleted,
+                                  selectedMinutes,
+                                  selectedOrder),
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 14, vertical: 8),
@@ -214,14 +221,19 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                   crossAxisAlignment:
                                       CrossAxisAlignment.start,
                                   children: [
-                                    Text('اليوم',
+                                    Text(
+                                        isTodaySelected
+                                            ? 'اليوم'
+                                            : selWeekday,
                                         style: text.bodySmall?.copyWith(
                                             color: text.bodySmall?.color
                                                 ?.withValues(alpha: 0.6),
                                             fontWeight: FontWeight.w600)),
                                     const SizedBox(height: 2),
                                     Text(
-                                        '$weekday $date',
+                                        isTodaySelected
+                                            ? '$selWeekday $selDate'
+                                            : selDate,
                                         style: text.titleSmall?.copyWith(
                                             fontWeight: FontWeight.w800),
                                         maxLines: 1,
@@ -242,7 +254,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                           child: _statCard(
                             context,
                             l10n.totalOrders,
-                            '${report.totalOrders}',
+                            '$selectedTotalOrders',
                             Icons.shopping_bag_rounded,
                             onTap: () => context.go('/history'),
                           ),
@@ -253,26 +265,27 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                             context,
                             l10n.weekHours,
                             WeekCalendar.formatHoursMinutes(
-                                (report.totalRecordedHours * 60).round()),
+                                selectedMinutes),
                             Icons.schedule_rounded,
                             onTap: () =>
-                                context.push('/hours?date=$todayKey'),
+                                context.push('/hours?date=$selectedKey'),
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 12),
-                    // Week progress ring
-                    if (settings.weeklyOrderGoal != null)
-                      _weekProgressCard(context, l10n, report,
-                          settings.weeklyOrderGoal!.toDouble()),
-                    if (settings.weeklyOrderGoal != null)
-                      const SizedBox(height: 12),
-                    // Mini week strip
+                    // Week progress ring — always visible like the mockup.
+                    _weekProgressCard(
+                        context, l10n, report, settings.weeklyOrderGoal),
+                    const SizedBox(height: 12),
+                    // Mini week strip — tapping a day filters the cards above.
                     SectionHeader(title: l10n.scheduleTitle),
                     GlassCard(
                       child: WeekDayStrip(
                         weekStart: WeekCalendar.weekStart(_today),
+                        highlightedDay: _selectedDay,
+                        onSelect: (day) =>
+                            setState(() => _selectedDay = day),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -406,11 +419,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   Widget _weekProgressCard(BuildContext context, AppLocalizations l10n,
-      WeeklyReport report, double goal) {
+      WeeklyReport report, int? goal) {
     final text = Theme.of(context).textTheme;
+    final g = (goal ?? 0).toDouble();
     final progress =
-        goal <= 0 ? 0.0 : (report.totalOrders / goal).clamp(0.0, 1.0);
-    return GlassCard(
+        g <= 0 ? 0.0 : (report.totalOrders / g).clamp(0.0, 1.0);
+    final card = GlassCard(
       child: Row(
         children: [
           Expanded(
@@ -422,11 +436,22 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         ?.copyWith(fontWeight: FontWeight.w800)),
                 const SizedBox(height: 6),
                 Text(
-                  '${report.totalOrders} / ${goal.toStringAsFixed(goal % 1 == 0 ? 0 : 1)}',
+                  goal == null
+                      ? '${report.totalOrders} / –'
+                      : '${report.totalOrders} / $goal',
                   style: text.headlineSmall?.copyWith(
                       fontWeight: FontWeight.w800,
                       color: LiquidPalette.primaryBlue),
                 ),
+                if (goal == null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    l10n.setWeeklyGoalHint,
+                    style: text.bodySmall?.copyWith(
+                        color: LiquidPalette.primaryBlue,
+                        fontWeight: FontWeight.w600),
+                  ),
+                ],
               ],
             ),
           ),
@@ -440,6 +465,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         ],
       ),
     );
+    // No goal configured yet: tapping opens the profile where the
+    // weekly goal can be set.
+    if (goal == null) {
+      return Pressable(
+          onTap: () => context.go('/profile'), child: card);
+    }
+    return card;
   }
 
   Widget _avatarContent(
@@ -479,11 +511,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  void _showTodayDialog(BuildContext context, AppLocalizations l10n,
-      int completed, int minutes, DailyOrderRecord? todayOrder) {
-    final km = todayOrder == null
+  void _showDayDialog(BuildContext context, AppLocalizations l10n,
+      int completed, int minutes, DailyOrderRecord? dayOrder) {
+    final km = dayOrder == null
         ? '–'
-        : '${WeekCalendar.formatKm(todayOrder.totalKm)} ${l10n.kmUnit}';
+        : '${WeekCalendar.formatKm(dayOrder.totalKm)} ${l10n.kmUnit}';
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(

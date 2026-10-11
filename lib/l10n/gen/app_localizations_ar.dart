@@ -510,7 +510,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get scheduleSummary => 'ملخص الأسبوع';
 
   @override
-  String get scheduleTitle => 'جدول العمل الأسبوعي';
+  String get scheduleTitle => 'الجدول الأسبوعي';
 
   @override
   String get scheduledVsActual => 'المخطط مقابل الفعلي';
@@ -904,6 +904,9 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get weekProgress => 'تقدم الأسبوع';
+
+  @override
+  String get setWeeklyGoalHint => 'اضغط لتحديد الهدف';
 
   @override
   String get viewWeekDetails => 'عرض تفاصيل الأسبوع';

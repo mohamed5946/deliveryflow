@@ -1808,6 +1808,12 @@ abstract class AppLocalizations {
   /// **'Week progress'**
   String get weekProgress;
 
+  /// No description provided for @setWeeklyGoalHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to set your goal'**
+  String get setWeeklyGoalHint;
+
   /// No description provided for @viewWeekDetails.
   ///
   /// In en, this message translates to:

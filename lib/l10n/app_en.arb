@@ -351,6 +351,7 @@
   "trackingStoppedBody": "Tracking isn't running for this order, so kilometers aren't being counted. Restart it or enter the distance manually?",
   "startTracking": "Start tracking",
   "weekProgress": "Week progress",
+  "setWeeklyGoalHint": "Tap to set your goal",
   "viewWeekDetails": "View week details",
   "daySummary": "Day summary",
   "totalDistances": "Total distances",

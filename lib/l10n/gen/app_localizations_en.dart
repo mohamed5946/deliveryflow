@@ -907,6 +907,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get weekProgress => 'Week progress';
 
   @override
+  String get setWeeklyGoalHint => 'Tap to set your goal';
+
+  @override
   String get viewWeekDetails => 'View week details';
 
   @override
