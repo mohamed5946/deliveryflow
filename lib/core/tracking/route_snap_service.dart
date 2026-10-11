@@ -18,16 +18,22 @@ class SnappedRoute {
 }
 
 /// Snaps a GPS breadcrumb trail to real roads using the free OSRM
-/// public API.
+/// **map-matching** API (`/match/v1/driving`).
+///
+/// This measures the road distance of the route ACTUALLY traveled —
+/// it snaps the recorded trace onto streets. It must NOT use the
+/// `/route` (directions) endpoint: that computes the "ideal" route
+/// through the waypoints and invents huge detours between noisy
+/// points, massively inflating the distance.
 ///
 /// Returns both the true road distance AND the road geometry (the
 /// actual path on streets), so the map can draw the real driven
 /// route instead of straight lines between sparse points.
 ///
-/// Offline/no-internet: returns null, and the caller falls back to
-/// the GPS-summed distance + raw trail.
+/// Offline/no-internet/match failure: returns null, and the caller
+/// falls back to the GPS-summed distance + raw trail.
 class RouteSnapService {
-  static const _base = 'https://router.project-osrm.org/route/v1/driving';
+  static const _base = 'https://router.project-osrm.org/match/v1/driving';
 
   Future<SnappedRoute?> snapRoute({
     required List<double> lat,
@@ -36,8 +42,8 @@ class RouteSnapService {
     final n = lat.length < lng.length ? lat.length : lng.length;
     if (n < 2) return null;
 
-    // Downsample to keep the URL reasonable (OSRM handles ~100 points
-    // fine). Keep first/last always for correct endpoints.
+    // Downsample to keep the URL reasonable. Keep first/last always
+    // for correct endpoints.
     final coords = <String>[];
     final step = n > 100 ? (n / 100).ceil() : 1;
     for (var i = 0; i < n; i += step) {
@@ -47,8 +53,12 @@ class RouteSnapService {
       coords.add('${lng[n - 1]},${lat[n - 1]}');
     }
 
+    // radiuses: how far (meters) each trace point may be snapped.
+    // Tolerates normal GPS noise without inventing detours.
+    final radiuses = List.filled(coords.length, '50').join(';');
+
     final url = Uri.parse(
-        '$_base/${coords.join(';')}?overview=full&geometries=geojson');
+        '$_base/${coords.join(';')}?overview=full&geometries=geojson&radiuses=$radiuses');
     try {
       final res = await http
           .get(url, headers: {'User-Agent': 'DeliveryFlow/1.0'})
@@ -56,30 +66,36 @@ class RouteSnapService {
       if (res.statusCode != 200) return null;
       final body = json.decode(res.body) as Map<String, dynamic>;
       if (body['code'] != 'Ok') return null;
-      final routes = body['routes'] as List?;
-      if (routes == null || routes.isEmpty) return null;
-      final route = routes.first as Map<String, dynamic>;
-      final meters = (route['distance'] as num?)?.toDouble();
-      if (meters == null || meters <= 0) return null;
+      final matchings = body['matchings'] as List?;
+      if (matchings == null || matchings.isEmpty) return null;
 
-      // Extract the road geometry (list of [lng, lat] pairs).
+      // A trace with gaps comes back as several matchings — sum them
+      // all and concatenate their geometries.
+      double totalMeters = 0;
       final geometry = <LatLng>[];
-      try {
-        final geoJson = route['geometry'] as Map<String, dynamic>?;
-        final coordsList = geoJson?['coordinates'] as List?;
-        if (coordsList != null) {
-          for (final c in coordsList) {
-            final pair = c as List;
-            geometry.add(LatLng(
-              (pair[1] as num).toDouble(),
-              (pair[0] as num).toDouble(),
-            ));
+      for (final m in matchings) {
+        final matching = m as Map<String, dynamic>;
+        totalMeters +=
+            (matching['distance'] as num?)?.toDouble() ?? 0;
+        try {
+          final geoJson =
+              matching['geometry'] as Map<String, dynamic>?;
+          final coordsList = geoJson?['coordinates'] as List?;
+          if (coordsList != null) {
+            for (final c in coordsList) {
+              final pair = c as List;
+              geometry.add(LatLng(
+                (pair[1] as num).toDouble(),
+                (pair[0] as num).toDouble(),
+              ));
+            }
           }
-        }
-      } catch (_) {}
+        } catch (_) {}
+      }
+      if (totalMeters <= 0) return null;
 
       return SnappedRoute(
-        distanceKm: meters / 1000.0,
+        distanceKm: totalMeters / 1000.0,
         geometry: geometry,
       );
     } catch (_) {

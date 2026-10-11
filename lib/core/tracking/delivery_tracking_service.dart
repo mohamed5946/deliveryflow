@@ -407,10 +407,12 @@ class DeliveryTrackingService {
     await _stopBackgroundTracking();
     await _deleteProgress(entryId);
 
-    // Snap to real roads for Google-Maps-like accuracy.
+    // Snap the ACTUALLY traveled trail to real roads (map matching).
+    // Sanity guard: the live GPS sum is the anchor — only accept the
+    // snapped value if it's within a sane band around it, otherwise a
+    // bad match could wildly inflate the distance.
     final snapped = await _snap.snapRoute(lat: outLat, lng: outLng);
-    final finalKmOut =
-        snapped != null && snapped.distanceKm > 0 ? snapped.distanceKm : kmOut;
+    final finalKmOut = _saneFinalKm(gpsKm: kmOut, snappedKm: snapped?.distanceKm);
     final roadLat =
         snapped?.geometry.map((p) => p.latitude).toList() ??
             const <double>[];
@@ -464,7 +466,7 @@ class DeliveryTrackingService {
 
     final snapped = await _snap.snapRoute(lat: backLat, lng: backLng);
     final finalKmBack =
-        snapped != null && snapped.distanceKm > 0 ? snapped.distanceKm : kmBack;
+        _saneFinalKm(gpsKm: kmBack, snappedKm: snapped?.distanceKm);
     final roadLat =
         snapped?.geometry.map((p) => p.latitude).toList() ??
             const <double>[];
@@ -496,6 +498,20 @@ class DeliveryTrackingService {
   }
 
   double _round2(double v) => (v * 100).roundToDouble() / 100;
+
+  /// Picks the final distance for a leg. The live GPS sum is the anchor
+  /// (it measures what was actually traveled). A snapped road distance
+  /// is only accepted when it sits within a sane band around the GPS
+  /// sum — this guarantees a bad map-match can never inflate (or
+  /// collapse) the recorded distance.
+  double _saneFinalKm({required double gpsKm, double? snappedKm}) {
+    if (snappedKm == null || snappedKm <= 0) return gpsKm;
+    if (gpsKm <= 0) return snappedKm;
+    if (snappedKm >= gpsKm * 0.5 && snappedKm <= gpsKm * 2.5) {
+      return snappedKm;
+    }
+    return gpsKm;
+  }
 
   void dispose() {
     _snapshotController.close();
