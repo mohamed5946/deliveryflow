@@ -380,6 +380,8 @@
   "typeMoreDigits": "Type at least 3 digits",
   "notificationsTitle": "Notifications",
   "noNotifications": "No notifications yet",
+  "markAllRead": "Mark all as read",
+  "notificationDismissed": "Notification dismissed",
   "notifOrderCompleted": "Order completed",
   "notifManualKm": "Manual distance recorded",
   "showDetails": "Show details",

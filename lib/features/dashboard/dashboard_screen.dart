@@ -516,28 +516,28 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final km = dayOrder == null
         ? '–'
         : '${WeekCalendar.formatKm(dayOrder.totalKm)} ${l10n.kmUnit}';
-    showDialog(
+    showGlassDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l10n.daySummary),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(l10n.completedOrdersChip(completed)),
-            const SizedBox(height: 6),
-            Text(
-                '${l10n.weekHours}: ${WeekCalendar.formatHoursMinutes(minutes)}'),
-            const SizedBox(height: 6),
-            Text('${l10n.totalDistances}: $km'),
-          ],
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text(l10n.close)),
+      title: Text(l10n.daySummary),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(l10n.completedOrdersChip(completed)),
+          const SizedBox(height: 6),
+          Text(
+              '${l10n.weekHours}: ${WeekCalendar.formatHoursMinutes(minutes)}'),
+          const SizedBox(height: 6),
+          Text('${l10n.totalDistances}: $km'),
         ],
       ),
+      actions: [
+        GlassButton(
+          label: l10n.close,
+          primary: false,
+          onPressed: () => Navigator.pop(context),
+        ),
+      ],
     );
   }
 

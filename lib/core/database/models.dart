@@ -1,7 +1,7 @@
 import 'package:hive/hive.dart';
 
 /// Schema version for migrations. Bump when a model changes shape.
-const int kSchemaVersion = 6;
+const int kSchemaVersion = 7;
 
 // ---------------------------------------------------------------------------
 // UserSettings (typeId 0)
@@ -57,6 +57,10 @@ class UserSettings extends HiveObject {
   double? dailyFixedPay; // EGP per attended day (salary calc)
   @HiveField(23)
   String photoPath; // absolute path of the saved profile photo ('', if none)
+  @HiveField(24)
+  List<String> readNotificationIds; // completed-order notification ids marked read
+  @HiveField(25)
+  List<String> dismissedNotificationIds; // swiped-away notification ids
 
   UserSettings({
     this.displayName = '',
@@ -83,7 +87,10 @@ class UserSettings extends HiveObject {
     this.orderPrice,
     this.dailyFixedPay,
     this.photoPath = '',
-  });
+    List<String>? readNotificationIds,
+    List<String>? dismissedNotificationIds,
+  })  : readNotificationIds = readNotificationIds ?? [],
+        dismissedNotificationIds = dismissedNotificationIds ?? [];
 
   Map<String, dynamic> toJson() => {
         'displayName': displayName,
@@ -110,6 +117,8 @@ class UserSettings extends HiveObject {
         'orderPrice': orderPrice,
         'dailyFixedPay': dailyFixedPay,
         'photoPath': photoPath,
+        'readNotificationIds': readNotificationIds,
+        'dismissedNotificationIds': dismissedNotificationIds,
         'schemaVersion': kSchemaVersion,
       };
 
@@ -147,6 +156,10 @@ class UserSettings extends HiveObject {
         orderPrice: (json['orderPrice'] as num?)?.toDouble(),
         dailyFixedPay: (json['dailyFixedPay'] as num?)?.toDouble(),
         photoPath: (json['photoPath'] as String?) ?? '',
+        readNotificationIds:
+            (json['readNotificationIds'] as List?)?.cast<String>() ?? [],
+        dismissedNotificationIds:
+            (json['dismissedNotificationIds'] as List?)?.cast<String>() ?? [],
       );
 }
 
@@ -185,13 +198,16 @@ class UserSettingsAdapter extends TypeAdapter<UserSettings> {
       orderPrice: (fields[21] as num?)?.toDouble(),
       dailyFixedPay: (fields[22] as num?)?.toDouble(),
       photoPath: (fields[23] as String?) ?? '',
+      readNotificationIds: (fields[24] as List?)?.cast<String>() ?? [],
+      dismissedNotificationIds:
+          (fields[25] as List?)?.cast<String>() ?? [],
     );
   }
 
   @override
   void write(BinaryWriter writer, UserSettings obj) {
     writer
-      ..writeByte(24)
+      ..writeByte(26)
       ..writeByte(0)
       ..write(obj.displayName)
       ..writeByte(1)
@@ -239,7 +255,11 @@ class UserSettingsAdapter extends TypeAdapter<UserSettings> {
       ..writeByte(22)
       ..write(obj.dailyFixedPay)
       ..writeByte(23)
-      ..write(obj.photoPath);
+      ..write(obj.photoPath)
+      ..writeByte(24)
+      ..write(obj.readNotificationIds)
+      ..writeByte(25)
+      ..write(obj.dismissedNotificationIds);
   }
 }
 

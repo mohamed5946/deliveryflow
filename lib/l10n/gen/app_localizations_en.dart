@@ -998,6 +998,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noNotifications => 'No notifications yet';
 
   @override
+  String get markAllRead => 'Mark all as read';
+
+  @override
+  String get notificationDismissed => 'Notification dismissed';
+
+  @override
   String get notifOrderCompleted => 'Order completed';
 
   @override

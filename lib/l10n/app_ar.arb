@@ -332,6 +332,8 @@
   "typeMoreDigits": "اكتب 3 أرقام على الأقل",
   "notificationsTitle": "الإشعارات",
   "noNotifications": "لا توجد إشعارات بعد",
+  "markAllRead": "تحديد الكل كمقروء",
+  "notificationDismissed": "تم مسح الإشعار",
   "notifOrderCompleted": "تم إكمال الأوردر",
   "notifManualKm": "مسافة يدوية مسجلة",
   "showDetails": "عرض التفاصيل",

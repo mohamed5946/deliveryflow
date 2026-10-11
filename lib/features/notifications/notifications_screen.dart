@@ -14,8 +14,9 @@ import '../daily_orders/order_detail_screen.dart';
 /// Feed of recent app events built from existing data.
 ///
 /// Each row represents one completed order (newest first) and opens that
-/// order's detail screen. The list is built once when the screen opens —
-/// no polling, no streams.
+/// order's detail screen. Supports read/unread state, swipe-to-dismiss and
+/// mark-all-read — all persisted in the user settings. The list is built
+/// once when the screen opens — no polling, no streams.
 class NotificationsScreen extends ConsumerStatefulWidget {
   const NotificationsScreen({super.key});
 
@@ -38,9 +39,11 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   }
 
   /// Walks back over the most recent days, collects completed orders
-  /// (status == 3), newest first, capped at 30.
+  /// (status == 3), newest first, capped at 30, excluding dismissed ones.
   List<_NotificationItem> _collectCompletedOrders() {
     final db = ref.read(databaseServiceProvider);
+    final dismissed =
+        ref.read(settingsProvider).dismissedNotificationIds.toSet();
     final today = WeekCalendar.dateOnly(DateTime.now());
     final items = <_NotificationItem>[];
     // 60-day lookback is more than enough for a 30-item feed.
@@ -50,7 +53,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       final record = db.orderRecord(key);
       if (record == null) continue;
       for (final entry in record.entries) {
-        if (entry.status == 3) {
+        if (entry.status == 3 && !dismissed.contains(entry.id)) {
           items.add(_NotificationItem(dateKey: key, entry: entry));
         }
       }
@@ -60,6 +63,43 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     return items.take(30).toList();
   }
 
+  Future<void> _markRead(String id) async {
+    final notifier = ref.read(settingsProvider.notifier);
+    final read = ref.read(settingsProvider).readNotificationIds;
+    if (read.contains(id)) return;
+    await notifier.update(
+        (s) => s..readNotificationIds = [...s.readNotificationIds, id]);
+  }
+
+  Future<void> _markAllRead() async {
+    final items = _items;
+    if (items == null || items.isEmpty) return;
+    final notifier = ref.read(settingsProvider.notifier);
+    final read = ref.read(settingsProvider).readNotificationIds.toSet();
+    final ids = {
+      for (final it in items) it.entry.id,
+    }..addAll(read);
+    await notifier
+        .update((s) => s..readNotificationIds = ids.toList());
+  }
+
+  Future<void> _dismiss(_NotificationItem item) async {
+    final l10n = AppLocalizations.of(context);
+    final notifier = ref.read(settingsProvider.notifier);
+    await notifier.update((s) => s
+      ..dismissedNotificationIds = [
+        ...s.dismissedNotificationIds,
+        item.entry.id
+      ]);
+    if (!mounted) return;
+    setState(() => _items = _items
+        ?.where((it) => it.entry.id != item.entry.id)
+        .toList());
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(l10n.notificationDismissed)));
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -67,10 +107,24 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     final locale =
         ref.watch(settingsProvider.select((s) => s.languageCode));
     final loc = locale == 'ar' ? 'ar' : 'en';
+    final readIds =
+        ref.watch(settingsProvider.select((s) => s.readNotificationIds));
 
     final items = _items;
+    final hasUnread = items != null &&
+        items.any((it) => !readIds.contains(it.entry.id));
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.notificationsTitle)),
+      appBar: AppBar(
+        title: Text(l10n.notificationsTitle),
+        actions: [
+          if (hasUnread)
+            IconButton(
+              tooltip: l10n.markAllRead,
+              icon: const Icon(Icons.done_all_rounded),
+              onPressed: _markAllRead,
+            ),
+        ],
+      ),
       body: items == null
           ? const GlassLoading()
           : items.isEmpty
@@ -80,13 +134,46 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                   itemCount: items.length,
                   itemBuilder: (ctx, i) {
                     final item = items[i];
+                    final isRead = readIds.contains(item.entry.id);
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 10),
-                      child: _NotificationRow(
-                        item: item,
-                        l10n: l10n,
-                        text: text,
-                        loc: loc,
+                      child: Dismissible(
+                        key: ValueKey(item.entry.id),
+                        direction: DismissDirection.endToStart,
+                        background: Container(
+                          alignment: Alignment.centerLeft,
+                          padding:
+                              const EdgeInsets.symmetric(horizontal: 20),
+                          decoration: BoxDecoration(
+                            color: LiquidPalette.error
+                                .withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(
+                                GlassTokens.radiusM),
+                          ),
+                          child: const Icon(
+                            Icons.delete_outline_rounded,
+                            color: LiquidPalette.error,
+                          ),
+                        ),
+                        onDismissed: (_) => _dismiss(item),
+                        child: _NotificationRow(
+                          item: item,
+                          l10n: l10n,
+                          text: text,
+                          loc: loc,
+                          isRead: isRead,
+                          onTap: () {
+                            _markRead(item.entry.id);
+                            Navigator.of(context).push(
+                              SmoothPageRoute(
+                                builder: (_) => OrderDetailScreen(
+                                  dateKey: item.dateKey,
+                                  entryId: item.entry.id,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
                       ),
                     );
                   },
@@ -107,12 +194,16 @@ class _NotificationRow extends StatelessWidget {
   final AppLocalizations l10n;
   final TextTheme text;
   final String loc;
+  final bool isRead;
+  final VoidCallback onTap;
 
   const _NotificationRow({
     required this.item,
     required this.l10n,
     required this.text,
     required this.loc,
+    required this.isRead,
+    required this.onTap,
   });
 
   @override
@@ -125,14 +216,7 @@ class _NotificationRow extends StatelessWidget {
           DateTime.fromMillisecondsSinceEpoch(entry.timestampMillis),
         );
     return Pressable(
-      onTap: () => Navigator.of(context).push(
-        SmoothPageRoute(
-          builder: (_) => OrderDetailScreen(
-            dateKey: item.dateKey,
-            entryId: entry.id,
-          ),
-        ),
-      ),
+      onTap: onTap,
       child: GlassCard(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Row(
@@ -162,11 +246,23 @@ class _NotificationRow extends StatelessWidget {
                 children: [
                   Row(
                     children: [
+                      if (!isRead)
+                        Container(
+                          width: 8,
+                          height: 8,
+                          margin: const EdgeInsets.only(right: 6),
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: LiquidPalette.primaryBlue,
+                          ),
+                        ),
                       Expanded(
                         child: Text(
                           l10n.notifOrderCompleted,
-                          style: text.titleSmall
-                              ?.copyWith(fontWeight: FontWeight.w800),
+                          style: text.titleSmall?.copyWith(
+                              fontWeight: isRead
+                                  ? FontWeight.w600
+                                  : FontWeight.w800),
                         ),
                       ),
                       if (entry.hasManualKm) const ManualBadge(),
@@ -189,7 +285,7 @@ class _NotificationRow extends StatelessWidget {
                       child: Text(
                         l10n.notifManualKm,
                         style: text.labelSmall?.copyWith(
-                          color: Colors.amber.shade800,
+                          color: LiquidPalette.warning,
                           fontWeight: FontWeight.w700,
                         ),
                       ),

@@ -31,14 +31,20 @@ abstract class LiquidPalette {
   static const Color glassTint = Color(0xFFE5F1FF);
   static const Color darkSurface = Color(0xFF1C1C1E);
 
+  // Exact palette from the approved design brief.
+  static const Color backgroundLight = Color(0xFFF5F9FF);
+  static const Color textPrimary = Color(0xFF172B4D);
+  static const Color textOnDark = Color(0xFFF5F9FF);
+  static const Color textSecondary = Color(0xFF7890AD);
+
   // Legacy accents (kept for compatibility with older screens).
   static const Color primaryPurple = Color(0xFF8B5CF6);
   static const Color accentCyan = Color(0xFF06B6D4);
   static const Color accentViolet = Color(0xFFA855F7);
 
-  static const Color success = Color(0xFF10B981);
-  static const Color warning = Color(0xFFF59E0B);
-  static const Color error = Color(0xFFEF4444);
+  static const Color success = Color(0xFF34C759);
+  static const Color warning = Color(0xFFFFB020);
+  static const Color error = Color(0xFFFF453A);
   static const Color info = Color(0xFF3B82F6);
 
   /// The signature brand gradient: primary blue → sky blue.
@@ -913,4 +919,121 @@ class SectionHeader extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Frosted-glass dialog — the Liquid Glass replacement for [AlertDialog].
+///
+/// Shows [title], [content] and [actions] inside a blurred glass surface
+/// with the signature thin border and soft shadow. Backdrop is dimmed.
+class GlassDialog extends StatelessWidget {
+  final Widget? title;
+  final Widget content;
+  final List<Widget> actions;
+
+  const GlassDialog({
+    super.key,
+    this.title,
+    required this.content,
+    this.actions = const [],
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding:
+          const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(GlassTokens.radiusL),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(
+              sigmaX: GlassTokens.blurSigma + 4,
+              sigmaY: GlassTokens.blurSigma + 4),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(22, 20, 22, 14),
+            decoration: BoxDecoration(
+              borderRadius:
+                  BorderRadius.circular(GlassTokens.radiusL),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: isDark
+                    ? [
+                        LiquidPalette.darkSurface
+                            .withValues(alpha: 0.92),
+                        LiquidPalette.darkSurface
+                            .withValues(alpha: 0.82),
+                      ]
+                    : [
+                        Colors.white.withValues(alpha: 0.92),
+                        Colors.white.withValues(alpha: 0.78),
+                      ],
+              ),
+              border: Border.all(
+                color: Colors.white
+                    .withValues(alpha: isDark ? 0.16 : 0.7),
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black
+                      .withValues(alpha: isDark ? 0.5 : 0.18),
+                  blurRadius: 40,
+                  offset: const Offset(0, 16),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (title != null) ...[
+                  DefaultTextStyle(
+                    style: text.titleLarge!.copyWith(
+                        fontWeight: FontWeight.w800),
+                    child: title!,
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                content,
+                if (actions.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      for (var i = 0; i < actions.length; i++) ...[
+                        if (i > 0) const SizedBox(width: 8),
+                        actions[i],
+                      ],
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Shows a [GlassDialog] with the standard dimmed barrier.
+Future<T?> showGlassDialog<T>({
+  required BuildContext context,
+  Widget? title,
+  required Widget content,
+  List<Widget> actions = const [],
+  bool barrierDismissible = true,
+}) {
+  return showDialog<T>(
+    context: context,
+    barrierDismissible: barrierDismissible,
+    builder: (ctx) => GlassDialog(
+      title: title,
+      content: content,
+      actions: actions,
+    ),
+  );
 }

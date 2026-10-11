@@ -997,6 +997,12 @@ class AppLocalizationsAr extends AppLocalizations {
   String get noNotifications => 'لا توجد إشعارات بعد';
 
   @override
+  String get markAllRead => 'تحديد الكل كمقروء';
+
+  @override
+  String get notificationDismissed => 'تم مسح الإشعار';
+
+  @override
   String get notifOrderCompleted => 'تم إكمال الأوردر';
 
   @override

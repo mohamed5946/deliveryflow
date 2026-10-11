@@ -441,6 +441,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 child: Column(
                   children: [
                     _radioRow(
+                      icon: Icons.brightness_auto_rounded,
+                      label: l10n.themeSystem,
+                      selected: settings.themeMode == 0,
+                      onTap: () =>
+                          notifier.update((s) => s..themeMode = 0),
+                    ),
+                    const SizedBox(height: 4),
+                    _radioRow(
                       icon: Icons.wb_sunny_rounded,
                       label: l10n.themeLight,
                       selected: settings.themeMode == 1,
