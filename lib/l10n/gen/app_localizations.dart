@@ -1735,6 +1735,120 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Start tracking'**
   String get startTracking;
+
+  /// No description provided for @weekProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Week progress'**
+  String get weekProgress;
+
+  /// No description provided for @viewWeekDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'View week details'**
+  String get viewWeekDetails;
+
+  /// No description provided for @daySummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Day summary'**
+  String get daySummary;
+
+  /// No description provided for @totalDistances.
+  ///
+  /// In en, this message translates to:
+  /// **'Total distances'**
+  String get totalDistances;
+
+  /// No description provided for @ordersBreakdown.
+  ///
+  /// In en, this message translates to:
+  /// **'Orders breakdown'**
+  String get ordersBreakdown;
+
+  /// No description provided for @statusInProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'In progress'**
+  String get statusInProgress;
+
+  /// No description provided for @viewFullReport.
+  ///
+  /// In en, this message translates to:
+  /// **'View full report'**
+  String get viewFullReport;
+
+  /// No description provided for @liveTrackingNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Live delivery'**
+  String get liveTrackingNow;
+
+  /// No description provided for @onWayToCustomer.
+  ///
+  /// In en, this message translates to:
+  /// **'On your way to the customer'**
+  String get onWayToCustomer;
+
+  /// No description provided for @viewDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'View details'**
+  String get viewDetails;
+
+  /// No description provided for @endOfDayNotif.
+  ///
+  /// In en, this message translates to:
+  /// **'End-of-day notifications'**
+  String get endOfDayNotif;
+
+  /// No description provided for @weeklyScheduleNotif.
+  ///
+  /// In en, this message translates to:
+  /// **'Weekly schedule reminder'**
+  String get weeklyScheduleNotif;
+
+  /// No description provided for @notifTime.
+  ///
+  /// In en, this message translates to:
+  /// **'Notification time'**
+  String get notifTime;
+
+  /// No description provided for @splashLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading...'**
+  String get splashLoading;
+
+  /// No description provided for @completedOrdersChip.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} completed orders'**
+  String completedOrdersChip(Object count);
+
+  /// No description provided for @workSmarterTagline.
+  ///
+  /// In en, this message translates to:
+  /// **'Work Smarter • Deliver Faster'**
+  String get workSmarterTagline;
+
+  /// No description provided for @deliverFaster.
+  ///
+  /// In en, this message translates to:
+  /// **'Work smarter, deliver faster'**
+  String get deliverFaster;
+
+  /// No description provided for @completedOrdersLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'completed orders'**
+  String get completedOrdersLabel;
+
+  /// No description provided for @statusNotStarted.
+  ///
+  /// In en, this message translates to:
+  /// **'Not started'**
+  String get statusNotStarted;
 }
 
 class _AppLocalizationsDelegate

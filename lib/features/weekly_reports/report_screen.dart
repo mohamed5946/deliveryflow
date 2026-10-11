@@ -2,6 +2,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:deliveryflow/l10n/gen/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -87,6 +88,11 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
                       fontWeight: FontWeight.w600),
                 ),
               const SizedBox(height: 12),
+              // Day summary (mockup's "ملخص اليوم") — current week only.
+              if (WeekCalendar.isSameWeek(_anchor, DateTime.now()))
+                _daySummaryCard(context, ref, l10n, text),
+              if (WeekCalendar.isSameWeek(_anchor, DateTime.now()))
+                const SizedBox(height: 12),
               // Totals
               Row(
                 children: [
@@ -95,7 +101,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
                       label: l10n.totalOrders,
                       value: '${r.totalOrders}',
                       icon: Icons.shopping_bag_rounded,
-                      accent: LiquidPalette.accentCyan,
+                      accent: LiquidPalette.skyBlue,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -105,7 +111,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
                       value: WeekCalendar.formatHours(
                           r.totalRecordedHours),
                       icon: Icons.schedule_rounded,
-                      accent: LiquidPalette.primaryPurple,
+                      accent: LiquidPalette.primaryBlue,
                     ),
                   ),
                 ],
@@ -173,7 +179,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
                     Row(
                       children: [
                         const Icon(Icons.route_rounded,
-                            size: 20, color: LiquidPalette.accentCyan),
+                            size: 20, color: LiquidPalette.skyBlue),
                         const SizedBox(width: 8),
                         Text(l10n.weekKmLabel,
                             style: text.titleSmall?.copyWith(
@@ -183,7 +189,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
                           '${WeekCalendar.formatKm(r.totalKm)} ${l10n.kmUnit}',
                           style: text.titleLarge?.copyWith(
                               fontWeight: FontWeight.w800,
-                              color: LiquidPalette.accentCyan),
+                              color: LiquidPalette.skyBlue),
                         ),
                       ],
                     ),
@@ -330,6 +336,151 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
     final d = cur - prev;
     final sign = d >= 0 ? '+' : '';
     return '$sign$d';
+  }
+
+  /// "ملخص اليوم" — mirrors the mockup: progress ring, hours + km
+  /// cards, per-status breakdown, full-report CTA.
+  Widget _daySummaryCard(BuildContext context, WidgetRef ref,
+      AppLocalizations l10n, TextTheme text) {
+    final db = ref.watch(databaseServiceProvider);
+    final now = DateTime.now();
+    final todayKey = WeekCalendar.dateKey(now);
+    final rec = db.orderRecord(todayKey);
+    final entries = rec?.entries ?? const <OrderEntry>[];
+    final completed = entries.where((e) => e.status == 3).length;
+    final inProgress =
+        entries.where((e) => e.status == 1 || e.status == 2).length;
+    final pending = entries.where((e) => e.status == 0).length;
+    final total = entries.length;
+    final minutes = db.recordedMinutesForDate(todayKey);
+    final km = rec?.totalKm ?? 0;
+    final loc = ref.watch(settingsProvider.select((s) => s.languageCode)) == 'ar' ? 'ar' : 'en';
+
+    Widget breakdownRow(String label, int count, Color color, IconData icon) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: color),
+            const SizedBox(width: 8),
+            Expanded(
+                child: Text(label,
+                    style: text.bodyMedium
+                        ?.copyWith(fontWeight: FontWeight.w600))),
+            Text('$count',
+                style: text.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800, color: color)),
+          ],
+        ),
+      );
+    }
+
+    return GlassCard(
+      borderRadius: GlassTokens.radiusL,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(l10n.daySummary,
+              style:
+                  text.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 2),
+          Text(DateFormat.yMMMMEEEEd(loc).format(now),
+              style: text.bodySmall?.copyWith(
+                  color: text.bodySmall?.color
+                      ?.withValues(alpha: 0.6))),
+          const SizedBox(height: 14),
+          Center(
+            child: ProgressRing(
+              progress: total == 0 ? 0 : completed / total,
+              size: 128,
+              centerTop: '$completed / $total',
+              centerBottom: l10n.completedOrdersLabel,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _miniInfoCard(
+                    context,
+                    l10n.weekHours,
+                    WeekCalendar.formatHoursMinutes(minutes),
+                    Icons.schedule_rounded,
+                    LiquidPalette.primaryBlue),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _miniInfoCard(
+                    context,
+                    l10n.totalDistances,
+                    '${WeekCalendar.formatKm(km)} ${l10n.kmUnit}',
+                    Icons.route_rounded,
+                    LiquidPalette.skyBlue),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(l10n.ordersBreakdown,
+              style:
+                  text.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+          breakdownRow(l10n.statusCompleted, completed,
+              LiquidPalette.success, Icons.check_circle_rounded),
+          breakdownRow(l10n.statusInProgress, inProgress,
+              LiquidPalette.primaryBlue, Icons.delivery_dining_rounded),
+          breakdownRow(l10n.statusPending, pending,
+              Colors.grey, Icons.hourglass_empty_rounded),
+          const SizedBox(height: 10),
+          GlassButton(
+            label: l10n.viewFullReport,
+            icon: Icons.bar_chart_rounded,
+            onPressed: () => context.push('/orders?date=$todayKey'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _miniInfoCard(BuildContext context, String label, String value,
+      IconData icon, Color accent) {
+    final text = Theme.of(context).textTheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(GlassTokens.radiusM),
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.06)
+            : Colors.white.withValues(alpha: 0.6),
+        border: Border.all(
+          color: accent.withValues(alpha: 0.25),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: accent, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(value,
+                    style: text.titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w800),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
+                Text(label,
+                    style: text.bodySmall?.copyWith(
+                        color: text.bodySmall?.color
+                            ?.withValues(alpha: 0.6),
+                        fontSize: 11),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _kmStat(BuildContext context, String label, String value,

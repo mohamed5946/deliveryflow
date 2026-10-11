@@ -515,10 +515,10 @@ class AppLocalizationsAr extends AppLocalizations {
   String get testNotificationSent => 'تم إرسال الإشعار التجريبي';
 
   @override
-  String get themeDark => 'داكن';
+  String get themeDark => 'الوضع الداكن';
 
   @override
-  String get themeLight => 'فاتح';
+  String get themeLight => 'الوضع الفاتح';
 
   @override
   String get themeSystem => 'حسب النظام';
@@ -867,4 +867,63 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get startTracking => 'تشغيل التتبع';
+
+  @override
+  String get weekProgress => 'تقدم الأسبوع';
+
+  @override
+  String get viewWeekDetails => 'عرض تفاصيل الأسبوع';
+
+  @override
+  String get daySummary => 'ملخص اليوم';
+
+  @override
+  String get totalDistances => 'إجمالي المسافات';
+
+  @override
+  String get ordersBreakdown => 'تفاصيل الأوردرات';
+
+  @override
+  String get statusInProgress => 'قيد التوصيل';
+
+  @override
+  String get viewFullReport => 'عرض التقرير الكامل';
+
+  @override
+  String get liveTrackingNow => 'التوصيل الآن';
+
+  @override
+  String get onWayToCustomer => 'في طريقك للعميل';
+
+  @override
+  String get viewDetails => 'عرض التفاصيل';
+
+  @override
+  String get endOfDayNotif => 'إشعارات نهاية اليوم';
+
+  @override
+  String get weeklyScheduleNotif => 'تذكير الجدول الأسبوعي';
+
+  @override
+  String get notifTime => 'وقت الإشعار';
+
+  @override
+  String get splashLoading => 'جاري التحميل...';
+
+  @override
+  String completedOrdersChip(Object count) {
+    return '$count أوردرات مكتملة';
+  }
+
+  @override
+  String get workSmarterTagline => 'Work Smarter • Deliver Faster';
+
+  @override
+  String get deliverFaster => 'توصيل أسرع بذكاء أكبر';
+
+  @override
+  String get completedOrdersLabel => 'أوردرات مكتملة';
+
+  @override
+  String get statusNotStarted => 'لم يبدأ';
 }

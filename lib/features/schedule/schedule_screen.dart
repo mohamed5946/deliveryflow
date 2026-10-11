@@ -3,6 +3,7 @@ import 'package:deliveryflow/l10n/gen/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/database/database_service.dart';
 import '../../core/database/models.dart';
 import '../../core/date_time/week_calendar.dart';
 import '../../core/providers.dart';
@@ -197,6 +198,16 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
     }
   }
 
+  void _prevWeek() => setState(() {
+        _weekAnchor = WeekCalendar.addDays(_weekAnchor, -7);
+        _load();
+      });
+
+  void _nextWeek() => setState(() {
+        _weekAnchor = WeekCalendar.addDays(_weekAnchor, 7);
+        _load();
+      });
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -205,47 +216,41 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
     final start = WeekCalendar.weekStart(_weekAnchor);
     final locale =
         ref.watch(settingsProvider.select((s) => s.languageCode));
+    // Rebuild badges when order records / sessions change.
+    ref.watch(dataVersionProvider);
+    final loc = locale == 'ar' ? 'ar' : 'en';
     final rangeLabel =
-        '${DateFormat.yMMMd(locale == 'ar' ? 'ar' : 'en').format(start)} – ${DateFormat.yMMMd(locale == 'ar' ? 'ar' : 'en').format(start.add(const Duration(days: 6)))}';
-    final totalMinutes =
-        _days.fold<int>(0, (s, d) => s + d.netPlannedMinutes);
+        '${DateFormat.d(loc).format(start)} - ${DateFormat.yMMMd(loc).format(start.add(const Duration(days: 6)))}';
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.scheduleTitle),
-        actions: [
-          IconButton(
-            tooltip: l10n.previousWeek,
-            icon: const Icon(Icons.chevron_left_rounded),
-            onPressed: () => setState(() {
-              _weekAnchor = WeekCalendar.addDays(_weekAnchor, -7);
-              _load();
-            }),
-          ),
-          IconButton(
-            tooltip: l10n.nextWeek,
-            icon: const Icon(Icons.chevron_right_rounded),
-            onPressed: () => setState(() {
-              _weekAnchor = WeekCalendar.addDays(_weekAnchor, 7);
-              _load();
-            }),
-          ),
-        ],
-      ),
+      appBar: AppBar(title: Text(l10n.scheduleTitle)),
       body: ListView(
         padding: GlassTokens.screenPadding,
         children: [
+          // Week navigator (mockup): [›] [range] [‹] in RTL.
           GlassCard(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(rangeLabel,
+                IconButton(
+                  tooltip: l10n.previousWeek,
+                  icon: const Icon(Icons.chevron_left_rounded),
+                  onPressed: _prevWeek,
+                ),
+                Expanded(
+                  child: Text(
+                    rangeLabel,
+                    textAlign: TextAlign.center,
                     style: text.titleMedium
-                        ?.copyWith(fontWeight: FontWeight.w700)),
-                Text(
-                    l10n.totalPlannedHours(
-                        WeekCalendar.formatHours(totalMinutes / 60.0)),
-                    style: text.bodyMedium),
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                ),
+                IconButton(
+                  tooltip: l10n.nextWeek,
+                  icon: const Icon(Icons.chevron_right_rounded),
+                  onPressed: _nextWeek,
+                ),
               ],
             ),
           ),
@@ -289,10 +294,10 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
     final date = WeekCalendar.parseDateKey(d.dateKey);
     final locale =
         ref.watch(settingsProvider.select((s) => s.languageCode));
-    final dayName = DateFormat.EEEE(locale == 'ar' ? 'ar' : 'en').format(date);
-    final dayNum = DateFormat.Md(locale == 'ar' ? 'ar' : 'en').format(date);
+    final loc = locale == 'ar' ? 'ar' : 'en';
+    final dayName = DateFormat.EEEE(loc).format(date);
+    final dayDate = DateFormat.Md(loc).format(date);
     final text = Theme.of(context).textTheme;
-    final scheme = Theme.of(context).colorScheme;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -309,7 +314,8 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
                       Text(dayName,
                           style: text.titleSmall
                               ?.copyWith(fontWeight: FontWeight.w700)),
-                      Text(dayNum,
+                      const SizedBox(height: 2),
+                      Text(dayDate,
                           style: text.bodySmall?.copyWith(
                               color: text.bodySmall?.color
                                   ?.withValues(alpha: 0.65))),
@@ -333,66 +339,116 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
                       ),
                     ],
                   )
-                else
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: (d.isWorkingDay
-                              ? scheme.primary
-                              : scheme.outline)
-                          .withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      d.isWorkingDay ? l10n.workingDay : l10n.dayOff,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: d.isWorkingDay
-                            ? scheme.primary
-                            : scheme.outline,
-                      ),
-                    ),
+                else ...[
+                  _dayStatus(context, i, l10n),
+                  const SizedBox(width: 10),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.35),
                   ),
+                ],
               ],
             ),
-            if (d.isWorkingDay) ...[
+            if (_editing && d.isWorkingDay) ...[
               const SizedBox(height: 10),
-              if (_editing)
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    _timeChip(context, l10n.startTime,
-                        _fmtTime(context, d.startMinutes),
-                        () => _pickTime(i, true)),
-                    _timeChip(context, l10n.endTime,
-                        _fmtTime(context, d.endMinutes),
-                        () => _pickTime(i, false)),
-                    _timeChip(
-                        context,
-                        l10n.breakMinutes,
-                        '${d.breakDurationMinutes}',
-                        () => _editBreak(i)),
-                    _timeChip(context, l10n.notesOptional,
-                        d.notes.isEmpty ? '–' : d.notes,
-                        () => _editNotes(i)),
-                  ],
-                )
-              else
-                Text(
-                  '${l10n.startTime}: ${_fmtTime(context, d.startMinutes)} • '
-                  '${l10n.endTime}: ${_fmtTime(context, d.endMinutes)} • '
-                  '${l10n.plannedHours(WeekCalendar.formatHours(d.netPlannedMinutes / 60.0))}'
-                  '${d.notes.isNotEmpty ? '\n${d.notes}' : ''}',
-                  style: text.bodyMedium,
-                ),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _timeChip(context, l10n.startTime,
+                      _fmtTime(context, d.startMinutes),
+                      () => _pickTime(i, true)),
+                  _timeChip(context, l10n.endTime,
+                      _fmtTime(context, d.endMinutes),
+                      () => _pickTime(i, false)),
+                  _timeChip(
+                      context,
+                      l10n.breakMinutes,
+                      '${d.breakDurationMinutes}',
+                      () => _editBreak(i)),
+                  _timeChip(context, l10n.notesOptional,
+                      d.notes.isEmpty ? '–' : d.notes,
+                      () => _editNotes(i)),
+                ],
+              ),
             ],
           ],
         ),
       ),
     );
+  }
+
+  /// Status badge + completed-orders count for a day (view mode).
+  ///
+  /// Green "مكتمل" when the day has a completed order record, blue
+  /// in-progress when it is today and work has started, gray "لم يبدأ"
+  /// otherwise.
+  Widget _dayStatus(
+      BuildContext context, int i, AppLocalizations l10n) {
+    final db = ref.read(databaseServiceProvider);
+    final d = _days[i];
+    final record = db.orderRecord(d.dateKey);
+    final count = record?.completedOrders ?? 0;
+    final todayKey = WeekCalendar.dateKey(DateTime.now());
+
+    final String label;
+    final Color color;
+    if (count > 0) {
+      label = l10n.statusCompleted;
+      color = LiquidPalette.success;
+    } else if (d.dateKey == todayKey && _workStartedToday(db, d.dateKey, record)) {
+      label = l10n.statusInProgress;
+      color = LiquidPalette.primaryBlue;
+    } else {
+      label = l10n.statusNotStarted;
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+      color = isDark ? Colors.grey.shade400 : Colors.grey.shade600;
+    }
+
+    final text = Theme.of(context).textTheme;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Container(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ),
+        if (count > 0) ...[
+          const SizedBox(height: 4),
+          Text(
+            l10n.completedOrdersChip(count),
+            style: text.bodySmall?.copyWith(
+                color:
+                    text.bodySmall?.color?.withValues(alpha: 0.65)),
+          ),
+        ],
+      ],
+    );
+  }
+
+  /// True when any work happened today: a work session exists, or an
+  /// order entry moved past "pending".
+  bool _workStartedToday(
+      DatabaseService db, String todayKey, DailyOrderRecord? record) {
+    if (db.sessionsForDate(todayKey).isNotEmpty) return true;
+    final entries = record?.entries ?? const <OrderEntry>[];
+    return entries.any((e) => e.status >= 1 && e.status <= 3);
   }
 
   Widget _timeChip(BuildContext context, String label, String value,

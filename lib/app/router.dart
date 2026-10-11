@@ -9,6 +9,7 @@ import '../features/dashboard/dashboard_screen.dart';
 import '../features/daily_orders/order_entry_screen.dart';
 import '../features/history/history_screen.dart';
 import '../features/onboarding/onboarding_screen.dart';
+import '../features/onboarding/splash_screen.dart';
 import '../features/schedule/schedule_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/weekly_reports/report_screen.dart';
@@ -110,16 +111,23 @@ class _TabTransitionState extends State<_TabTransition>
 
 GoRouter buildRouter(WidgetRef ref) {
   return GoRouter(
-    initialLocation: '/home',
+    initialLocation: '/splash',
     redirect: (context, state) {
       final done =
           ref.read(settingsProvider.select((s) => s.onboardingDone));
-      final onOnboarding = state.matchedLocation == '/onboarding';
-      if (!done && !onOnboarding) return '/onboarding';
-      if (done && onOnboarding) return '/home';
+      final loc = state.matchedLocation;
+      // Splash always shows first; it navigates to /home itself,
+      // where the rules below take over.
+      if (loc == '/splash') return null;
+      if (!done && loc != '/onboarding') return '/onboarding';
+      if (done && loc == '/onboarding') return '/home';
       return null;
     },
     routes: [
+      GoRoute(
+        path: '/splash',
+        builder: (context, state) => const SplashScreen(),
+      ),
       GoRoute(
         path: '/onboarding',
         builder: (context, state) => const OnboardingScreen(),

@@ -174,7 +174,7 @@ void main() {
     testWidgets('theme radio changes persisted theme', (tester) async {
       await pumpScreen(tester, const SettingsScreen(), db: db);
       await tester.runAsync(() async {
-        await tester.tap(find.text('داكن'));
+        await tester.tap(find.text('الوضع الداكن'));
         for (var i = 0; i < 50; i++) {
           await tester.pump(const Duration(milliseconds: 100));
           if (db.settings.themeMode == 2) break;

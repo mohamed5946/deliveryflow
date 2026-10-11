@@ -85,6 +85,13 @@ class WeekCalendar {
     return '$h:${m.toString().padLeft(2, '0')}';
   }
 
+  /// Mockup style: "5h 32m".
+  static String formatHoursMinutes(int totalMinutes) {
+    final h = totalMinutes ~/ 60;
+    final m = totalMinutes % 60;
+    return '${h}h ${m}m';
+  }
+
   /// Formats a double hour value with one decimal, e.g. 7.5.
   static String formatHours(double hours) => hours.toStringAsFixed(1);
 

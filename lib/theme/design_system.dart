@@ -21,11 +21,17 @@ abstract class GlassTokens {
   static const EdgeInsets screenPadding = EdgeInsets.all(16);
 }
 
-/// Brand palette from the Liquid Glass design language.
-/// Used for brand-gradient elements (primary buttons, selected nav pill,
-/// chart bars, hero accents). Theme presets still drive backgrounds.
+/// Brand palette — exact colors from the approved Arabic mockup.
+/// Primary Blue #0A84FF (buttons, active states), Sky Blue #5AC8FA
+/// (accents, chart highlights), Glass Tint #E5F1FF (light surfaces),
+/// Dark #1C1C1E (dark surfaces).
 abstract class LiquidPalette {
-  static const Color primaryBlue = Color(0xFF0EA5E9);
+  static const Color primaryBlue = Color(0xFF0A84FF);
+  static const Color skyBlue = Color(0xFF5AC8FA);
+  static const Color glassTint = Color(0xFFE5F1FF);
+  static const Color darkSurface = Color(0xFF1C1C1E);
+
+  // Legacy accents (kept for compatibility with older screens).
   static const Color primaryPurple = Color(0xFF8B5CF6);
   static const Color accentCyan = Color(0xFF06B6D4);
   static const Color accentViolet = Color(0xFFA855F7);
@@ -35,14 +41,18 @@ abstract class LiquidPalette {
   static const Color error = Color(0xFFEF4444);
   static const Color info = Color(0xFF3B82F6);
 
-  /// The signature brand gradient: blue → purple.
-  static const List<Color> brandGradient = [primaryBlue, primaryPurple];
+  /// The signature brand gradient: primary blue → sky blue.
+  static const List<Color> brandGradient = [primaryBlue, skyBlue];
 
   static LinearGradient get brandGradientLg => const LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
         colors: brandGradient,
       );
+
+  /// Soft tinted surface for cards in light mode (mockup glass tint).
+  static Color cardTint(bool isDark) =>
+      isDark ? darkSurface : glassTint;
 }
 
 /// A translucent frosted-glass card.
@@ -613,6 +623,291 @@ class GlassNavBar extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Circular progress ring (mockup's "تقدم الأسبوع" / "ملخص اليوم").
+///
+/// Static one-shot render — no continuous animation, GPU-cheap.
+class ProgressRing extends StatelessWidget {
+  final double progress; // 0..1
+  final double size;
+  final String centerTop;
+  final String centerBottom;
+  final double strokeWidth;
+
+  const ProgressRing({
+    super.key,
+    required this.progress,
+    required this.centerTop,
+    required this.centerBottom,
+    this.size = 120,
+    this.strokeWidth = 12,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final text = Theme.of(context).textTheme;
+    final p = progress.clamp(0.0, 1.0);
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          CustomPaint(
+            size: Size(size, size),
+            painter: _RingPainter(
+              progress: p,
+              strokeWidth: strokeWidth,
+              trackColor: isDark
+                  ? Colors.white.withValues(alpha: 0.12)
+                  : LiquidPalette.primaryBlue.withValues(alpha: 0.15),
+            ),
+          ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                centerTop,
+                style: text.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: LiquidPalette.primaryBlue,
+                  height: 1.0,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                centerBottom,
+                style: text.bodySmall?.copyWith(
+                  color: text.bodySmall?.color?.withValues(alpha: 0.65),
+                  fontWeight: FontWeight.w600,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RingPainter extends CustomPainter {
+  final double progress;
+  final double strokeWidth;
+  final Color trackColor;
+
+  _RingPainter({
+    required this.progress,
+    required this.strokeWidth,
+    required this.trackColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final radius = (size.shortestSide - strokeWidth) / 2;
+    final trackPaint = Paint()
+      ..color = trackColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+    canvas.drawCircle(center, radius, trackPaint);
+    if (progress <= 0) return;
+    final arcPaint = Paint()
+      ..shader = const LinearGradient(
+        colors: LiquidPalette.brandGradient,
+      ).createShader(Rect.fromCircle(center: center, radius: radius))
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      -3.141592653589793 / 2,
+      2 * 3.141592653589793 * progress,
+      false,
+      arcPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_RingPainter old) =>
+      old.progress != progress ||
+      old.strokeWidth != strokeWidth ||
+      old.trackColor != trackColor;
+}
+
+/// 7-day week strip (mockup's "الجدول الأسبوعي" mini strip).
+/// Sunday-first, like the rest of the app.
+class WeekDayStrip extends StatelessWidget {
+  final DateTime weekStart; // Sunday of the week
+  final DateTime? highlightedDay; // defaults to today if in week
+  final ValueChanged<DateTime>? onSelect;
+
+  const WeekDayStrip({
+    super.key,
+    required this.weekStart,
+    this.highlightedDay,
+    this.onSelect,
+  });
+
+  static const _dayNames = [
+    'الأحد',
+    'الاثنين',
+    'الثلاثاء',
+    'الأربعاء',
+    'الخميس',
+    'الجمعة',
+    'السبت',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final text = Theme.of(context).textTheme;
+    final today = DateTime.now();
+    final todayKey = DateTime(today.year, today.month, today.day);
+    return Row(
+      children: [
+        for (var i = 0; i < 7; i++)
+          Expanded(
+            child: Builder(
+              builder: (context) {
+                final day = weekStart.add(Duration(days: i));
+                final dayKey = DateTime(day.year, day.month, day.day);
+                final isToday = dayKey == todayKey;
+                final isHighlighted = highlightedDay != null
+                    ? dayKey ==
+                        DateTime(highlightedDay!.year,
+                            highlightedDay!.month, highlightedDay!.day)
+                    : isToday;
+                final cell = Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    gradient: isHighlighted
+                        ? LiquidPalette.brandGradientLg
+                        : null,
+                    color: isHighlighted
+                        ? null
+                        : (isDark
+                            ? Colors.white.withValues(alpha: 0.06)
+                            : Colors.white.withValues(alpha: 0.65)),
+                    border: Border.all(
+                      color: isHighlighted
+                          ? Colors.transparent
+                          : (isDark
+                              ? Colors.white.withValues(alpha: 0.10)
+                              : LiquidPalette.primaryBlue
+                                  .withValues(alpha: 0.12)),
+                    ),
+                    boxShadow: isHighlighted
+                        ? [
+                            BoxShadow(
+                              color: LiquidPalette.primaryBlue
+                                  .withValues(alpha: 0.35),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _dayNames[i],
+                        style: text.bodySmall?.copyWith(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: isHighlighted
+                              ? Colors.white
+                              : text.bodySmall?.color
+                                  ?.withValues(alpha: 0.65),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${day.day}',
+                        style: text.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: isHighlighted
+                              ? Colors.white
+                              : (isDark
+                                  ? Colors.white
+                                  : LiquidPalette.primaryBlue),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+                if (onSelect == null) return cell;
+                return Pressable(
+                  scaleOnly: true,
+                  onTap: () => onSelect!(dayKey),
+                  child: cell,
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// Section header with optional action (mockup style).
+class SectionHeader extends StatelessWidget {
+  final String title;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  const SectionHeader({
+    super.key,
+    required this.title,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            title,
+            style: text.titleMedium
+                ?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          if (actionLabel != null)
+            TextButton(
+              onPressed: onAction,
+              style: TextButton.styleFrom(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(
+                actionLabel!,
+                style: const TextStyle(
+                  color: LiquidPalette.primaryBlue,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

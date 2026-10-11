@@ -1,4 +1,3 @@
-import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:deliveryflow/l10n/gen/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,9 +8,11 @@ import '../../core/database/models.dart';
 import '../../core/date_time/week_calendar.dart';
 import '../../core/providers.dart';
 import '../../theme/design_system.dart';
+import '../../theme/pressable.dart';
 
-/// Home dashboard (simplified): greeting, today's hero card, compact weekly
-/// strip, tabbed chart, and a quick-actions row.
+/// Home dashboard mirroring the approved Arabic mockup:
+/// greeting header, today chips, stat cards, week-progress ring,
+/// mini week strip, and a week-details CTA.
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
@@ -19,18 +20,14 @@ class DashboardScreen extends ConsumerStatefulWidget {
   ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-enum _ChartTab { orders, hours }
-
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   bool _saturdayPromptShown = false;
-  _ChartTab _chartTab = _ChartTab.orders;
   late final DateTime _today = DateTime.now();
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final text = Theme.of(context).textTheme;
-    final scheme = Theme.of(context).colorScheme;
     final settings = ref.watch(settingsProvider);
     final reportAsync = ref.watch(weeklyReportProvider(_today));
 
@@ -39,6 +36,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final db = ref.watch(databaseServiceProvider);
     final todayOrder = db.orderRecord(todayKey);
     final todayMinutes = db.recordedMinutesForDate(todayKey);
+    final completedToday = todayOrder?.completedOrders ?? 0;
 
     final hour = _today.hour;
     final greeting = hour < 12
@@ -47,15 +45,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             ? l10n.greetingAfternoon
             : l10n.greetingEvening;
     final name =
-        settings.displayName.isEmpty ? '' : '، ${settings.displayName}';
+        settings.displayName.isEmpty ? 'محمد' : settings.displayName;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      appBar: AppBar(title: Text(l10n.appTitle)),
       body: RefreshIndicator(
-        onRefresh: () async {
-          bumpDataVersion(ref);
-        },
+        onRefresh: () async => bumpDataVersion(ref),
+        color: LiquidPalette.primaryBlue,
         child: reportAsync.when(
           loading: () => const GlassLoading(),
           error: (e, _) => Center(child: Text('$e')),
@@ -69,12 +65,29 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _saturdayPrompt(context, ref, l10n),
-                  // Greeting header
+                  // Greeting header: text + avatar + bell
                   Row(
                     children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
+                          children: [
+                            Text(greeting,
+                                style: text.bodyMedium?.copyWith(
+                                    color: text.bodyMedium?.color
+                                        ?.withValues(alpha: 0.65))),
+                            Text(
+                              name,
+                              style: text.headlineSmall?.copyWith(
+                                  fontWeight: FontWeight.w800, height: 1.2),
+                            ),
+                          ],
+                        ),
+                      ),
                       Container(
-                        width: 52,
-                        height: 52,
+                        width: 48,
+                        height: 48,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           gradient: LiquidPalette.brandGradientLg,
@@ -82,44 +95,49 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                             BoxShadow(
                               color: LiquidPalette.primaryBlue
                                   .withValues(alpha: 0.35),
-                              blurRadius: 16,
-                              offset: const Offset(0, 6),
+                              blurRadius: 14,
+                              offset: const Offset(0, 5),
                             ),
                           ],
                         ),
-                        child: const Icon(
-                          Icons.delivery_dining_rounded,
-                          color: Colors.white,
-                          size: 28,
+                        alignment: Alignment.center,
+                        child: Text(
+                          name.isEmpty ? 'م' : name.characters.first,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 20),
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment.start,
-                          children: [
-                            Text('$greeting$name',
-                                style: text.headlineSmall?.copyWith(
-                                    fontWeight: FontWeight.w800,
-                                    height: 1.2)),
-                            const SizedBox(height: 2),
-                            Text(
-                              DateFormat.yMMMMEEEEd(
-                                      settings.languageCode == 'ar'
-                                          ? 'ar'
-                                          : 'en')
-                                  .format(now),
-                              style: text.bodyMedium?.copyWith(
-                                  color: text.bodyMedium?.color
-                                      ?.withValues(alpha: 0.7)),
+                      const SizedBox(width: 10),
+                      Pressable(
+                        scaleOnly: true,
+                        onTap: () => _showTodayDialog(
+                            context, l10n, completedToday,
+                            todayMinutes, todayOrder),
+                        child: Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Theme.of(context).brightness ==
+                                    Brightness.dark
+                                ? Colors.white.withValues(alpha: 0.08)
+                                : Colors.white.withValues(alpha: 0.7),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.6),
                             ),
-                          ],
+                          ),
+                          child: const Icon(
+                            Icons.notifications_outlined,
+                            color: LiquidPalette.primaryBlue,
+                            size: 22,
+                          ),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
                   if (!hasAnyData)
                     EmptyState(
                       icon: Icons.delivery_dining_rounded,
@@ -130,50 +148,68 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                           context.push('/orders?date=$todayKey'),
                     )
                   else ...[
-                    // Hero: today at a glance
-                    _todayHeroCard(
-                      context,
-                      l10n,
-                      todayOrder == null
-                          ? l10n.unrecorded
-                          : '${todayOrder.completedOrders}',
-                      WeekCalendar.formatHours(todayMinutes / 60.0),
-                      todayOrder == null
-                          ? '–'
-                          : '${WeekCalendar.formatKm(todayOrder.totalKm)} ${l10n.kmUnit}',
-                      () => context.push('/orders?date=$todayKey'),
+                    // Today chips row
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _todayChip(
+                            context,
+                            DateFormat('EEEE', settings.languageCode == 'ar' ? 'ar' : 'en').format(now),
+                            DateFormat('d MMMM', settings.languageCode == 'ar' ? 'ar' : 'en').format(now),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _completedChip(
+                              context, l10n, completedToday),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 12),
-                    // Compact weekly strip
-                    _weekStrip(context, l10n, report),
+                    // Stat cards: total orders / work hours
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _statCard(
+                            context,
+                            l10n.totalOrders,
+                            '${report.totalOrders}',
+                            Icons.shopping_bag_rounded,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _statCard(
+                            context,
+                            l10n.weekHours,
+                            WeekCalendar.formatHoursMinutes(
+                                (report.totalRecordedHours * 60).round()),
+                            Icons.schedule_rounded,
+                          ),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 12),
-                    // Goal progress
+                    // Week progress ring
                     if (settings.weeklyOrderGoal != null)
-                      _goalCard(
-                        context,
-                        l10n.weeklyOrderGoalLabel,
-                        report.totalOrders.toDouble(),
-                        settings.weeklyOrderGoal!.toDouble(),
-                        l10n,
-                      ),
-                    if (settings.weeklyWorkHoursGoal != null) ...[
+                      _weekProgressCard(context, l10n, report,
+                          settings.weeklyOrderGoal!.toDouble()),
+                    if (settings.weeklyOrderGoal != null)
                       const SizedBox(height: 12),
-                      _goalCard(
-                        context,
-                        l10n.weeklyHoursGoalLabel,
-                        report.totalRecordedHours,
-                        settings.weeklyWorkHoursGoal!,
-                        l10n,
+                    // Mini week strip
+                    SectionHeader(title: l10n.scheduleTitle),
+                    GlassCard(
+                      child: WeekDayStrip(
+                        weekStart: WeekCalendar.weekStart(_today),
                       ),
-                    ],
-                    if (settings.weeklyOrderGoal != null ||
-                        settings.weeklyWorkHoursGoal != null)
-                      const SizedBox(height: 12),
-                    // Tabbed chart
-                    _chartCard(context, l10n, report, scheme),
+                    ),
                     const SizedBox(height: 16),
-                    // Quick actions
-                    _quickActionsRow(context, l10n, todayKey),
+                    // CTA
+                    GlassButton(
+                      label: l10n.viewWeekDetails,
+                      icon: Icons.arrow_forward_rounded,
+                      onPressed: () => context.go('/reports'),
+                    ),
                     const SizedBox(height: 8),
                   ],
                 ],
@@ -185,186 +221,60 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  /// Big tappable hero card: today's orders + hours + distance.
-  Widget _todayHeroCard(BuildContext context, AppLocalizations l10n,
-      String ordersValue, String hoursValue, String kmValue, VoidCallback onTap) {
-    final text = Theme.of(context).textTheme;
-    final scheme = Theme.of(context).colorScheme;
-    return GlassCard(
-      onTap: onTap,
-      borderRadius: GlassTokens.radiusL,
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(l10n.todayOrders,
-                        style: text.bodyMedium?.copyWith(
-                            color: text.bodyMedium?.color
-                                ?.withValues(alpha: 0.75),
-                            fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 4),
-                    Text(ordersValue,
-                        style: text.displayMedium?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            color: scheme.primary,
-                            height: 1.0)),
-                  ],
-                ),
-              ),
-              Icon(Icons.arrow_forward_rounded,
-                  color: scheme.primary.withValues(alpha: 0.7)),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Container(
-            height: 1,
-            color: scheme.onSurface.withValues(alpha: 0.1),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _heroSubStat(
-                    context,
-                    Icons.schedule_rounded,
-                    hoursValue,
-                    l10n.todayHours,
-                    LiquidPalette.primaryPurple),
-              ),
-              Expanded(
-                child: _heroSubStat(
-                    context,
-                    Icons.route_rounded,
-                    kmValue,
-                    l10n.todayKm,
-                    LiquidPalette.accentCyan),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _heroSubStat(BuildContext context, IconData icon, String value,
-      String label, Color color) {
-    final text = Theme.of(context).textTheme;
-    final scheme = Theme.of(context).colorScheme;
-    return Row(
-      children: [
-        Icon(icon, size: 20, color: color),
-        const SizedBox(width: 8),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(value,
-                style: text.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w800, height: 1.0)),
-            const SizedBox(height: 2),
-            Text(label,
-                style: text.bodySmall?.copyWith(
-                    color: scheme.onSurface.withValues(alpha: 0.6))),
-          ],
-        ),
-      ],
-    );
-  }
-
-  /// One glass card with four compact weekly stats.
-  Widget _weekStrip(
-      BuildContext context, AppLocalizations l10n, WeeklyReport report) {
-    return GlassCard(
-      child: Row(
-        children: [
-          _miniStat(
-              context,
-              '${report.totalOrders}',
-              l10n.weekOrders,
-              Icons.shopping_bag_rounded,
-              LiquidPalette.accentCyan),
-          _miniStat(
-              context,
-              WeekCalendar.formatHours(report.totalRecordedHours),
-              l10n.weekHours,
-              Icons.schedule_rounded,
-              LiquidPalette.primaryPurple),
-          _miniStat(
-              context,
-              report.averageOrdersPerWorkingDay == null
-                  ? '–'
-                  : report.averageOrdersPerWorkingDay!.toStringAsFixed(1),
-              l10n.avgOrdersWorkingDay,
-              Icons.trending_up_rounded,
-              LiquidPalette.warning),
-          _miniStat(
-              context,
-              '${report.recordedDaysCount}/7',
-              l10n.recordedDays,
-              Icons.check_circle_rounded,
-              LiquidPalette.success),
-        ],
-      ),
-    );
-  }
-
-  Widget _miniStat(BuildContext context, String value, String label,
-      IconData icon, Color accent) {
-    final text = Theme.of(context).textTheme;
-    return Expanded(
-      child: Column(
-        children: [
-          Icon(icon, size: 20, color: accent),
-          const SizedBox(height: 6),
-          Text(value,
-              style:
-                  text.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-          const SizedBox(height: 2),
-          Text(label,
-              style: text.bodySmall?.copyWith(
-                  color:
-                      text.bodySmall?.color?.withValues(alpha: 0.7)),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis),
-        ],
-      ),
-    );
-  }
-
-  /// Chart card with an orders/hours segmented toggle.
-  Widget _chartCard(BuildContext context, AppLocalizations l10n,
-      WeeklyReport report, ColorScheme scheme) {
+  Widget _todayChip(BuildContext context, String weekday, String date) {
     final text = Theme.of(context).textTheme;
     return GlassCard(
+      padding:
+          const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                  _chartTab == _ChartTab.orders
-                      ? l10n.ordersChartTitle
-                      : l10n.hoursChartTitle,
-                  style: text.titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w700)),
-              _segmentedControl(context, l10n),
-            ],
+          Text('اليوم',
+              style: text.bodySmall?.copyWith(
+                  color: text.bodySmall?.color
+                      ?.withValues(alpha: 0.6),
+                  fontWeight: FontWeight.w600)),
+          const SizedBox(height: 2),
+          Text('$weekday $date',
+              style: text.titleSmall
+                  ?.copyWith(fontWeight: FontWeight.w800)),
+        ],
+      ),
+    );
+  }
+
+  Widget _completedChip(
+      BuildContext context, AppLocalizations l10n, int completed) {
+    final text = Theme.of(context).textTheme;
+    return GlassCard(
+      padding:
+          const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: LiquidPalette.primaryBlue.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.inventory_2_rounded,
+                color: LiquidPalette.primaryBlue, size: 20),
           ),
-          const SizedBox(height: 12),
-          RepaintBoundary(
-            child: SizedBox(
-              height: 170,
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 250),
-                child: _chartTab == _ChartTab.orders
-                    ? _ordersBarChart(report, scheme)
-                    : _hoursBarChart(report, scheme),
-              ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('$completed',
+                    style: text.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: LiquidPalette.primaryBlue,
+                        height: 1.0)),
+                Text(l10n.completedOrdersLabel,
+                    style: text.bodySmall?.copyWith(
+                        color: text.bodySmall?.color
+                            ?.withValues(alpha: 0.65))),
+              ],
             ),
           ),
         ],
@@ -372,70 +282,116 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  Widget _segmentedControl(BuildContext context, AppLocalizations l10n) {
-    final scheme = Theme.of(context).colorScheme;
-    Widget seg(_ChartTab tab, String label) {
-      final selected = _chartTab == tab;
-      return GestureDetector(
-        onTap: () => setState(() => _chartTab = tab),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding:
-              const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            color: selected
-                ? scheme.primary
-                : Colors.transparent,
-          ),
-          child: Text(label,
-              style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: selected
-                      ? Colors.white
-                      : scheme.onSurface.withValues(alpha: 0.65))),
-        ),
-      );
-    }
-    return Container(
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(17),
-        color: scheme.onSurface.withValues(alpha: 0.08),
-      ),
+  Widget _statCard(BuildContext context, String label, String value,
+      IconData icon) {
+    final text = Theme.of(context).textTheme;
+    return GlassCard(
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          seg(_ChartTab.orders, l10n.ordersTitle),
-          seg(_ChartTab.hours, l10n.hoursTitle),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              gradient: LiquidPalette.brandGradientLg,
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                BoxShadow(
+                  color: LiquidPalette.primaryBlue
+                      .withValues(alpha: 0.3),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Icon(icon, color: Colors.white, size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(value,
+                    style: text.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w800, height: 1.0),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 4),
+                Text(label,
+                    style: text.bodySmall?.copyWith(
+                        color: text.bodySmall?.color
+                            ?.withValues(alpha: 0.65),
+                        fontWeight: FontWeight.w600),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
 
-  /// Horizontal row of quick-action buttons.
-  Widget _quickActionsRow(
-      BuildContext context, AppLocalizations l10n, String todayKey) {
-    final actions = [
-      (Icons.add_shopping_cart_rounded, l10n.quickRecordOrders,
-          () => context.push('/orders?date=$todayKey')),
-      (Icons.timer_rounded, l10n.quickRecordHours,
-          () => context.push('/hours?date=$todayKey')),
-      (Icons.calendar_month_rounded, l10n.quickViewSchedule,
-          () => context.go('/schedule')),
-      (Icons.bar_chart_rounded, l10n.quickViewReport,
-          () => context.go('/reports')),
-    ];
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
+  Widget _weekProgressCard(BuildContext context, AppLocalizations l10n,
+      WeeklyReport report, double goal) {
+    final text = Theme.of(context).textTheme;
+    final progress =
+        goal <= 0 ? 0.0 : (report.totalOrders / goal).clamp(0.0, 1.0);
+    return GlassCard(
       child: Row(
         children: [
-          for (var i = 0; i < actions.length; i++) ...[
-            _quickAction(
-                context, actions[i].$1, actions[i].$2, actions[i].$3),
-            if (i < actions.length - 1) const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(l10n.weekProgress,
+                    style: text.titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w800)),
+                const SizedBox(height: 6),
+                Text(
+                  '${report.totalOrders} / ${goal.toStringAsFixed(goal % 1 == 0 ? 0 : 1)}',
+                  style: text.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: LiquidPalette.primaryBlue),
+                ),
+              ],
+            ),
+          ),
+          ProgressRing(
+            progress: progress,
+            size: 92,
+            strokeWidth: 10,
+            centerTop: '${(progress * 100).round()}%',
+            centerBottom: '',
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showTodayDialog(BuildContext context, AppLocalizations l10n,
+      int completed, int minutes, DailyOrderRecord? todayOrder) {
+    final km = todayOrder == null
+        ? '–'
+        : '${WeekCalendar.formatKm(todayOrder.totalKm)} ${l10n.kmUnit}';
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.daySummary),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(l10n.completedOrdersChip(completed)),
+            const SizedBox(height: 6),
+            Text(
+                '${l10n.weekHours}: ${WeekCalendar.formatHoursMinutes(minutes)}'),
+            const SizedBox(height: 6),
+            Text('${l10n.totalDistances}: $km'),
           ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(l10n.close)),
         ],
       ),
     );
@@ -485,152 +441,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _goalCard(BuildContext context, String label, double current,
-      double goal, AppLocalizations l10n) {
-    final progress = goal <= 0 ? 0.0 : (current / goal).clamp(0.0, 1.0);
-    return GlassCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(label,
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w700)),
-              Text(
-                  '${current.toStringAsFixed(goal % 1 == 0 ? 0 : 1)} / ${goal.toStringAsFixed(goal % 1 == 0 ? 0 : 1)}',
-                  style: Theme.of(context).textTheme.bodyMedium),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 10,
-              valueColor: const AlwaysStoppedAnimation<Color>(
-                  LiquidPalette.primaryBlue),
-              backgroundColor: Theme.of(context)
-                  .colorScheme
-                  .surfaceContainerHighest,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _ordersBarChart(WeeklyReport report, ColorScheme scheme) {
-    final groups = <BarChartGroupData>[];
-    for (var i = 0; i < report.days.length; i++) {
-      final d = report.days[i];
-      groups.add(
-        BarChartGroupData(
-          x: i,
-          barRods: [
-            BarChartRodData(
-              toY: (d.orders ?? 0).toDouble(),
-              width: 16,
-              borderRadius: BorderRadius.circular(6),
-              gradient: const LinearGradient(
-                begin: Alignment.bottomCenter,
-                end: Alignment.topCenter,
-                colors: LiquidPalette.brandGradient,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-    return _barChart(groups, scheme, key: const ValueKey('orders'));
-  }
-
-  Widget _hoursBarChart(WeeklyReport report, ColorScheme scheme) {
-    final groups = <BarChartGroupData>[];
-    for (var i = 0; i < report.days.length; i++) {
-      final d = report.days[i];
-      groups.add(
-        BarChartGroupData(
-          x: i,
-          barRods: [
-            BarChartRodData(
-              toY: d.workMinutes / 60.0,
-              width: 16,
-              borderRadius: BorderRadius.circular(6),
-              gradient: const LinearGradient(
-                begin: Alignment.bottomCenter,
-                end: Alignment.topCenter,
-                colors: [
-                  LiquidPalette.accentCyan,
-                  LiquidPalette.primaryBlue
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-    return _barChart(groups, scheme, key: const ValueKey('hours'));
-  }
-
-  Widget _barChart(
-      List<BarChartGroupData> groups, ColorScheme scheme,
-      {required Key key}) {
-    // Sunday..Saturday, Arabic initials (RTL).
-    const dayLetters = ['ح', 'ن', 'ث', 'ر', 'خ', 'ج', 'س'];
-    return BarChart(
-      key: key,
-      BarChartData(
-        barGroups: groups,
-        gridData: const FlGridData(show: false),
-        borderData: FlBorderData(show: false),
-        titlesData: FlTitlesData(
-          leftTitles:
-              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles:
-              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          topTitles:
-              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              getTitlesWidget: (v, _) => Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Text(
-                  dayLetters[v.toInt() % 7],
-                  style: TextStyle(
-                      fontSize: 11,
-                      color: scheme.onSurface.withValues(alpha: 0.6)),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-      swapAnimationDuration: const Duration(milliseconds: 250),
-      swapAnimationCurve: Curves.easeOut,
-    );
-  }
-
-  Widget _quickAction(BuildContext context, IconData icon, String label,
-      VoidCallback onTap) {
-    return GlassCard(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      onTap: onTap,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
-          const SizedBox(width: 8),
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
-        ],
       ),
     );
   }

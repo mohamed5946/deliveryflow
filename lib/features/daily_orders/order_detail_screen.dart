@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:deliveryflow/l10n/gen/app_localizations.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -9,6 +10,7 @@ import '../../core/database/models.dart';
 import '../../core/providers.dart';
 import '../../core/tracking/delivery_tracking_service.dart';
 import '../../theme/design_system.dart';
+import '../../theme/pressable.dart';
 import 'live_trip_map_card.dart';
 import 'route_map_card.dart';
 
@@ -579,12 +581,13 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
           _statusCard(context, entry),
           const SizedBox(height: 12),
           if (entry.isTracking) ...[
-            _liveTrackingCard(context, entry),
-            const SizedBox(height: 12),
+            // Mockup's "التوصيل الآن": map on top, trip card below.
             LiveTripMapCard(
               entryId: entry.id,
               isOutgoing: entry.isToCustomer,
             ),
+            const SizedBox(height: 12),
+            _tripInfoCard(context, entry),
             const SizedBox(height: 12),
           ],
           if (entry.isCompleted) ...[
@@ -649,7 +652,9 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
     );
   }
 
-  Widget _liveTrackingCard(BuildContext context, OrderEntry entry) {
+  /// Mockup's "التوصيل الآن" bottom card: order number, destination
+  /// line, address, live km + time chips, call action.
+  Widget _tripInfoCard(BuildContext context, OrderEntry entry) {
     final l10n = AppLocalizations.of(context);
     final text = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
@@ -657,9 +662,6 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
     final isMine =
         snapshot != null && snapshot.orderId == entry.id;
 
-    // When no live snapshot is flowing (service dead, or manual mode),
-    // fall back to the manually entered km so the courier always sees
-    // a number — never a stuck 0.
     final manualKm = entry.isToCustomer ? entry.kmOut : entry.kmBack;
     final km = isMine ? snapshot.kmSoFar : manualKm;
     final showingManual = !isMine && manualKm > 0;
@@ -670,59 +672,132 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
             : DateTime.now().difference(
                 DateTime.fromMillisecondsSinceEpoch(
                     entry.pickupTimeMillis!)));
-    final legLabel = entry.isToCustomer
-        ? l10n.trackingToCustomer
-        : l10n.trackingToMart;
+    final heading =
+        entry.isToCustomer ? l10n.onWayToCustomer : l10n.trackingToMart;
+    final shortId = entry.id.length > 6
+        ? entry.id.substring(entry.id.length - 6)
+        : entry.id;
+    final address =
+        entry.notes.isNotEmpty ? entry.notes : entry.phone;
+
+    Widget chip(IconData icon, String value) {
+      return Container(
+        padding:
+            const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          color: LiquidPalette.primaryBlue.withValues(alpha: 0.10),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 15, color: LiquidPalette.primaryBlue),
+            const SizedBox(width: 5),
+            Text(value,
+                style: text.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: LiquidPalette.primaryBlue)),
+            if (showingManual && icon == Icons.route_rounded) ...[
+              const SizedBox(width: 4),
+              const ManualBadge(),
+            ],
+          ],
+        ),
+      );
+    }
 
     return GlassCard(
+      borderRadius: GlassTokens.radiusL,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              _pulsingDot(scheme.primary),
+              _pulsingDot(LiquidPalette.primaryBlue),
               const SizedBox(width: 8),
-              Text(legLabel,
-                  style: text.titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w800)),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  gradient: LiquidPalette.brandGradientLg,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text('#$shortId',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13)),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(heading,
+                    style: text.titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w800)),
+              ),
             ],
           ),
-          const SizedBox(height: 16),
+          if (address.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(Icons.location_on_outlined,
+                    size: 16,
+                    color: scheme.onSurface
+                        .withValues(alpha: 0.55)),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(address,
+                      style: text.bodySmall?.copyWith(
+                          color: scheme.onSurface
+                              .withValues(alpha: 0.7)),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis),
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 10),
           Row(
             children: [
-              Expanded(
-                child: _statColumn(
-                  context,
-                  _fmtKm(km),
-                  l10n.kmUnit,
-                  l10n.distanceSoFar,
-                  scheme.primary,
-                  manual: showingManual,
+              chip(Icons.route_rounded,
+                  '${_fmtKm(km)} ${l10n.kmUnit}'),
+              const SizedBox(width: 8),
+              chip(Icons.schedule_rounded, _fmtDuration(elapsed)),
+              const Spacer(),
+              if (entry.phone.isNotEmpty)
+                Pressable(
+                  scaleOnly: true,
+                  onTap: () {
+                    Clipboard.setData(
+                        ClipboardData(text: entry.phone));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                          content: Text(
+                              '${l10n.phoneNumber}: ${entry.phone}')),
+                    );
+                  },
+                  child: Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LiquidPalette.brandGradientLg,
+                      boxShadow: [
+                        BoxShadow(
+                          color: LiquidPalette.primaryBlue
+                              .withValues(alpha: 0.35),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(Icons.phone_rounded,
+                        color: Colors.white, size: 20),
+                  ),
                 ),
-              ),
-              Container(
-                  width: 1,
-                  height: 56,
-                  color: Colors.white.withValues(alpha: 0.15)),
-              Expanded(
-                child: _statColumn(
-                  context,
-                  _fmtDuration(elapsed),
-                  '',
-                  l10n.timeElapsed,
-                  scheme.secondary,
-                ),
-              ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            l10n.gpsAccuracyNote,
-            style: text.bodySmall?.copyWith(
-                color: scheme.onSurface.withValues(alpha: 0.5)),
-          ),
-          // Manual fallback affordance: if GPS drops mid-trip the
-          // courier can always enter the distance by hand.
+          // Manual fallback affordance (kept from the old card).
           Align(
             alignment: AlignmentDirectional.centerStart,
             child: TextButton.icon(
@@ -831,25 +906,6 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _statColumn(BuildContext context, String value, String unit,
-      String label, Color color,
-      {bool manual = false}) {
-    final text = Theme.of(context).textTheme;
-    return Column(
-      children: [
-        Text('$value${unit.isNotEmpty ? ' $unit' : ''}',
-            style: text.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w800, color: color)),
-        const SizedBox(height: 2),
-        Text(label, style: text.bodySmall),
-        if (manual) ...[
-          const SizedBox(height: 4),
-          const ManualBadge(),
-        ],
-      ],
     );
   }
 

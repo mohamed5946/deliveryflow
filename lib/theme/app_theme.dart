@@ -32,23 +32,23 @@ class AppThemePreset {
   static const List<AppThemePreset> all = [
     AppThemePreset(
       id: 0,
-      nameAr: 'أورورا',
-      nameEn: 'Aurora',
-      seed: Color(0xFF4D7CFE),
+      nameAr: 'الأساسي',
+      nameEn: 'Default',
+      seed: Color(0xFF0A84FF),
       auroraDark: [
-        Color(0xFF2E7CF6),
-        Color(0xFF7A5CFF),
-        Color(0xFF00B8CC),
-        Color(0xFFFF5CA8),
+        Color(0xFF0A84FF),
+        Color(0xFF5AC8FA),
+        Color(0xFF004FC4),
+        Color(0xFF7DD3FC),
       ],
       auroraLight: [
-        Color(0xFF8FBEFF),
-        Color(0xFFC0A6FF),
-        Color(0xFF9FE6FF),
-        Color(0xFFFFB9DC),
+        Color(0xFF9ECDFF),
+        Color(0xFFBDE3FF),
+        Color(0xFF5AC8FA),
+        Color(0xFFD6EBFF),
       ],
-      bgDark: [Color(0xFF0A0F24), Color(0xFF060A18)],
-      bgLight: [Color(0xFFE9F2FF), Color(0xFFF7F0FF)],
+      bgDark: [Color(0xFF1C1C1E), Color(0xFF101012)],
+      bgLight: [Color(0xFFE5F1FF), Color(0xFFFFFFFF)],
     ),
     AppThemePreset(
       id: 1,
@@ -242,8 +242,8 @@ class AppTheme {
       seedColor: preset.seed,
       brightness: Brightness.dark,
     ).copyWith(
-      surface: const Color(0xFF0B1020),
-      surfaceContainerHighest: const Color(0xFF141B30),
+      surface: const Color(0xFF1C1C1E),
+      surfaceContainerHighest: const Color(0xFF2C2C2E),
     );
     return ThemeData(
       useMaterial3: true,
@@ -285,7 +285,7 @@ class AppTheme {
             states.contains(WidgetState.selected) ? Colors.white : null),
         trackColor: WidgetStateProperty.resolveWith((states) =>
             states.contains(WidgetState.selected)
-                ? const Color(0xFF0EA5E9)
+                ? const Color(0xFF0A84FF)
                 : null),
       ),
       textTheme: _textTheme(Brightness.dark),
@@ -303,7 +303,7 @@ class AppTheme {
       seedColor: preset.seed,
       brightness: Brightness.light,
     ).copyWith(
-      surface: const Color(0xFFF4F8FF),
+      surface: const Color(0xFFE5F1FF),
       surfaceContainerHighest: Colors.white,
     );
     return ThemeData(
@@ -344,7 +344,7 @@ class AppTheme {
             states.contains(WidgetState.selected) ? Colors.white : null),
         trackColor: WidgetStateProperty.resolveWith((states) =>
             states.contains(WidgetState.selected)
-                ? const Color(0xFF0EA5E9)
+                ? const Color(0xFF0A84FF)
                 : null),
       ),
       textTheme: _textTheme(Brightness.light),

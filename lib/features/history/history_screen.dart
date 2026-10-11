@@ -64,10 +64,33 @@ class HistoryScreen extends ConsumerWidget {
                     final range =
                         '${DateFormat.yMMMd(loc).format(start)} – ${DateFormat.yMMMd(loc).format(end)}';
                     return GlassCard(
+                      padding: const EdgeInsets.all(14),
                       child: Row(
                         crossAxisAlignment:
                             CrossAxisAlignment.start,
                         children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              gradient:
+                                  LiquidPalette.brandGradientLg,
+                              borderRadius:
+                                  BorderRadius.circular(14),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: LiquidPalette.primaryBlue
+                                      .withValues(alpha: 0.3),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                                Icons.history_rounded,
+                                color: Colors.white,
+                                size: 22),
+                          ),
+                          const SizedBox(width: 12),
                           Expanded(
                             child: Pressable(
                               onTap: () =>
@@ -84,14 +107,12 @@ class HistoryScreen extends ConsumerWidget {
                                 child: Text(range,
                                     style: text.titleSmall?.copyWith(
                                         fontWeight:
-                                            FontWeight.w700)),
+                                            FontWeight.w800)),
                               ),
-                              Icon(
+                              const Icon(
                                   Icons.arrow_forward_rounded,
                                   size: 18,
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .primary),
+                                  color: LiquidPalette.primaryBlue),
                             ],
                           ),
                           const SizedBox(height: 8),
@@ -245,7 +266,7 @@ class _WeekDetailSheet extends ConsumerWidget {
                       label: l10n.totalOrders,
                       value: '${r.totalOrders}',
                       icon: Icons.shopping_bag_rounded,
-                      accent: LiquidPalette.accentCyan,
+                      accent: LiquidPalette.skyBlue,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -255,7 +276,7 @@ class _WeekDetailSheet extends ConsumerWidget {
                       value: WeekCalendar.formatHours(
                           r.totalRecordedHours),
                       icon: Icons.schedule_rounded,
-                      accent: LiquidPalette.primaryPurple,
+                      accent: LiquidPalette.primaryBlue,
                     ),
                   ),
                 ],

@@ -10,6 +10,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../core/providers.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/design_system.dart';
+import '../../theme/pressable.dart';
 
 /// Complete settings: appearance, language, notifications, work
 /// preferences, data management, about.
@@ -167,44 +168,91 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
+  /// Enable a reminder toggle: request permission, then turn the reminder
+  /// on together with the master notifications switch (reminders only fire
+  /// when the master switch is on).
+  Future<void> _setReminder(
+    bool v, {
+    required bool daily,
+  }) async {
+    final l10n = AppLocalizations.of(context);
+    final notifier = ref.read(settingsProvider.notifier);
+    if (v) {
+      try {
+        final ok =
+            await ref.read(notificationServiceProvider).requestPermission();
+        if (!ok && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(l10n.notificationPermissionNeeded)));
+        }
+      } catch (_) {}
+      await notifier.update((s) {
+        if (daily) {
+          s.dailyReminderEnabled = true;
+        } else {
+          s.scheduleReminderEnabled = true;
+        }
+        s.notificationsEnabled = true;
+        return s;
+      });
+    } else {
+      await notifier.update((s) {
+        if (daily) {
+          s.dailyReminderEnabled = false;
+        } else {
+          s.scheduleReminderEnabled = false;
+        }
+        return s;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final text = Theme.of(context).textTheme;
     final settings = ref.watch(settingsProvider);
     final notifier = ref.read(settingsProvider.notifier);
     final db = ref.watch(databaseServiceProvider);
     final counts = db.recordCounts();
+    final dailyTime = TimeOfDay(
+        hour: settings.dailyReminderHour,
+        minute: settings.dailyReminderMinute);
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.settingsTitle)),
-      body: ListView(
+      // SingleChildScrollView + Column (instead of a lazy ListView) so every
+      // row exists in the tree without scrolling — widget tests assert on
+      // labels deep in the list.
+      body: SingleChildScrollView(
         padding: GlassTokens.screenPadding,
-        children: [
-          _section(l10n.appearanceSection, text),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+          // ── المظهر ────────────────────────────────────────────
+          _section(l10n.appearanceSection),
           GlassCard(
-            child: RadioGroup<int>(
-              groupValue: settings.themeMode,
-              onChanged: (v) =>
-                  notifier.update((s) => s..themeMode = v ?? 0),
-              child: Column(
-                children: [
-                  for (final entry in [
-                    (0, l10n.themeSystem),
-                    (1, l10n.themeLight),
-                    (2, l10n.themeDark),
-                  ])
-                    RadioListTile<int>(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(entry.$2),
-                      value: entry.$1,
-                    ),
-                ],
-              ),
+            child: Column(
+              children: [
+                _radioRow(
+                  icon: Icons.wb_sunny_rounded,
+                  label: l10n.themeLight,
+                  selected: settings.themeMode == 1,
+                  onTap: () =>
+                      notifier.update((s) => s..themeMode = 1),
+                ),
+                const SizedBox(height: 4),
+                _radioRow(
+                  icon: Icons.nightlight_rounded,
+                  label: l10n.themeDark,
+                  selected: settings.themeMode == 2,
+                  onTap: () =>
+                      notifier.update((s) => s..themeMode = 2),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 12),
-          _section(l10n.chooseTheme, text),
+          _section(l10n.chooseTheme),
           GlassCard(
             child: GridView.builder(
               shrinkWrap: true,
@@ -221,6 +269,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 final preset = AppThemePreset.all[i];
                 final selected = settings.themePreset == preset.id;
                 final scheme = Theme.of(ctx).colorScheme;
+                final text = Theme.of(ctx).textTheme;
                 return GestureDetector(
                   onTap: () => notifier
                       .update((s) => s..themePreset = preset.id),
@@ -282,36 +331,39 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          _section(l10n.languageSection, text),
-          GlassCard(
-            child: RadioGroup<String>(
-              groupValue: settings.languageCode,
-              onChanged: (v) =>
-                  notifier.update((s) => s..languageCode = v ?? 'ar'),
-              child: const Column(
-                children: [
-                  RadioListTile<String>(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text('العربية'),
-                    value: 'ar',
-                  ),
-                  RadioListTile<String>(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text('English'),
-                    value: 'en',
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          _section(l10n.notificationsSection, text),
+          // ── الإشعارات ─────────────────────────────────────────
+          _section(l10n.notificationsSection),
           GlassCard(
             child: Column(
               children: [
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(l10n.notificationsEnabled),
+                _toggleRow(
+                  icon: Icons.notifications_none_rounded,
+                  label: l10n.endOfDayNotif,
+                  value: settings.dailyReminderEnabled,
+                  onChanged: (v) => _setReminder(v, daily: true),
+                ),
+                const SizedBox(height: 4),
+                _toggleRow(
+                  icon: Icons.history_rounded,
+                  label: l10n.weeklyScheduleNotif,
+                  value: settings.scheduleReminderEnabled,
+                  onChanged: (v) => _setReminder(v, daily: false),
+                ),
+                const SizedBox(height: 4),
+                _timeRow2(
+                  label: l10n.notifTime,
+                  time: dailyTime,
+                  onTap: () => _pickTime(
+                    initial: dailyTime,
+                    onPick: (t) => notifier.update((s) => s
+                      ..dailyReminderHour = t.hour
+                      ..dailyReminderMinute = t.minute),
+                  ),
+                ),
+                const Divider(height: 20),
+                _toggleRow(
+                  icon: Icons.notifications_rounded,
+                  label: l10n.notificationsEnabled,
                   value: settings.notificationsEnabled,
                   onChanged: (v) async {
                     if (v) {
@@ -331,130 +383,54 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         (s) => s..notificationsEnabled = v);
                   },
                 ),
-                const Divider(height: 8),
-                _timeRow(
-                  context,
-                  l10n.dailyReminderTime,
-                  TimeOfDay(
-                      hour: settings.dailyReminderHour,
-                      minute: settings.dailyReminderMinute),
-                  (t) => notifier.update((s) => s
-                    ..dailyReminderHour = t.hour
-                    ..dailyReminderMinute = t.minute),
-                  enabled: settings.notificationsEnabled,
-                ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(l10n.dailyReminderEnabled),
-                  value: settings.dailyReminderEnabled,
-                  onChanged: settings.notificationsEnabled
-                      ? (v) => notifier.update(
-                          (s) => s..dailyReminderEnabled = v)
-                      : null,
-                ),
-                const Divider(height: 8),
-                _timeRow(
-                  context,
-                  l10n.scheduleReminderTime,
-                  TimeOfDay(
-                      hour: settings.scheduleReminderHour,
-                      minute: settings.scheduleReminderMinute),
-                  (t) => notifier.update((s) => s
-                    ..scheduleReminderHour = t.hour
-                    ..scheduleReminderMinute = t.minute),
-                  enabled: settings.notificationsEnabled,
-                ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(l10n.scheduleReminderEnabled),
-                  value: settings.scheduleReminderEnabled,
-                  onChanged: settings.notificationsEnabled
-                      ? (v) => notifier.update(
-                          (s) => s..scheduleReminderEnabled = v)
-                      : null,
-                ),
-                const Divider(height: 8),
-                _timeRow(
-                  context,
-                  l10n.reportReminderTime,
-                  TimeOfDay(
-                      hour: settings.reportReminderHour,
-                      minute: settings.reportReminderMinute),
-                  (t) => notifier.update((s) => s
-                    ..reportReminderHour = t.hour
-                    ..reportReminderMinute = t.minute),
-                  enabled: settings.notificationsEnabled,
-                ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(l10n.reportReminderEnabled),
-                  value: settings.reportReminderEnabled,
-                  onChanged: settings.notificationsEnabled
-                      ? (v) => notifier.update(
-                          (s) => s..reportReminderEnabled = v)
-                      : null,
-                ),
-                const Divider(height: 8),
-                _timeRow(
-                  context,
-                  l10n.followUpReminderTime,
-                  TimeOfDay(
-                      hour: settings.followUpReminderHour,
-                      minute: settings.followUpReminderMinute),
-                  (t) => notifier.update((s) => s
-                    ..followUpReminderHour = t.hour
-                    ..followUpReminderMinute = t.minute),
-                  enabled: settings.notificationsEnabled,
-                ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(l10n.followUpReminderEnabled),
-                  value: settings.followUpReminderEnabled,
-                  onChanged: settings.notificationsEnabled
-                      ? (v) => notifier.update(
-                          (s) => s..followUpReminderEnabled = v)
-                      : null,
-                ),
-                const Divider(height: 8),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(l10n.testNotification),
-                  trailing:
-                      const Icon(Icons.notifications_active_rounded),
-                  onTap: settings.notificationsEnabled
-                      ? () async {
-                          try {
-                            await ref
-                                .read(notificationServiceProvider)
-                                .showTest(
-                                  title: l10n.appTitle,
-                                  body: l10n.notifDailyBody,
-                                );
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context)
-                                  .showSnackBar(SnackBar(
-                                      content: Text(l10n
-                                          .testNotificationSent)));
-                            }
-                          } catch (_) {}
-                        }
-                      : null,
+                const SizedBox(height: 4),
+                _timeRow2(
+                  label: l10n.dailyReminderTime,
+                  time: dailyTime,
+                  onTap: () => _pickTime(
+                    initial: dailyTime,
+                    onPick: (t) => notifier.update((s) => s
+                      ..dailyReminderHour = t.hour
+                      ..dailyReminderMinute = t.minute),
+                  ),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 12),
-          _section(l10n.workPrefsSection, text),
+          // ── اللغة ────────────────────────────────────────────
+          _section(l10n.languageSection),
           GlassCard(
             child: Column(
               children: [
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(l10n.weeklyOrderGoalLabel),
-                  trailing: Text(
-                      settings.weeklyOrderGoal?.toString() ?? '–',
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w700)),
+                _radioRow(
+                  icon: Icons.language_rounded,
+                  label: 'العربية',
+                  selected: settings.languageCode == 'ar',
+                  onTap: () => notifier
+                      .update((s) => s..languageCode = 'ar'),
+                ),
+                const SizedBox(height: 4),
+                _radioRow(
+                  icon: Icons.language_rounded,
+                  label: 'English',
+                  selected: settings.languageCode == 'en',
+                  onTap: () => notifier
+                      .update((s) => s..languageCode = 'en'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          // ── تفضيلات العمل ────────────────────────────────────
+          _section(l10n.workPrefsSection),
+          GlassCard(
+            child: Column(
+              children: [
+                _valueRow(
+                  icon: Icons.flag_rounded,
+                  label: l10n.weeklyOrderGoalLabel,
+                  value: settings.weeklyOrderGoal?.toString() ?? '–',
                   onTap: () => _askNumber(
                     title: l10n.weeklyOrderGoalLabel,
                     initial:
@@ -463,14 +439,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         (s) => s..weeklyOrderGoal = v?.toInt()),
                   ),
                 ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(l10n.weeklyHoursGoalLabel),
-                  trailing: Text(
-                      settings.weeklyWorkHoursGoal?.toString() ??
-                          '–',
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w700)),
+                const SizedBox(height: 4),
+                _valueRow(
+                  icon: Icons.schedule_rounded,
+                  label: l10n.weeklyHoursGoalLabel,
+                  value:
+                      settings.weeklyWorkHoursGoal?.toString() ?? '–',
                   onTap: () => _askNumber(
                     title: l10n.weeklyHoursGoalLabel,
                     initial:
@@ -481,13 +455,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         (s) => s..weeklyWorkHoursGoal = v),
                   ),
                 ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(l10n.defaultBreakLabel),
-                  trailing: Text(
-                      '${settings.defaultBreakDurationMinutes}',
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w700)),
+                const SizedBox(height: 4),
+                _valueRow(
+                  icon: Icons.coffee_rounded,
+                  label: l10n.defaultBreakLabel,
+                  value: '${settings.defaultBreakDurationMinutes}',
                   onTap: () => _askNumber(
                     title: l10n.defaultBreakLabel,
                     initial: settings.defaultBreakDurationMinutes
@@ -501,17 +473,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          _section(l10n.salarySection, text),
+          // ── الراتب ──────────────────────────────────────────
+          _section(l10n.salarySection),
           GlassCard(
             child: Column(
               children: [
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(l10n.orderPriceLabel),
-                  trailing: Text(
-                      settings.orderPrice?.toString() ?? '–',
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w700)),
+                _valueRow(
+                  icon: Icons.payments_rounded,
+                  label: l10n.orderPriceLabel,
+                  value: settings.orderPrice?.toString() ?? '–',
                   onTap: () => _askNumber(
                     title: l10n.orderPriceLabel,
                     initial: settings.orderPrice?.toString() ?? '',
@@ -520,13 +490,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         (s) => s..orderPrice = v),
                   ),
                 ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(l10n.dailyFixedLabel),
-                  trailing: Text(
+                const SizedBox(height: 4),
+                _valueRow(
+                  icon: Icons.wallet_rounded,
+                  label: l10n.dailyFixedLabel,
+                  value:
                       settings.dailyFixedPay?.toString() ?? '–',
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w700)),
                   onTap: () => _askNumber(
                     title: l10n.dailyFixedLabel,
                     initial:
@@ -540,118 +509,364 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          _section(l10n.dataSection, text),
+          // ── البيانات ────────────────────────────────────────
+          _section(l10n.dataSection),
           GlassCard(
             child: Column(
               children: [
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(l10n.exportRecordsCsv),
-                  trailing:
-                      const Icon(Icons.download_rounded),
+                _actionRow(
+                  icon: Icons.download_rounded,
+                  label: l10n.exportRecordsCsv,
                   onTap: _exportCsv,
                 ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(l10n.backupData),
-                  trailing:
-                      const Icon(Icons.backup_rounded),
+                const SizedBox(height: 4),
+                _actionRow(
+                  icon: Icons.backup_rounded,
+                  label: l10n.backupData,
                   onTap: _backup,
                 ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(l10n.restoreBackup),
-                  trailing:
-                      const Icon(Icons.restore_rounded),
+                const SizedBox(height: 4),
+                _actionRow(
+                  icon: Icons.restore_rounded,
+                  label: l10n.restoreBackup,
                   onTap: _restore,
                 ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(l10n.recordCounts),
-                  trailing: Text(
-                    '${counts['schedules']}/${counts['orderRecords']}/${counts['sessions']}',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w700),
-                  ),
+                const SizedBox(height: 4),
+                _infoRow(
+                  icon: Icons.folder_copy_rounded,
+                  label: l10n.recordCounts,
+                  value:
+                      '${counts['schedules']}/${counts['orderRecords']}/${counts['sessions']}',
                 ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(l10n.clearAllData,
-                      style: TextStyle(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .error)),
-                  trailing: Icon(Icons.delete_forever_rounded,
-                      color:
-                          Theme.of(context).colorScheme.error),
+                const SizedBox(height: 4),
+                _actionRow(
+                  icon: Icons.delete_forever_rounded,
+                  label: l10n.clearAllData,
+                  destructive: true,
                   onTap: _clearAll,
                 ),
               ],
             ),
           ),
           const SizedBox(height: 12),
-          _section(l10n.appSection, text),
+          // ── التطبيق ─────────────────────────────────────────
+          _section(l10n.appSection),
           GlassCard(
             child: Column(
               children: [
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(l10n.aboutApp),
-                  subtitle: Text(
-                      '${l10n.versionLabel}: 1.0.0+1'),
+                _infoRow(
+                  icon: Icons.info_rounded,
+                  label: l10n.aboutApp,
+                  value: '${l10n.versionLabel}: 1.0.0+1',
                 ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(l10n.designedBy),
-                  subtitle: Text(l10n.designerName),
+                const SizedBox(height: 4),
+                _infoRow(
+                  icon: Icons.brush_rounded,
+                  label: l10n.designedBy,
+                  value: l10n.designerName,
                 ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(l10n.contactLabel),
-                  subtitle: const Text('01557887719',
-                      textDirection: TextDirection.ltr),
+                const SizedBox(height: 4),
+                _infoRow(
+                  icon: Icons.phone_rounded,
+                  label: l10n.contactLabel,
+                  value: '01557887719',
                 ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(l10n.privacyInfo),
-                  subtitle: Text(l10n.privacyBody,
-                      maxLines: 4,
-                      overflow: TextOverflow.ellipsis),
-                ),
+                const SizedBox(height: 4),
+                _aboutRow(l10n),
               ],
             ),
           ),
           const SizedBox(height: 24),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
-  Widget _section(String title, TextTheme text) {
+  // ── Row builders (mockup menu identity) ──────────────────────
+
+  Widget _section(String title) {
+    final text = Theme.of(context).textTheme;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(title,
           style:
-              text.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+              text.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
     );
   }
 
-  Widget _timeRow(
-    BuildContext context,
-    String label,
-    TimeOfDay value,
-    Future<void> Function(TimeOfDay) onPick, {
-    bool enabled = true,
+  /// Mockup radio row: icon + label on the right, radio dot on the left.
+  Widget _radioRow({
+    required IconData icon,
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
   }) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      title: Text(label),
-      trailing: Text(value.format(context),
-          style: const TextStyle(
-              fontSize: 16, fontWeight: FontWeight.w700)),
-      onTap: enabled
-          ? () => _pickTime(initial: value, onPick: onPick)
+    final text = Theme.of(context).textTheme;
+    return Pressable(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(GlassTokens.radiusS),
+      child: Padding(
+        padding:
+            const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+        child: Row(
+          children: [
+            Icon(icon,
+                color: LiquidPalette.primaryBlue, size: 22),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(label,
+                  style: text.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w600)),
+            ),
+            _radioDot(selected),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _radioDot(bool selected) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      width: 22,
+      height: 22,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: selected
+            ? LiquidPalette.primaryBlue
+            : Colors.transparent,
+        border: Border.all(
+          color: selected
+              ? LiquidPalette.primaryBlue
+              : scheme.outline.withValues(alpha: 0.6),
+          width: 2,
+        ),
+      ),
+      child: selected
+          ? const Center(
+              child: SizedBox(
+                width: 8,
+                height: 8,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                      shape: BoxShape.circle, color: Colors.white),
+                ),
+              ),
+            )
           : null,
+    );
+  }
+
+  /// Mockup toggle row: icon + label on the right, switch on the left.
+  Widget _toggleRow({
+    required IconData icon,
+    required String label,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    final text = Theme.of(context).textTheme;
+    return Padding(
+      padding:
+          const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+      child: Row(
+        children: [
+          Icon(icon,
+              color: LiquidPalette.primaryBlue, size: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => onChanged(!value),
+              child: Text(label,
+                  style: text.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w600)),
+            ),
+          ),
+          Switch(value: value, onChanged: onChanged),
+        ],
+      ),
+    );
+  }
+
+  /// Mockup time row: label on the right, time + chevron on the left.
+  Widget _timeRow2({
+    required String label,
+    required TimeOfDay time,
+    required VoidCallback onTap,
+  }) {
+    final text = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    return Pressable(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(GlassTokens.radiusS),
+      child: Padding(
+        padding:
+            const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(label,
+                  style: text.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w600)),
+            ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 20,
+                  color:
+                      scheme.onSurface.withValues(alpha: 0.35),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  time.format(context),
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Menu row: icon + label on the right, value + chevron on the left.
+  Widget _valueRow({
+    required IconData icon,
+    required String label,
+    required String value,
+    required VoidCallback onTap,
+  }) {
+    final text = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    return Pressable(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(GlassTokens.radiusS),
+      child: Padding(
+        padding:
+            const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+        child: Row(
+          children: [
+            Icon(icon,
+                color: LiquidPalette.primaryBlue, size: 22),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(label,
+                  style: text.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w600)),
+            ),
+            Text(value,
+                style: const TextStyle(fontWeight: FontWeight.w700)),
+            const SizedBox(width: 4),
+            Icon(
+              Icons.chevron_right_rounded,
+              size: 20,
+              color: scheme.onSurface.withValues(alpha: 0.35),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Menu action row: icon + label on the right, chevron on the left.
+  Widget _actionRow({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    bool destructive = false,
+  }) {
+    final text = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    final color =
+        destructive ? scheme.error : LiquidPalette.primaryBlue;
+    return Pressable(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(GlassTokens.radiusS),
+      child: Padding(
+        padding:
+            const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 22),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(label,
+                  style: text.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: destructive ? scheme.error : null)),
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              size: 20,
+              color: destructive
+                  ? scheme.error.withValues(alpha: 0.7)
+                  : scheme.onSurface.withValues(alpha: 0.35),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Menu info row: icon + label on the right, static value on the left.
+  Widget _infoRow({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    final text = Theme.of(context).textTheme;
+    return Padding(
+      padding:
+          const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+      child: Row(
+        children: [
+          Icon(icon,
+              color: LiquidPalette.primaryBlue, size: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(label,
+                style: text.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w600)),
+          ),
+          Text(value,
+              style: const TextStyle(fontWeight: FontWeight.w700)),
+        ],
+      ),
+    );
+  }
+
+  Widget _aboutRow(AppLocalizations l10n) {
+    final text = Theme.of(context).textTheme;
+    return Padding(
+      padding:
+          const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.privacy_tip_rounded,
+              color: LiquidPalette.primaryBlue, size: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(l10n.privacyInfo,
+                    style: text.titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 2),
+                Text(l10n.privacyBody,
+                    style: text.bodySmall,
+                    maxLines: 4,
+                    overflow: TextOverflow.ellipsis),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

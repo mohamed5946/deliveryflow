@@ -868,4 +868,63 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get startTracking => 'Start tracking';
+
+  @override
+  String get weekProgress => 'Week progress';
+
+  @override
+  String get viewWeekDetails => 'View week details';
+
+  @override
+  String get daySummary => 'Day summary';
+
+  @override
+  String get totalDistances => 'Total distances';
+
+  @override
+  String get ordersBreakdown => 'Orders breakdown';
+
+  @override
+  String get statusInProgress => 'In progress';
+
+  @override
+  String get viewFullReport => 'View full report';
+
+  @override
+  String get liveTrackingNow => 'Live delivery';
+
+  @override
+  String get onWayToCustomer => 'On your way to the customer';
+
+  @override
+  String get viewDetails => 'View details';
+
+  @override
+  String get endOfDayNotif => 'End-of-day notifications';
+
+  @override
+  String get weeklyScheduleNotif => 'Weekly schedule reminder';
+
+  @override
+  String get notifTime => 'Notification time';
+
+  @override
+  String get splashLoading => 'Loading...';
+
+  @override
+  String completedOrdersChip(Object count) {
+    return '$count completed orders';
+  }
+
+  @override
+  String get workSmarterTagline => 'Work Smarter • Deliver Faster';
+
+  @override
+  String get deliverFaster => 'Work smarter, deliver faster';
+
+  @override
+  String get completedOrdersLabel => 'completed orders';
+
+  @override
+  String get statusNotStarted => 'Not started';
 }
