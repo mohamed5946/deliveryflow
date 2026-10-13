@@ -670,6 +670,12 @@ class AppLocalizationsAr extends AppLocalizations {
   String get orderDeleted => 'تم حذف الأوردر';
 
   @override
+  String get orderUpdated => 'تم حفظ التعديلات';
+
+  @override
+  String get recenter => 'موقعي الحالي';
+
+  @override
   String get orderTime => 'وقت الأوردر';
 
   @override

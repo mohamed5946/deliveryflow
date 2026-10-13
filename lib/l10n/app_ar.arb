@@ -213,6 +213,8 @@
   "noOrdersYet": "لا توجد أوردرات مسجلة — أضف أول أوردر",
   "orderAdded": "تمت إضافة الأوردر",
   "orderDeleted": "تم حذف الأوردر",
+  "orderUpdated": "تم حفظ التعديلات",
+  "recenter": "موقعي الحالي",
   "orderTime": "وقت الأوردر",
   "ordersLabel": "أوردرات",
   "ordersWithoutDetails": "+{count} أوردرات مسجلة بدون تفاصيل مسافة",

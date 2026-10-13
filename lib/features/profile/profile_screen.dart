@@ -816,11 +816,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         alignment: Alignment.center,
         children: [
           circle,
-          const SizedBox(
-            width: 28,
-            height: 28,
-            child: CircularProgressIndicator(strokeWidth: 2.5),
-          ),
+          const DeliveryLoadingBar(width: 120, trackHeight: 5),
         ],
       );
     }

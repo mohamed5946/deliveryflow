@@ -380,6 +380,228 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
     }
   }
 
+  /// Edit a COMPLETED order's notes, phone and km. Edited km is stored
+  /// as manual: gpsKmOut/gpsKmBack are zeroed so the "يدوي" badge shows
+  /// (isManualOut = gpsKmOut == 0 && kmOut > 0) and the edited numbers
+  /// actually take effect (effectiveKm prefers GPS when present).
+  /// Confirm dialog before saving; all aggregates recompute from the
+  /// remaining records via bumpDataVersion.
+  Future<void> _showEditOrderSheet(
+      BuildContext context, OrderEntry entry) async {
+    final l10n = AppLocalizations.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    final notesCtrl = TextEditingController(text: entry.notes);
+    final phoneCtrl = TextEditingController(text: entry.phone);
+    final kmOutCtrl =
+        TextEditingController(text: entry.kmOut.toString());
+    final kmBackCtrl =
+        TextEditingController(text: entry.kmBack.toString());
+
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        var error = '';
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            double? parseKm(String raw) {
+              final v = double.tryParse(
+                  raw.trim().replaceAll(',', '.'));
+              return (v == null || v < 0) ? null : v;
+            }
+
+            Future<void> trySave() async {
+              final kmOut = parseKm(kmOutCtrl.text);
+              final kmBack = parseKm(kmBackCtrl.text);
+              if (kmOut == null || kmBack == null) {
+                setSheetState(() => error = l10n.invalidKm);
+                return;
+              }
+              final confirmed = await showDialog<bool>(
+                context: ctx,
+                builder: (dctx) => AlertDialog(
+                  title: Text(l10n.editOrder),
+                  content: Text(l10n.confirm),
+                  actions: [
+                    TextButton(
+                      onPressed: () =>
+                          Navigator.of(dctx).pop(false),
+                      child: Text(l10n.cancel),
+                    ),
+                    FilledButton(
+                      onPressed: () =>
+                          Navigator.of(dctx).pop(true),
+                      child: Text(l10n.save),
+                    ),
+                  ],
+                ),
+              );
+              if (confirmed == true && ctx.mounted) {
+                Navigator.of(ctx).pop(true);
+              }
+            }
+
+            return Container(
+              decoration: BoxDecoration(
+                color: scheme.surface,
+                borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(24)),
+              ),
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 16,
+                bottom:
+                    MediaQuery.of(ctx).viewInsets.bottom + 20,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment:
+                      CrossAxisAlignment.stretch,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: scheme.onSurface
+                              .withValues(alpha: 0.2),
+                          borderRadius:
+                              BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      l10n.editOrder,
+                      style: Theme.of(ctx)
+                          .textTheme
+                          .titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: kmOutCtrl,
+                            keyboardType: const TextInputType
+                                .numberWithOptions(decimal: true),
+                            decoration: InputDecoration(
+                              labelText:
+                                  '${l10n.kmOutLabel} (${l10n.kmUnit})',
+                              errorText:
+                                  error.isEmpty ? null : error,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextField(
+                            controller: kmBackCtrl,
+                            keyboardType: const TextInputType
+                                .numberWithOptions(decimal: true),
+                            decoration: InputDecoration(
+                              labelText:
+                                  '${l10n.kmBackLabel} (${l10n.kmUnit})',
+                              errorText:
+                                  error.isEmpty ? null : error,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: phoneCtrl,
+                      keyboardType: TextInputType.phone,
+                      decoration: InputDecoration(
+                        labelText: l10n.phoneNumber,
+                        prefixIcon:
+                            const Icon(Icons.call_rounded),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: notesCtrl,
+                      maxLines: 3,
+                      maxLength: 500,
+                      decoration: InputDecoration(
+                        labelText: l10n.notesOptional,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () =>
+                                Navigator.of(ctx).pop(false),
+                            child: Text(l10n.cancel),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: trySave,
+                            child: Text(l10n.save),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    final newKmOut = double.tryParse(
+        kmOutCtrl.text.trim().replaceAll(',', '.'));
+    final newKmBack = double.tryParse(
+        kmBackCtrl.text.trim().replaceAll(',', '.'));
+    final newNotes = notesCtrl.text.trim();
+    final newPhone = phoneCtrl.text.trim();
+    notesCtrl.dispose();
+    phoneCtrl.dispose();
+    kmOutCtrl.dispose();
+    kmBackCtrl.dispose();
+    if (saved != true ||
+        newKmOut == null ||
+        newKmBack == null ||
+        !mounted) {
+      return;
+    }
+    final db = ref.read(databaseServiceProvider);
+    // Zero the GPS km only when the numbers actually changed: edited km
+    // becomes manual (يدوي badge) and takes effect.
+    final kmChanged = newKmOut != entry.kmOut ||
+        newKmBack != entry.kmBack;
+    await db.updateOrderEntry(
+      dateKey: widget.dateKey,
+      entryId: widget.entryId,
+      kmOut: newKmOut,
+      kmBack: newKmBack,
+      gpsKmOut: kmChanged ? 0 : null,
+      gpsKmBack: kmChanged ? 0 : null,
+      notes: newNotes,
+      phone: newPhone,
+    );
+    bumpDataVersion(ref);
+    _load();
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content:
+                Text(AppLocalizations.of(context).orderUpdated)),
+      );
+    }
+  }
+
   /// Persists a manually entered km for the current leg. When the order
   /// is still pending and the outgoing leg never started, this puts the
   /// order into manual travel mode (no background tracking).
@@ -656,7 +878,32 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
     const gap = 12.0;
 
     return GlassScaffold(
-      appBar: AppBar(title: Text(l10n.orderDetails)),
+      appBar: AppBar(
+        title: Text(l10n.orderDetails),
+        actions: [
+          // Edit a completed order's notes / phone / km. Edited km is
+          // saved as manual (يدوي badge) since it's no longer pure GPS.
+          if (entry.isCompleted)
+            Pressable(
+              scaleOnly: true,
+              onTap: () => _showEditOrderSheet(context, entry),
+              child: Container(
+                margin: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Theme.of(context)
+                      .colorScheme
+                      .primary
+                      .withValues(alpha: 0.12),
+                ),
+                child: Icon(
+                  Icons.edit_rounded,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            ),
+        ],
+      ),
       body: ListView(
         controller: _scrollController,
         padding: EdgeInsets.zero,
@@ -1317,14 +1564,7 @@ class _DeliveryHeroMapState extends ConsumerState<_DeliveryHeroMap> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              SizedBox(
-                width: 30,
-                height: 30,
-                child: CircularProgressIndicator(
-                  strokeWidth: 3,
-                  color: scheme.primary,
-                ),
-              ),
+              const DeliveryLoadingBar(width: 170),
               const SizedBox(height: 10),
               Text(
                 l10n.waitingForGps,

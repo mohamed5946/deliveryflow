@@ -166,6 +166,25 @@ class DayOrdersScreen extends ConsumerWidget {
                             color: scheme.onSurface
                                 .withValues(alpha: 0.4),
                           ),
+                          const SizedBox(width: 2),
+                          Pressable(
+                            onTap: () =>
+                                _deleteEntry(context, ref, entry),
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: scheme.error
+                                    .withValues(alpha: 0.10),
+                                borderRadius:
+                                    BorderRadius.circular(10),
+                              ),
+                              child: Icon(
+                                Icons.delete_outline_rounded,
+                                size: 18,
+                                color: scheme.error,
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -174,5 +193,42 @@ class DayOrdersScreen extends ConsumerWidget {
               },
             ),
     );
+  }
+
+  /// Deletes one order from any day (including past days) with
+  /// confirmation. All aggregates (daily km/hours/count, weekly totals,
+  /// charts, heatmap, salary) are derived from the remaining records,
+  /// so they recompute automatically via [bumpDataVersion].
+  Future<void> _deleteEntry(
+      BuildContext context, WidgetRef ref, OrderEntry entry) async {
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.deleteOrderTitle),
+        content: Text(l10n.deleteOrderConfirm),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(l10n.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(l10n.delete,
+                style: TextStyle(
+                    color: Theme.of(ctx).colorScheme.error)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final db = ref.read(databaseServiceProvider);
+    await db.deleteOrderEntry(
+        dateKey: dateKey, entryId: entry.id);
+    bumpDataVersion(ref);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(l10n.orderDeleted)));
+    }
   }
 }

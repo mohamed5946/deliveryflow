@@ -55,6 +55,27 @@ class _NavigationScreenState extends State<NavigationScreen> {
   bool _denied = false;
   bool _mapReady = false;
   bool _routeFailedNoteShown = false;
+  // Camera-follow mode: ON by default. A manual pan/zoom pauses it and
+  // shows the recenter button; tapping the button resumes follow.
+  bool _following = true;
+  static const double _followZoom = 16.0;
+
+  /// MapOptions hoisted out of build: rebuilding it on every position
+  /// update used to churn didUpdateWidget/setOptions on each GPS fix,
+  /// which is what broke camera follow on-device.
+  late final MapOptions _mapOptions = MapOptions(
+    initialCenter: widget.destination,
+    initialZoom: 14,
+    onMapReady: () => _mapReady = true,
+    onPositionChanged: (pos, hasGesture) {
+      if (hasGesture && _following && mounted) {
+        setState(() => _following = false);
+      }
+    },
+    interactionOptions: const InteractionOptions(
+      flags: InteractiveFlag.all,
+    ),
+  );
 
   @override
   void initState() {
@@ -96,10 +117,25 @@ class _NavigationScreenState extends State<NavigationScreen> {
       _current = pos;
       _locating = false;
     });
-    if (_mapReady) {
-      _mapController.move(pos, first ? 16.0 : _mapController.camera.zoom);
+    // Continuous camera follow (fixed zoom). Guarded so a single failed
+    // move can never wedge the camera: the next GPS fix retries.
+    if (_following && _mapReady) {
+      try {
+        _mapController.move(pos, _followZoom);
+      } catch (_) {}
     }
     if (first) await _refreshRoute();
+  }
+
+  void _recenter() {
+    final cur = _current;
+    if (cur == null || !mounted) return;
+    setState(() => _following = true);
+    if (_mapReady) {
+      try {
+        _mapController.move(cur, _followZoom);
+      } catch (_) {}
+    }
   }
 
   Future<void> _refreshRoute() async {
@@ -180,14 +216,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
               child: RepaintBoundary(
                 child: FlutterMap(
                   mapController: _mapController,
-                  options: MapOptions(
-                    initialCenter: widget.destination,
-                    initialZoom: 14,
-                    onMapReady: () => _mapReady = true,
-                    interactionOptions: const InteractionOptions(
-                      flags: InteractiveFlag.all,
-                    ),
-                  ),
+                  options: _mapOptions,
                   children: [
                     TileLayer(
                       urlTemplate:
@@ -255,17 +284,45 @@ class _NavigationScreenState extends State<NavigationScreen> {
           if (_locating && !_denied)
             Center(
               child: GlassCard(
-                child: Row(
+                child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                    const SizedBox(width: 10),
+                    const DeliveryLoadingBar(width: 170),
+                    const SizedBox(height: 10),
                     Text(l10n.locatingYou),
                   ],
+                ),
+              ),
+            ),
+          // Recenter button: appears when the user pans/zooms manually
+          // (follow paused); tapping resumes camera follow.
+          if (!_following && _current != null && !_denied)
+            Positioned(
+              right: 16,
+              bottom: 210,
+              child: Pressable(
+                onTap: _recenter,
+                child: Tooltip(
+                  message: l10n.recenter,
+                  child: Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color:
+                          Theme.of(context).scaffoldBackgroundColor,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.2),
+                          blurRadius: 10,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.my_location_rounded,
+                      color: LiquidPalette.primaryBlue,
+                    ),
+                  ),
                 ),
               ),
             ),

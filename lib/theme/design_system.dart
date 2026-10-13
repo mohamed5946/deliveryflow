@@ -342,7 +342,131 @@ class GlassLoading extends StatelessWidget {
     return const Center(
       child: Padding(
         padding: EdgeInsets.all(48),
-        child: CircularProgressIndicator(),
+        child: DeliveryLoadingBar(),
+      ),
+    );
+  }
+}
+
+/// Custom loading indicator replacing every CircularProgressIndicator
+/// app-wide: a horizontal WHITE track; a delivery-scooter icon rides
+/// from LEFT to RIGHT (always LTR, even in the RTL layout) while the
+/// portion of the line BEHIND the scooter fills with brand blue
+/// (#0A84FF) — white ahead, blue trail behind, reading as real
+/// progress. GPU-cheap: a single short repeating animation driving one
+/// tiny subtree, no blurs, no per-frame rebuild storms elsewhere.
+class DeliveryLoadingBar extends StatefulWidget {
+  final double width;
+  final double trackHeight;
+
+  const DeliveryLoadingBar({
+    super.key,
+    this.width = 200,
+    this.trackHeight = 6,
+  });
+
+  @override
+  State<DeliveryLoadingBar> createState() =>
+      _DeliveryLoadingBarState();
+}
+
+class _DeliveryLoadingBarState extends State<DeliveryLoadingBar>
+    with SingleTickerProviderStateMixin {
+  static const double _scooterSize = 30;
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Forced left-to-right: Mohamed explicitly wants the scooter to ride
+    // from the left edge to the right edge.
+    return Directionality(
+      textDirection: TextDirection.ltr,
+      child: SizedBox(
+        width: widget.width,
+        height: 44,
+        child: AnimatedBuilder(
+          animation: _controller,
+          builder: (context, _) {
+            final t = _controller.value;
+            final rideWidth = widget.width - _scooterSize;
+            final scooterX = t * rideWidth;
+            // Blue trail covers everything behind the scooter's center.
+            final trailWidth = scooterX + _scooterSize / 2;
+            return Stack(
+              alignment: Alignment.centerLeft,
+              children: [
+                // White track.
+                Container(
+                  width: widget.width,
+                  height: widget.trackHeight,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(
+                        widget.trackHeight / 2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.12),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                ),
+                // Brand-blue trail behind the scooter.
+                Container(
+                  width: trailWidth,
+                  height: widget.trackHeight,
+                  decoration: BoxDecoration(
+                    color: LiquidPalette.primaryBlue,
+                    borderRadius: BorderRadius.circular(
+                        widget.trackHeight / 2),
+                  ),
+                ),
+                // The scooter.
+                Positioned(
+                  left: scooterX,
+                  top: (44 - _scooterSize) / 2,
+                  child: Container(
+                    width: _scooterSize,
+                    height: _scooterSize,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LiquidPalette.brandGradientLg,
+                      boxShadow: [
+                        BoxShadow(
+                          color: LiquidPalette.primaryBlue
+                              .withValues(alpha: 0.4),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.delivery_dining_rounded,
+                      color: Colors.white,
+                      size: 17,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }

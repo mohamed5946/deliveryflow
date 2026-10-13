@@ -368,4 +368,84 @@ void main() {
       expect(re.themePreset, 3);
     });
   });
+
+  group('v18: edit/delete recomputation', () {
+    test('edited km becomes manual (يدوي badge) and takes effect',
+        () async {
+      const key = '2026-10-15';
+      final e = await db.addOrderEntry(
+        dateKey: key,
+        timestampMillis:
+            DateTime(2026, 10, 15, 12).millisecondsSinceEpoch,
+        kmOut: 5,
+        kmBack: 4,
+      );
+      // Simulate a GPS-tracked completed order.
+      await db.updateOrderEntry(
+        dateKey: key,
+        entryId: e.id,
+        status: 3,
+        gpsKmOut: 5,
+        gpsKmBack: 4,
+      );
+      var rec = db.orderRecord(key)!;
+      var entry = rec.entries.firstWhere((x) => x.id == e.id);
+      expect(entry.hasManualKm, isFalse);
+      expect(entry.effectiveKmTotal, 9);
+
+      // Edit km like the order-details "تعديل" sheet does: new numbers
+      // + zeroed GPS km.
+      await db.updateOrderEntry(
+        dateKey: key,
+        entryId: e.id,
+        kmOut: 6.5,
+        kmBack: 4,
+        gpsKmOut: 0,
+        gpsKmBack: 0,
+        notes: 'edited',
+        phone: '01001234567',
+      );
+      rec = db.orderRecord(key)!;
+      entry = rec.entries.firstWhere((x) => x.id == e.id);
+      expect(entry.isManualOut, isTrue);
+      expect(entry.hasManualKm, isTrue);
+      expect(entry.effectiveKmTotal, 10.5);
+      expect(entry.notes, 'edited');
+      expect(entry.phone, '01001234567');
+      // Day aggregates follow the edited numbers.
+      expect(rec.totalKmOut, 6.5);
+    });
+
+    test('deleting an order recomputes weekly totals', () async {
+      const day1 = '2026-10-12'; // Monday
+      const day2 = '2026-10-13'; // Tuesday
+      final e1 = await db.addOrderEntry(
+        dateKey: day1,
+        timestampMillis:
+            DateTime(2026, 10, 12, 19).millisecondsSinceEpoch,
+        kmOut: 10,
+        kmBack: 9,
+      );
+      await db.addOrderEntry(
+        dateKey: day2,
+        timestampMillis:
+            DateTime(2026, 10, 13, 19).millisecondsSinceEpoch,
+        kmOut: 7,
+        kmBack: 6,
+      );
+      var report = db.buildWeeklyReport(DateTime(2026, 10, 14));
+      expect(report.totalOrders, 2);
+
+      await db.deleteOrderEntry(dateKey: day1, entryId: e1.id);
+      report = db.buildWeeklyReport(DateTime(2026, 10, 14));
+      expect(report.totalOrders, 1);
+      // The deleted day keeps its record shell with zero orders.
+      final rec = db.orderRecord(day1)!;
+      expect(rec.completedOrders, 0);
+      expect(rec.totalKm, 0);
+      // Deleting a missing entry is a safe no-op.
+      await db.deleteOrderEntry(dateKey: day1, entryId: 'nope');
+      expect(db.orderRecord(day1)!.completedOrders, 0);
+    });
+  });
 }

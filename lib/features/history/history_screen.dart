@@ -59,7 +59,7 @@ class HistoryScreen extends ConsumerWidget {
                           height: 60,
                           child: Center(
                               child:
-                                  CircularProgressIndicator()))),
+                                  DeliveryLoadingBar(width: 160)))),
                   error: (_, __) => const SizedBox.shrink(),
                   data: (r) {
                     final end = WeekCalendar.parseDateKey(

@@ -77,14 +77,7 @@ class _SplashScreenState extends State<SplashScreen> {
                     ),
                   ),
                   const SizedBox(height: 48),
-                  const SizedBox(
-                    width: 28,
-                    height: 28,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 3,
-                      color: LiquidPalette.primaryBlue,
-                    ),
-                  ),
+                  const DeliveryLoadingBar(width: 190),
                   const SizedBox(height: 12),
                   Text(
                     l10n.splashLoading,

@@ -670,6 +670,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get orderDeleted => 'Order deleted';
 
   @override
+  String get orderUpdated => 'Changes saved';
+
+  @override
+  String get recenter => 'My location';
+
+  @override
   String get orderTime => 'Order time';
 
   @override

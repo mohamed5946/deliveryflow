@@ -261,6 +261,8 @@
   "noOrdersYet": "No orders logged yet — add the first one",
   "orderAdded": "Order added",
   "orderDeleted": "Order deleted",
+  "orderUpdated": "Changes saved",
+  "recenter": "My location",
   "orderTime": "Order time",
   "ordersLabel": "Orders",
   "ordersWithoutDetails": "+{count} orders logged without distance details",

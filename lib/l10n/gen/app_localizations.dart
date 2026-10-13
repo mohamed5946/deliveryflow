@@ -1358,6 +1358,18 @@ abstract class AppLocalizations {
   /// **'Order deleted'**
   String get orderDeleted;
 
+  /// No description provided for @orderUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Changes saved'**
+  String get orderUpdated;
+
+  /// No description provided for @recenter.
+  ///
+  /// In en, this message translates to:
+  /// **'My location'**
+  String get recenter;
+
   /// No description provided for @orderTime.
   ///
   /// In en, this message translates to:
