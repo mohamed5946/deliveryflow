@@ -1,6 +1,5 @@
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
-
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -1059,4 +1058,23 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get navRouteFailed => 'تعذر حساب الطريق، حاول مرة أخرى';
+
+  @override
+  String routeRecommendBoth(Object km, Object min) {
+    return 'نرشحلك: الطريق الأسرع والأقصر ✅ ($km كم، $min دقيقة)';
+  }
+
+  @override
+  String routeRecommendShortest(Object km, Object min) {
+    return 'نرشحلك: الطريق الأقصر ($km كم، $min دقيقة) — يوفّر بنزين ⛽';
+  }
+
+  @override
+  String get mapModeNorthUp => 'اتجاه الشمال';
+
+  @override
+  String get mapModeHeadingUp => 'اتجاه السير';
+
+  @override
+  String get mapModeOverview => 'نظرة عامة';
 }

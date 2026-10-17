@@ -352,5 +352,10 @@
   "navigatingNow": "التوصيل الآن",
   "locatingYou": "جاري تحديد موقعك…",
   "minute": "دقيقة",
-  "navRouteFailed": "تعذر حساب الطريق، حاول مرة أخرى"
+  "navRouteFailed": "تعذر حساب الطريق، حاول مرة أخرى",
+  "routeRecommendBoth": "نرشحلك: الطريق الأسرع والأقصر ✅ ({km} كم، {min} دقيقة)",
+  "routeRecommendShortest": "نرشحلك: الطريق الأقصر ({km} كم، {min} دقيقة) — يوفّر بنزين ⛽",
+  "mapModeNorthUp": "اتجاه الشمال",
+  "mapModeHeadingUp": "اتجاه السير",
+  "mapModeOverview": "نظرة عامة"
 }

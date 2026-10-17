@@ -135,18 +135,23 @@ class RouteSnapService {
   static const _routeBase =
       'https://router.project-osrm.org/route/v1/driving';
 
-  /// Point-to-point driving directions from [from] to [to].
+  /// Point-to-point driving directions from [from] to [to], with
+  /// ALTERNATIVES (`alternatives=true`).
   ///
-  /// Used ONLY for in-app navigation preview (show the road you should
-  /// take). Never for trip finalization — that must use [snapRoute]
-  /// (map matching) on the actually traveled trail.
-  Future<RouteDirections?> fetchDirections({
+  /// Returns up to 3 routes, each with its own duration / distance /
+  /// geometry. Used by the navigation screen to show route choices with
+  /// ETAs. Same single-request volume as [fetchDirections] — just one
+  /// extra query flag.
+  ///
+  /// Returns null when the request fails (caller shows the loud
+  /// failure notice, per app convention — never silent).
+  Future<List<RouteDirections>?> fetchRouteAlternatives({
     required LatLng from,
     required LatLng to,
   }) async {
     final url = Uri.parse(
         '$_routeBase/${from.longitude},${from.latitude};${to.longitude},${to.latitude}'
-        '?overview=full&geometries=geojson');
+        '?overview=full&geometries=geojson&alternatives=true');
     try {
       final res = await http
           .get(url, headers: {'User-Agent': 'DeliveryFlow/1.0'})
@@ -156,31 +161,50 @@ class RouteSnapService {
       if (body['code'] != 'Ok') return null;
       final routes = body['routes'] as List?;
       if (routes == null || routes.isEmpty) return null;
-      final route = routes.first as Map<String, dynamic>;
-      final meters = (route['distance'] as num?)?.toDouble();
-      final seconds = (route['duration'] as num?)?.toDouble();
-      if (meters == null || meters <= 0) return null;
-      final geometry = <LatLng>[];
-      try {
-        final geoJson = route['geometry'] as Map<String, dynamic>?;
-        final coordsList = geoJson?['coordinates'] as List?;
-        if (coordsList != null) {
-          for (final c in coordsList) {
-            final pair = c as List;
-            geometry.add(LatLng(
-              (pair[1] as num).toDouble(),
-              (pair[0] as num).toDouble(),
-            ));
+      final out = <RouteDirections>[];
+      for (final r in routes.take(3)) {
+        final route = r as Map<String, dynamic>;
+        final meters = (route['distance'] as num?)?.toDouble();
+        final seconds = (route['duration'] as num?)?.toDouble();
+        if (meters == null || meters <= 0) continue;
+        final geometry = <LatLng>[];
+        try {
+          final geoJson =
+              route['geometry'] as Map<String, dynamic>?;
+          final coordsList = geoJson?['coordinates'] as List?;
+          if (coordsList != null) {
+            for (final c in coordsList) {
+              final pair = c as List;
+              geometry.add(LatLng(
+                (pair[1] as num).toDouble(),
+                (pair[0] as num).toDouble(),
+              ));
+            }
           }
-        }
-      } catch (_) {}
-      return RouteDirections(
-        distanceKm: meters / 1000.0,
-        durationSec: seconds ?? 0,
-        geometry: geometry,
-      );
+        } catch (_) {}
+        out.add(RouteDirections(
+          distanceKm: meters / 1000.0,
+          durationSec: seconds ?? 0,
+          geometry: geometry,
+        ));
+      }
+      return out.isEmpty ? null : out;
     } catch (_) {
       return null;
     }
+  }
+
+  /// Point-to-point driving directions from [from] to [to].
+  ///
+  /// Used ONLY for in-app navigation preview (show the road you should
+  /// take). Never for trip finalization — that must use [snapRoute]
+  /// (map matching) on the actually traveled trail.
+  Future<RouteDirections?> fetchDirections({
+    required LatLng from,
+    required LatLng to,
+  }) async {
+    final alts = await fetchRouteAlternatives(from: from, to: to);
+    if (alts == null || alts.isEmpty) return null;
+    return alts.first;
   }
 }

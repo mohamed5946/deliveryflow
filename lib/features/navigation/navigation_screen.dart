@@ -42,6 +42,18 @@ class NavigationScreen extends StatefulWidget {
   State<NavigationScreen> createState() => _NavigationScreenState();
 }
 
+/// Map camera perspective modes for the navigation screen.
+enum _MapMode {
+  /// Classic north-up follow (v19 behavior).
+  northUp,
+
+  /// Heading-up: map rotates so the direction of travel points up.
+  headingUp,
+
+  /// Overview: whole active route fitted on screen, follow paused.
+  overview,
+}
+
 class _NavigationScreenState extends State<NavigationScreen> {
   final MapController _mapController = MapController();
   final RouteSnapService _snap = RouteSnapService();
@@ -60,6 +72,29 @@ class _NavigationScreenState extends State<NavigationScreen> {
   bool _following = true;
   static const double _followZoom = 16.0;
 
+  // ---- v20: alternative routes ----
+  /// Up to 3 OSRM route alternatives for the current position.
+  List<RouteDirections> _routes = [];
+
+  /// Index of the user-selected (actively tracked) route.
+  int _selectedRoute = 0;
+
+  /// Indices of the fastest / shortest alternatives (for badges).
+  int _fastestIdx = 0;
+  int _shortestIdx = 0;
+
+  /// Recommendation banner dismissed by the user (per screen open).
+  bool _recDismissed = false;
+
+  // ---- v20: map perspectives ----
+  _MapMode _mapMode = _MapMode.northUp;
+  _MapMode _modeBeforeOverview = _MapMode.northUp;
+
+  /// Last stable GPS bearing (degrees clockwise from north). Only
+  /// updated from GPS heading while actually moving, to avoid jitter
+  /// when stopped.
+  double _lastBearing = 0;
+
   /// MapOptions hoisted out of build: rebuilding it on every position
   /// update used to churn didUpdateWidget/setOptions on each GPS fix,
   /// which is what broke camera follow on-device.
@@ -68,8 +103,14 @@ class _NavigationScreenState extends State<NavigationScreen> {
     initialZoom: 14,
     onMapReady: () => _mapReady = true,
     onPositionChanged: (pos, hasGesture) {
-      if (hasGesture && _following && mounted) {
-        setState(() => _following = false);
+      if (hasGesture && mounted) {
+        if (_mapMode == _MapMode.overview) {
+          // Any manual interaction leaves overview and goes back to
+          // the previous perspective mode.
+          setState(() => _mapMode = _modeBeforeOverview);
+        } else if (_following) {
+          setState(() => _following = false);
+        }
       }
     },
     interactionOptions: const InteractionOptions(
@@ -113,18 +154,40 @@ class _NavigationScreenState extends State<NavigationScreen> {
     final pos = LatLng(p.latitude, p.longitude);
     final first = _current == null;
     if (!mounted) return;
+    // Stable bearing: trust GPS heading only while actually moving
+    // (speed > 2 m/s); ignore tiny changes to avoid camera jitter.
+    if (p.speed > 2 && p.heading >= 0 && p.heading <= 360) {
+      if (_bearingDiff(p.heading, _lastBearing).abs() > 8) {
+        _lastBearing = p.heading;
+      }
+    }
     setState(() {
       _current = pos;
       _locating = false;
     });
-    // Continuous camera follow (fixed zoom). Guarded so a single failed
-    // move can never wedge the camera: the next GPS fix retries.
-    if (_following && _mapReady) {
+    // Continuous camera follow (fixed zoom), per perspective mode.
+    // Guarded so a single failed move can never wedge the camera:
+    // the next GPS fix retries.
+    if (_following && _mapReady && _mapMode != _MapMode.overview) {
       try {
-        _mapController.move(pos, _followZoom);
+        if (_mapMode == _MapMode.headingUp) {
+          // flutter_map rotation is degrees with 0° = North, so
+          // rotation == bearing gives heading-up.
+          _mapController.moveAndRotate(pos, _followZoom, _lastBearing);
+        } else {
+          _mapController.move(pos, _followZoom);
+        }
       } catch (_) {}
     }
     if (first) await _refreshRoute();
+  }
+
+  /// Smallest signed difference between two bearings in degrees.
+  double _bearingDiff(double a, double b) {
+    var d = (a - b) % 360;
+    if (d > 180) d -= 360;
+    if (d < -180) d += 360;
+    return d;
   }
 
   void _recenter() {
@@ -141,13 +204,23 @@ class _NavigationScreenState extends State<NavigationScreen> {
   Future<void> _refreshRoute() async {
     final cur = _current;
     if (cur == null || !mounted) return;
-    final dir = await _snap.fetchDirections(from: cur, to: widget.destination);
+    final alts = await _snap.fetchRouteAlternatives(
+        from: cur, to: widget.destination);
     if (!mounted) return;
     setState(() {
-      if (dir != null) {
-        _routePoints = dir.geometry;
-        _remainingKm = dir.distanceKm;
-        _etaMin = (dir.durationSec / 60).round();
+      if (alts != null && alts.isNotEmpty) {
+        final countChanged = alts.length != _routes.length;
+        _routes = alts;
+        _computeRouteStats();
+        if (countChanged) {
+          // New set of alternatives: auto-select the recommended one
+          // (shortest = fuel saver).
+          _selectedRoute = _shortestIdx;
+        } else {
+          // Keep the user's manual selection stable across refreshes.
+          _selectedRoute = _selectedRoute.clamp(0, _routes.length - 1);
+        }
+        _applySelectedRoute();
       } else if (!_routeFailedNoteShown) {
         _routeFailedNoteShown = true;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -157,6 +230,240 @@ class _NavigationScreenState extends State<NavigationScreen> {
         );
       }
     });
+    // Keep overview fitted to the fresh geometry.
+    if (_mapMode == _MapMode.overview && _mapReady && mounted) {
+      _fitOverview();
+    }
+  }
+
+  /// Finds the fastest (min duration) and shortest (min distance)
+  /// alternative indices for badges + recommendation.
+  void _computeRouteStats() {
+    var fastest = 0;
+    var shortest = 0;
+    for (var i = 1; i < _routes.length; i++) {
+      if (_routes[i].durationSec < _routes[fastest].durationSec) {
+        fastest = i;
+      }
+      if (_routes[i].distanceKm < _routes[shortest].distanceKm) {
+        shortest = i;
+      }
+    }
+    _fastestIdx = fastest;
+    _shortestIdx = shortest;
+  }
+
+  /// Applies the currently selected route to the drawn geometry and
+  /// the bottom info card.
+  void _applySelectedRoute() {
+    final sel = _routes[_selectedRoute];
+    _routePoints = sel.geometry;
+    _remainingKm = sel.distanceKm;
+    _etaMin = (sel.durationSec / 60).round();
+  }
+
+  /// User taps a route chip: make it the actively tracked route.
+  void _selectRoute(int i) {
+    if (i == _selectedRoute || i < 0 || i >= _routes.length) return;
+    if (!mounted) return;
+    setState(() {
+      _selectedRoute = i;
+      _applySelectedRoute();
+    });
+    if (_mapMode == _MapMode.overview && _mapReady) {
+      _fitOverview();
+    }
+  }
+
+  /// Cycles perspective: north-up -> heading-up -> overview -> north-up.
+  void _cycleMapMode() {
+    if (!mounted) return;
+    setState(() {
+      switch (_mapMode) {
+        case _MapMode.northUp:
+          _mapMode = _MapMode.headingUp;
+          break;
+        case _MapMode.headingUp:
+          _modeBeforeOverview = _mapMode;
+          _mapMode = _MapMode.overview;
+          break;
+        case _MapMode.overview:
+          _mapMode = _modeBeforeOverview;
+          break;
+      }
+    });
+    _applyModeCamera();
+  }
+
+  /// Moves the camera immediately after a perspective switch.
+  void _applyModeCamera() {
+    final cur = _current;
+    if (!_mapReady || cur == null || !mounted) return;
+    try {
+      switch (_mapMode) {
+        case _MapMode.northUp:
+          _mapController.rotate(0);
+          if (_following) _mapController.move(cur, _followZoom);
+          break;
+        case _MapMode.headingUp:
+          if (_following) {
+            _mapController.moveAndRotate(cur, _followZoom, _lastBearing);
+          } else {
+            _mapController.rotate(_lastBearing);
+          }
+          break;
+        case _MapMode.overview:
+          _fitOverview();
+          break;
+      }
+    } catch (_) {}
+  }
+
+  /// Fits the whole active route (+ scooter) on screen.
+  void _fitOverview() {
+    final pts = <LatLng>[..._routePoints];
+    if (_current != null) pts.add(_current!);
+    if (pts.length < 2 || !mounted) return;
+    try {
+      _mapController.fitCamera(
+        CameraFit.bounds(
+          bounds: LatLngBounds.fromPoints(pts),
+          padding: const EdgeInsets.all(56),
+        ),
+      );
+    } catch (_) {}
+  }
+
+  /// Polylines: alternatives in grey underneath, the selected route in
+  /// brand blue (#0A84FF), thicker, on top.
+  List<Polyline> _routePolylines(BuildContext context) {
+    final lines = <Polyline>[];
+    final altColor =
+        Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.35);
+    for (var i = 0; i < _routes.length; i++) {
+      if (i == _selectedRoute) continue;
+      if (_routes[i].geometry.length < 2) continue;
+      lines.add(Polyline(
+        points: _routes[i].geometry,
+        strokeWidth: 5,
+        color: altColor,
+      ));
+    }
+    if (_routePoints.length > 1) {
+      lines.add(Polyline(
+        points: _routePoints,
+        strokeWidth: 7,
+        color: LiquidPalette.primaryBlue,
+      ));
+    }
+    return lines;
+  }
+
+  /// Badge shown on a route chip: fastest / shortest / both.
+  String _routeBadge(int i) {
+    final both = i == _fastestIdx && i == _shortestIdx;
+    if (both) return '✅ ';
+    if (i == _fastestIdx) return '⚡ ';
+    if (i == _shortestIdx) return '⛽ ';
+    return '';
+  }
+
+  /// Tappable ETA chips, one per alternative, near each route's
+  /// midpoint. Tapping selects that route for tracking.
+  List<Marker> _routeChipMarkers(
+      BuildContext context, AppLocalizations l10n) {
+    final markers = <Marker>[];
+    final scheme = Theme.of(context).colorScheme;
+    for (var i = 0; i < _routes.length; i++) {
+      final geo = _routes[i].geometry;
+      if (geo.length < 3) continue;
+      final r = _routes[i];
+      final mins = (r.durationSec / 60).round();
+      final selected = i == _selectedRoute;
+      markers.add(
+        Marker(
+          point: geo[geo.length ~/ 2],
+          width: 170,
+          height: 44,
+          child: GestureDetector(
+            onTap: () => _selectRoute(i),
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(22),
+                color: selected
+                    ? LiquidPalette.primaryBlue
+                    : scheme.surface.withValues(alpha: 0.95),
+                border: Border.all(
+                  color: selected
+                      ? LiquidPalette.primaryBlue
+                      : scheme.onSurface.withValues(alpha: 0.25),
+                  width: selected ? 0 : 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.25),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Center(
+                child: Text(
+                  '${_routeBadge(i)}$mins ${l10n.minute} • '
+                  '${r.distanceKm.toStringAsFixed(1)} ${l10n.kmUnit}',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: selected
+                        ? Colors.white
+                        : LiquidPalette.primaryBlue,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+    return markers;
+  }
+
+  IconData get _modeIcon {
+    switch (_mapMode) {
+      case _MapMode.northUp:
+        return Icons.explore_outlined;
+      case _MapMode.headingUp:
+        return Icons.navigation_rounded;
+      case _MapMode.overview:
+        return Icons.map_rounded;
+    }
+  }
+
+  String _modeLabel(AppLocalizations l10n) {
+    switch (_mapMode) {
+      case _MapMode.northUp:
+        return l10n.mapModeNorthUp;
+      case _MapMode.headingUp:
+        return l10n.mapModeHeadingUp;
+      case _MapMode.overview:
+        return l10n.mapModeOverview;
+    }
+  }
+
+  /// Recommendation banner text for the shortest (fuel-saver) route.
+  /// Fuel saving is inferred from shorter distance, not measured.
+  String _recommendationText(AppLocalizations l10n) {
+    final rec = _routes[_shortestIdx];
+    final km = rec.distanceKm.toStringAsFixed(1);
+    final min = (rec.durationSec / 60).round().toString();
+    if (_fastestIdx == _shortestIdx) {
+      return l10n.routeRecommendBoth(km, min);
+    }
+    return l10n.routeRecommendShortest(km, min);
   }
 
   @override
@@ -222,18 +529,15 @@ class _NavigationScreenState extends State<NavigationScreen> {
                           'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                       userAgentPackageName: 'com.valor.deliveryflow',
                     ),
+                    // Route alternatives: non-selected in grey underneath,
+                    // selected in brand blue on top.
                     if (_routePoints.length > 1)
                       PolylineLayer(
-                        polylines: [
-                          Polyline(
-                            points: _routePoints,
-                            strokeWidth: 6,
-                            color: LiquidPalette.primaryBlue,
-                          ),
-                        ],
+                        polylines: _routePolylines(context),
                       ),
                     MarkerLayer(
                       markers: [
+                        ..._routeChipMarkers(context, l10n),
                         // Destination pin.
                         Marker(
                           point: widget.destination,
@@ -322,6 +626,89 @@ class _NavigationScreenState extends State<NavigationScreen> {
                       color: LiquidPalette.primaryBlue,
                     ),
                   ),
+                ),
+              ),
+            ),
+          // Perspective toggle: cycles north-up -> heading-up ->
+          // overview. Always live, never a dead button.
+          if (!_denied)
+            Positioned(
+              right: 16,
+              bottom: 282,
+              child: Pressable(
+                onTap: _cycleMapMode,
+                child: Tooltip(
+                  message: _modeLabel(l10n),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 11),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(26),
+                      color:
+                          Theme.of(context).scaffoldBackgroundColor,
+                      boxShadow: [
+                        BoxShadow(
+                          color:
+                              Colors.black.withValues(alpha: 0.2),
+                          blurRadius: 10,
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _modeIcon,
+                          size: 20,
+                          color: LiquidPalette.primaryBlue,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          _modeLabel(l10n),
+                          style: text.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: LiquidPalette.primaryBlue,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          // Smart recommendation banner: fastest / shortest route.
+          // Dismissible, never blocking.
+          if (_routes.length >= 2 && !_recDismissed && !_denied)
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 62,
+              left: 16,
+              right: 16,
+              child: GlassCard(
+                borderRadius: GlassTokens.radiusM,
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.thumb_up_alt_rounded,
+                      size: 20,
+                      color: LiquidPalette.primaryBlue,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _recommendationText(l10n),
+                        style: text.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    Pressable(
+                      onTap: () =>
+                          setState(() => _recDismissed = true),
+                      child: const Padding(
+                        padding: EdgeInsets.all(4),
+                        child: Icon(Icons.close_rounded, size: 18),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),

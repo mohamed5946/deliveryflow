@@ -1,6 +1,5 @@
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
-
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -1060,4 +1059,23 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get navRouteFailed => 'Could not calculate the route, try again';
+
+  @override
+  String routeRecommendBoth(Object km, Object min) {
+    return 'Recommended: fastest & shortest route ✅ ($km km, $min min)';
+  }
+
+  @override
+  String routeRecommendShortest(Object km, Object min) {
+    return 'Recommended: shortest route ($km km, $min min) — saves fuel ⛽';
+  }
+
+  @override
+  String get mapModeNorthUp => 'North up';
+
+  @override
+  String get mapModeHeadingUp => 'Heading up';
+
+  @override
+  String get mapModeOverview => 'Overview';
 }
