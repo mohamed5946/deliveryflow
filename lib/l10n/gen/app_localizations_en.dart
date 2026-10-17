@@ -1,6 +1,5 @@
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
-
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -164,6 +163,19 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get quickActions => 'Quick actions';
+
+  @override
+  String get geoAddressNotFound => 'Couldn\'t find that address on the map.';
+
+  @override
+  String get geoPreparingOrder => 'Preparing your order…';
+
+  @override
+  String get geoShareFailedBody =>
+      'We couldn\'t understand the location shared from the other app. Try sharing it again.';
+
+  @override
+  String get geoShareFailedTitle => 'Couldn\'t open the shared location';
 
   @override
   String get greetingHello => 'Hello';

@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/database/models.dart';
 import '../../core/date_time/week_calendar.dart';
+import '../../core/deep_link/geo_share_service.dart';
 import '../../core/providers.dart';
 import '../../theme/design_system.dart';
 import '../../theme/page_transitions.dart';
@@ -27,7 +28,8 @@ class DashboardScreen extends ConsumerStatefulWidget {
   ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+class _DashboardScreenState extends ConsumerState<DashboardScreen>
+    with WidgetsBindingObserver {
   bool _saturdayPromptShown = false;
   late final DateTime _today = DateTime.now();
 
@@ -35,6 +37,42 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   /// above reflect it. Days with no recorded work show zero.
   late DateTime _selectedDay =
       DateTime(_today.year, _today.month, _today.day);
+
+  /// geo: share intake (e.g. navigation shared from the Amazon Flex
+  /// driver app): checked once the home tab is ready (cold start) and
+  /// on every foreground return (share while already running).
+  final _geoReceiver = GeoIntentReceiver();
+  bool _handlingGeo = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkGeoIntent());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _checkGeoIntent();
+  }
+
+  Future<void> _checkGeoIntent() async {
+    if (_handlingGeo || !mounted) return;
+    final raw = await _geoReceiver.takeNavUri();
+    if (raw == null || !mounted) return;
+    _handlingGeo = true;
+    try {
+      await handleSharedGeoUri(context, ref, raw);
+    } finally {
+      _handlingGeo = false;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

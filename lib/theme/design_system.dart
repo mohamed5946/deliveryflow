@@ -355,14 +355,21 @@ class GlassLoading extends StatelessWidget {
 /// (#0A84FF) — white ahead, blue trail behind, reading as real
 /// progress. GPU-cheap: a single short repeating animation driving one
 /// tiny subtree, no blurs, no per-frame rebuild storms elsewhere.
+///
+/// Pass [progress] (0.0–1.0) for REAL determinate loading: the scooter
+/// sits exactly at the progress position and reaches the end of the
+/// track exactly at 1.0. Leave it null for the legacy looping
+/// animation (used where true progress is unknowable).
 class DeliveryLoadingBar extends StatefulWidget {
   final double width;
   final double trackHeight;
+  final double? progress;
 
   const DeliveryLoadingBar({
     super.key,
     this.width = 200,
     this.trackHeight = 6,
+    this.progress,
   });
 
   @override
@@ -381,7 +388,9 @@ class _DeliveryLoadingBarState extends State<DeliveryLoadingBar>
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
-    )..repeat();
+    );
+    // Only loop when no real progress is driving the scooter.
+    if (widget.progress == null) _controller.repeat();
   }
 
   @override
@@ -402,7 +411,10 @@ class _DeliveryLoadingBarState extends State<DeliveryLoadingBar>
         child: AnimatedBuilder(
           animation: _controller,
           builder: (context, _) {
-            final t = _controller.value;
+            // Real progress when provided (clamped); otherwise the
+            // legacy looping ride.
+            final t =
+                widget.progress?.clamp(0.0, 1.0) ?? _controller.value;
             final rideWidth = widget.width - _scooterSize;
             final scooterX = t * rideWidth;
             // Blue trail covers everything behind the scooter's center.
@@ -1144,6 +1156,10 @@ class GlassDialog extends StatelessWidget {
 }
 
 /// Shows a [GlassDialog] with the standard dimmed barrier.
+///
+/// Uses the nearest navigator (useRootNavigator: false) so the dialog
+/// and any Navigator.pop from its actions target the SAME navigator —
+/// popping the wrong (root) navigator used to leave a black screen.
 Future<T?> showGlassDialog<T>({
   required BuildContext context,
   Widget? title,
@@ -1154,6 +1170,7 @@ Future<T?> showGlassDialog<T>({
   return showDialog<T>(
     context: context,
     barrierDismissible: barrierDismissible,
+    useRootNavigator: false,
     builder: (ctx) => GlassDialog(
       title: title,
       content: content,

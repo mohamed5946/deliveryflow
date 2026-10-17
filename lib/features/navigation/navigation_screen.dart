@@ -178,7 +178,6 @@ class _NavigationScreenState extends State<NavigationScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: Pressable(
-          scaleOnly: true,
           onTap: () => Navigator.of(context).pop(),
           child: Container(
             margin: const EdgeInsets.all(8),
