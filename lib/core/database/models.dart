@@ -1,7 +1,7 @@
 import 'package:hive/hive.dart';
 
 /// Schema version for migrations. Bump when a model changes shape.
-const int kSchemaVersion = 7;
+const int kSchemaVersion = 8;
 
 // ---------------------------------------------------------------------------
 // UserSettings (typeId 0)
@@ -61,6 +61,8 @@ class UserSettings extends HiveObject {
   List<String> readNotificationIds; // completed-order notification ids marked read
   @HiveField(25)
   List<String> dismissedNotificationIds; // swiped-away notification ids
+  @HiveField(26)
+  bool registered; // first-launch registration-code gate accepted
 
   UserSettings({
     this.displayName = '',
@@ -89,6 +91,7 @@ class UserSettings extends HiveObject {
     this.photoPath = '',
     List<String>? readNotificationIds,
     List<String>? dismissedNotificationIds,
+    this.registered = false,
   })  : readNotificationIds = readNotificationIds ?? [],
         dismissedNotificationIds = dismissedNotificationIds ?? [];
 
@@ -119,6 +122,7 @@ class UserSettings extends HiveObject {
         'photoPath': photoPath,
         'readNotificationIds': readNotificationIds,
         'dismissedNotificationIds': dismissedNotificationIds,
+        'registered': registered,
         'schemaVersion': kSchemaVersion,
       };
 
@@ -160,6 +164,7 @@ class UserSettings extends HiveObject {
             (json['readNotificationIds'] as List?)?.cast<String>() ?? [],
         dismissedNotificationIds:
             (json['dismissedNotificationIds'] as List?)?.cast<String>() ?? [],
+        registered: (json['registered'] as bool?) ?? false,
       );
 }
 
@@ -201,13 +206,14 @@ class UserSettingsAdapter extends TypeAdapter<UserSettings> {
       readNotificationIds: (fields[24] as List?)?.cast<String>() ?? [],
       dismissedNotificationIds:
           (fields[25] as List?)?.cast<String>() ?? [],
+      registered: (fields[26] as bool?) ?? false,
     );
   }
 
   @override
   void write(BinaryWriter writer, UserSettings obj) {
     writer
-      ..writeByte(26)
+      ..writeByte(27)
       ..writeByte(0)
       ..write(obj.displayName)
       ..writeByte(1)
@@ -259,7 +265,9 @@ class UserSettingsAdapter extends TypeAdapter<UserSettings> {
       ..writeByte(24)
       ..write(obj.readNotificationIds)
       ..writeByte(25)
-      ..write(obj.dismissedNotificationIds);
+      ..write(obj.dismissedNotificationIds)
+      ..writeByte(26)
+      ..write(obj.registered);
   }
 }
 

@@ -1,5 +1,6 @@
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
+
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -457,6 +458,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get recordedDays => 'Recorded days';
+
+  @override
+  String get registerError => 'Incorrect code, try again';
+
+  @override
+  String get registerHint => 'Enter the registration code';
+
+  @override
+  String get registerTitle => 'Registration Code';
 
   @override
   String get remindMeLater => 'Later';

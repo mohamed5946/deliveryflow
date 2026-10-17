@@ -11,6 +11,7 @@ import '../features/history/history_screen.dart';
 import '../features/onboarding/onboarding_screen.dart';
 import '../features/onboarding/splash_screen.dart';
 import '../features/profile/profile_screen.dart';
+import '../features/registration/registration_screen.dart';
 import '../features/schedule/schedule_screen.dart';
 import '../features/weekly_reports/report_screen.dart';
 import '../features/work_sessions/session_screen.dart';
@@ -113,17 +114,32 @@ GoRouter buildRouter(WidgetRef ref) {
   return GoRouter(
     initialLocation: '/splash',
     redirect: (context, state) {
-      final done =
-          ref.read(settingsProvider.select((s) => s.onboardingDone));
+      final settings = ref.read(settingsProvider);
+      final registered = settings.registered;
+      final done = settings.onboardingDone;
+      // Defensive: a geo: URI must never become a route. The engine no
+      // longer forwards VIEW intent URIs (flutter_deeplinking_enabled
+      // is false in the manifest), but if one ever slips through, send
+      // it to splash instead of the error page — geo: intents are
+      // handled exclusively through the native MethodChannel path
+      // (see lib/core/deep_link/geo_share_service.dart).
+      if (state.uri.toString().startsWith('geo:')) return '/splash';
       final loc = state.matchedLocation;
+      // Registration gate comes before everything, including splash.
+      if (!registered && loc != '/register') return '/register';
+      if (registered && loc == '/register') return '/splash';
       // Splash always shows first; it navigates to /home itself,
       // where the rules below take over.
-      if (loc == '/splash') return null;
+      if (loc == '/splash' || loc == '/register') return null;
       if (!done && loc != '/onboarding') return '/onboarding';
       if (done && loc == '/onboarding') return '/home';
       return null;
     },
     routes: [
+      GoRoute(
+        path: '/register',
+        builder: (context, state) => const RegistrationScreen(),
+      ),
       GoRoute(
         path: '/splash',
         builder: (context, state) => const SplashScreen(),

@@ -29,6 +29,15 @@
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
+            <!-- Stop the Flutter engine from auto-forwarding VIEW intent
+                 URIs (e.g. geo: shares) to the Dart framework as routes —
+                 go_router has no route for them and shows an error page.
+                 geo: intents are captured natively in MainActivity
+                 (MethodChannel com.valor.deliveryflow/nav_intent) instead.
+                 No https app-links are used, so nothing else breaks. -->
+            <meta-data
+              android:name="flutter_deeplinking_enabled"
+              android:value="false" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
