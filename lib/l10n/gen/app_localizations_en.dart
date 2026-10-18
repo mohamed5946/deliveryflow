@@ -176,6 +176,8 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get geoShareFailedTitle => 'Couldn\'t open the shared location';
+  String get geoShareFailedWithLabelTitle => 'Couldn\'t open the shared location';
+  String get geoShareReceivedText => 'Received text:';
 
   @override
   String get greetingHello => 'Hello';
@@ -695,6 +697,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get recenter => 'My location';
+  String get openInGoogleMaps => 'Open in Google Maps';
 
   @override
   String get orderTime => 'Order time';
@@ -1081,6 +1084,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get mapModeOverview => 'Overview';
+  String get mapModeFollowCam => 'Follow cam';
 
   @override
   String get offlineMaps => 'Offline maps';

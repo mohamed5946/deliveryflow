@@ -176,6 +176,8 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get geoShareFailedTitle => 'تعذر فتح الموقع المشارك';
+  String get geoShareFailedWithLabelTitle => 'تعذر فتح الموقع المشارك';
+  String get geoShareReceivedText => 'النص المستلم:';
 
   @override
   String get greetingHello => 'مرحباً';
@@ -695,6 +697,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get recenter => 'موقعي الحالي';
+  String get openInGoogleMaps => 'افتح في خرائط جوجل';
 
   @override
   String get orderTime => 'وقت الأوردر';
@@ -1080,6 +1083,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get mapModeOverview => 'نظرة عامة';
+  String get mapModeFollowCam => 'منظور المتابعة';
 
   @override
   String get offlineMaps => 'الخرائط دون اتصال';

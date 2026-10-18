@@ -428,6 +428,18 @@ abstract class AppLocalizations {
   /// **'Couldn\'t open the shared location'**
   String get geoShareFailedTitle;
 
+  /// No description provided for @geoShareFailedWithLabelTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn't open the shared location'**
+  String get geoShareFailedWithLabelTitle;
+
+  /// No description provided for @geoShareReceivedText.
+  ///
+  /// In en, this message translates to:
+  /// **'Received text:'**
+  String get geoShareReceivedText;
+
   /// No description provided for @greetingHello.
   ///
   /// In en, this message translates to:
@@ -1412,6 +1424,12 @@ abstract class AppLocalizations {
   /// **'My location'**
   String get recenter;
 
+  /// No description provided for @openInGoogleMaps.
+  ///
+  /// In en, this message translates to:
+  /// **'Open in Google Maps'**
+  String get openInGoogleMaps;
+
   /// No description provided for @orderTime.
   ///
   /// In en, this message translates to:
@@ -2143,6 +2161,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Overview'**
   String get mapModeOverview;
+
+  /// No description provided for @mapModeFollowCam.
+  ///
+  /// In en, this message translates to:
+  /// **'Follow cam'**
+  String get mapModeFollowCam;
 
   /// No description provided for @offlineMaps.
   ///

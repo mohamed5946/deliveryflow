@@ -6,6 +6,7 @@ import 'package:deliveryflow/l10n/gen/app_localizations.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/tracking/route_snap_service.dart';
 import '../../core/offline_maps/offline_map_service.dart';
@@ -58,6 +59,12 @@ enum _MapMode {
   /// Heading-up: map rotates so the direction of travel points up,
   /// scooter framed at the lower third like Google Maps navigation.
   headingUp,
+
+  /// Follow cam (v24 "منظور المتابعة"): heading-up rotation, but the
+  /// camera aims ~50m ahead of the scooter along the GPS bearing, so
+  /// the scooter marker renders BELOW screen center with more of the
+  /// road ahead visible. 2D only, no tilt.
+  followCam,
 
   /// Overview: whole active route fitted on screen, follow paused.
   overview,
@@ -240,6 +247,21 @@ class _NavigationScreenState extends State<NavigationScreen>
     _updateFollowCamera(cur, immediate: true);
   }
 
+  /// v24: "Open in Google Maps" fallback — opens the current destination
+  /// in Google Maps via url_launcher. In-app navigation stays primary;
+  /// this never throws and never breaks the screen when the launch
+  /// fails (e.g. no Maps installed) — it simply does nothing.
+  Future<void> _openInGoogleMaps() async {
+    final d = widget.destination;
+    final url = Uri.parse(
+      'https://www.google.com/maps/dir/?api=1'
+      '&destination=${d.latitude},${d.longitude}',
+    );
+    try {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } catch (_) {}
+  }
+
   // ---- v21: Google-Maps-style nav camera ----
 
   /// Moves the camera for the current perspective mode. Called on every
@@ -263,6 +285,10 @@ class _NavigationScreenState extends State<NavigationScreen>
         // rotation == bearing gives heading-up.
         _glideCamera(_headingUpTarget(pos, _lastBearing), _followZoom,
             _lastBearing);
+      } else if (_mapMode == _MapMode.followCam) {
+        // v24 follow cam: same heading-up rotation, camera aimed ahead.
+        _glideCamera(
+            _followCamTarget(pos, _lastBearing), _followZoom, _lastBearing);
       } else {
         // North-up keeps whatever rotation the map currently has.
         double rot = 0;
@@ -281,6 +307,31 @@ class _NavigationScreenState extends State<NavigationScreen>
   /// at the scooter puts it at true screen center (50%), safely above
   /// the bottom card. Heading-up rotation is applied by the caller.
   LatLng _headingUpTarget(LatLng pos, double bearing) => pos;
+
+  /// Follow-cam framing (v24): the scooter renders below screen center
+  /// so more of the road ahead is visible. With heading-up rotation
+  /// (rotation == bearing), aiming the camera at a point AHEAD of the
+  /// scooter along the bearing pushes the scooter marker below center.
+  /// The v21.1 lesson holds: the marker must never hide behind the
+  /// bottom order card, so the aim point stays above the scooter on
+  /// screen, never at it.
+  ///
+  /// The forward offset scales with zoom: ~50m at city zoom (16),
+  /// doubling per zoom-out step so the framing stays proportional.
+  LatLng _followCamTarget(LatLng pos, double bearing) {
+    double zoom = _followZoom;
+    try {
+      zoom = _mapController.camera.zoom;
+    } catch (_) {}
+    final double meters = (50 * math.pow(2, 16 - zoom)).toDouble();
+    final rad = bearing * math.pi / 180;
+    const mPerDegLat = 111320.0;
+    final dLat = meters * math.cos(rad) / mPerDegLat;
+    final dLng = meters *
+        math.sin(rad) /
+        (mPerDegLat * math.cos(pos.latitude * math.pi / 180).abs().clamp(0.2, 1));
+    return LatLng(pos.latitude + dLat, pos.longitude + dLng);
+  }
 
   /// Glides the camera to [target] over ~450ms instead of jumping.
   /// Rotation takes the shortest arc. A new GPS fix restarts the glide
@@ -504,7 +555,8 @@ class _NavigationScreenState extends State<NavigationScreen>
     }
   }
 
-  /// Cycles perspective: north-up -> heading-up -> overview -> north-up.
+  /// Cycles perspective: north-up -> heading-up -> follow cam ->
+  /// overview -> north-up.
   void _cycleMapMode() {
     if (!mounted) return;
     setState(() {
@@ -513,7 +565,10 @@ class _NavigationScreenState extends State<NavigationScreen>
           _mapMode = _MapMode.headingUp;
           break;
         case _MapMode.headingUp:
-          _modeBeforeOverview = _mapMode;
+          _mapMode = _MapMode.followCam;
+          break;
+        case _MapMode.followCam:
+          _modeBeforeOverview = _MapMode;
           _mapMode = _MapMode.overview;
           break;
         case _MapMode.overview:
@@ -537,6 +592,15 @@ class _NavigationScreenState extends State<NavigationScreen>
         case _MapMode.headingUp:
           if (_following) {
             _glideCamera(_headingUpTarget(cur, _lastBearing),
+                _followZoom, _lastBearing);
+          } else {
+            _mapController.rotate(_lastBearing);
+          }
+          break;
+        case _MapMode.followCam:
+          // v24 follow cam: heading-up rotation, camera aimed ahead.
+          if (_following) {
+            _glideCamera(_followCamTarget(cur, _lastBearing),
                 _followZoom, _lastBearing);
           } else {
             _mapController.rotate(_lastBearing);
@@ -683,6 +747,8 @@ class _NavigationScreenState extends State<NavigationScreen>
         return Icons.explore_outlined;
       case _MapMode.headingUp:
         return Icons.navigation_rounded;
+      case _MapMode.followCam:
+        return Icons.videocam_outlined;
       case _MapMode.overview:
         return Icons.map_rounded;
     }
@@ -694,6 +760,8 @@ class _NavigationScreenState extends State<NavigationScreen>
         return l10n.mapModeNorthUp;
       case _MapMode.headingUp:
         return l10n.mapModeHeadingUp;
+      case _MapMode.followCam:
+        return l10n.mapModeFollowCam;
       case _MapMode.overview:
         return l10n.mapModeOverview;
     }
@@ -919,7 +987,7 @@ class _NavigationScreenState extends State<NavigationScreen>
               ),
             ),
           // Perspective toggle: cycles north-up -> heading-up ->
-          // overview. Always live, never a dead button.
+          // follow cam -> overview. Always live, never a dead button.
           if (!_denied)
             Positioned(
               right: 16,
@@ -954,6 +1022,54 @@ class _NavigationScreenState extends State<NavigationScreen>
                         const SizedBox(width: 6),
                         Text(
                           _modeLabel(l10n),
+                          style: text.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: LiquidPalette.primaryBlue,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          // v24: "Open in Google Maps" fallback pill — sits with the
+          // map controls above the perspective toggle. Opens the current
+          // destination in Google Maps; in-app navigation stays primary.
+          if (!_denied)
+            Positioned(
+              right: 16,
+              bottom: 354,
+              child: Pressable(
+                onTap: _openInGoogleMaps,
+                child: Tooltip(
+                  message: l10n.openInGoogleMaps,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 11),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(26),
+                      color:
+                          Theme.of(context).scaffoldBackgroundColor,
+                      boxShadow: [
+                        BoxShadow(
+                          color:
+                              Colors.black.withValues(alpha: 0.2),
+                          blurRadius: 10,
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.directions_rounded,
+                          size: 20,
+                          color: LiquidPalette.primaryBlue,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          l10n.openInGoogleMaps,
                           style: text.bodySmall?.copyWith(
                             fontWeight: FontWeight.w800,
                             color: LiquidPalette.primaryBlue,

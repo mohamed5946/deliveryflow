@@ -6,22 +6,53 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
-/// Captures geo: VIEW intents (e.g. navigation shared from the Amazon
-/// Flex driver app) on cold start AND while already running
-/// (singleTop -> onNewIntent), then hands the raw URI string to Dart
-/// through a MethodChannel. Each URI is delivered exactly once.
+/// Captures shared-location intents on cold start AND while already
+/// running (singleTop -> onNewIntent), then hands the raw payload to
+/// Dart through a MethodChannel. Each payload is delivered exactly
+/// once (the native side consumes it on read).
+///
+/// v24: beyond `geo:` VIEW intents (e.g. navigation shared from the
+/// Amazon Flex driver app), this also captures https Google Maps
+/// VIEW intents and ACTION_SEND share-sheet text (Google Maps links
+/// shared as text). Dart decides what is usable.
 class MainActivity : FlutterActivity() {
     private var pendingNavUri: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        pendingNavUri = intent?.dataString?.takeIf { it.startsWith("geo:") }
+        pendingNavUri = extractShareable(intent)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        pendingNavUri = intent.dataString?.takeIf { it.startsWith("geo:") }
+        pendingNavUri = extractShareable(intent)
+    }
+
+    private fun extractShareable(intent: Intent?): String? {
+        if (intent == null) return null
+        // Share sheet: ACTION_SEND with text (e.g. a Google Maps link
+        // shared as text from Google Maps / the Flex app).
+        if (intent.action == Intent.ACTION_SEND) {
+            val text = intent.getStringExtra(Intent.EXTRA_TEXT)
+            if (!text.isNullOrBlank()) return text
+        }
+        // VIEW intents: geo: URIs and https map links.
+        val data = intent.dataString
+        if (data != null) {
+            if (data.startsWith("geo:")) return data
+            if (data.startsWith("https://")) {
+                val lower = data.lowercase()
+                if ((lower.contains("google.") && lower.contains("/maps")) ||
+                    lower.contains("maps.google.") ||
+                    lower.contains("goo.gl/maps") ||
+                    lower.contains("maps.app.goo.gl")
+                ) {
+                    return data
+                }
+            }
+        }
+        return null
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
