@@ -247,25 +247,13 @@ class _NavigationScreenState extends State<NavigationScreen>
     } catch (_) {}
   }
 
-  /// Google-Maps-style framing: in heading-up mode the scooter sits at
-  /// the lower third of the screen with the road ahead visible. Done by
-  /// aiming the camera at a point ahead of the scooter along the
-  /// bearing, scaled to the visible map height at the current zoom.
-  LatLng _headingUpTarget(LatLng pos, double bearing) {
-    try {
-      final b = _mapController.camera.visibleBounds;
-      const d = Distance();
-      final spanM = d.distance(
-        LatLng(b.north, b.west),
-        LatLng(b.south, b.west),
-      );
-      if (spanM > 0) {
-        // Scooter renders ~68% down the screen.
-        return d.offset(pos, spanM * 0.18, bearing);
-      }
-    } catch (_) {}
-    return pos;
-  }
+  /// Heading-up framing (v21.1): the scooter renders at the vertical
+  /// center of the screen. v21 aimed the camera at a point ahead of the
+  /// scooter (~68% down the screen), but the bottom order card + nav bar
+  /// covered the scooter there ("المتسيكل مستخبي تحت"). Aiming directly
+  /// at the scooter puts it at true screen center (50%), safely above
+  /// the bottom card. Heading-up rotation is applied by the caller.
+  LatLng _headingUpTarget(LatLng pos, double bearing) => pos;
 
   /// Glides the camera to [target] over ~450ms instead of jumping.
   /// Rotation takes the shortest arc. A new GPS fix restarts the glide
