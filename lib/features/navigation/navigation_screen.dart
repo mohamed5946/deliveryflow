@@ -568,7 +568,7 @@ class _NavigationScreenState extends State<NavigationScreen>
           _mapMode = _MapMode.followCam;
           break;
         case _MapMode.followCam:
-          _modeBeforeOverview = _MapMode;
+          _modeBeforeOverview = _mapMode;
           _mapMode = _MapMode.overview;
           break;
         case _MapMode.overview:
