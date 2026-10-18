@@ -35,6 +35,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final _picker = ImagePicker();
   bool _pickingPhoto = false;
 
+  /// v21: real staged photo-save progress — picked → copied → saved.
+  /// Advances only on real stages, never by timer.
+  double _photoProgress = 0;
+
   @override
   void initState() {
     super.initState();
@@ -75,7 +79,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   /// `profile_photo.jpg` (deleting the previous one), and persist the path.
   Future<void> _pickPhoto() async {
     if (_pickingPhoto) return;
-    setState(() => _pickingPhoto = true);
+    setState(() {
+      _pickingPhoto = true;
+      _photoProgress = 0;
+    });
     try {
       final x = await _picker.pickImage(
         source: ImageSource.gallery,
@@ -83,6 +90,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         imageQuality: 85,
       );
       if (x == null) return;
+      // v21 stage 1/3: image picked from the gallery.
+      if (mounted) setState(() => _photoProgress = 1 / 3);
       final dir = await getApplicationDocumentsDirectory();
       final dest = File('${dir.path}/profile_photo.jpg');
       final settings = ref.read(settingsProvider);
@@ -93,9 +102,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         } catch (_) {}
       }
       await File(x.path).copy(dest.path);
+      // v21 stage 2/3: file copied into app storage.
+      if (mounted) setState(() => _photoProgress = 2 / 3);
       await ref
           .read(settingsProvider.notifier)
           .update((s) => s..photoPath = dest.path);
+      // v21 stage 3/3: settings persisted — exactly 1.0 when done.
+      if (mounted) setState(() => _photoProgress = 1);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(AppLocalizations.of(context).done)),
@@ -816,7 +829,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         alignment: Alignment.center,
         children: [
           circle,
-          const DeliveryLoadingBar(width: 120, trackHeight: 5),
+          // v21: real staged progress, not a looping fake.
+          DeliveryLoadingBar(
+              width: 120, trackHeight: 5, progress: _photoProgress),
         ],
       );
     }

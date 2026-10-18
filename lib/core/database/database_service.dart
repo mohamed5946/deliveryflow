@@ -126,6 +126,54 @@ class DatabaseService {
   List<OrderEntry> orderEntries(String dateKey) =>
       List.unmodifiable(orderRecord(dateKey)?.entries ?? const <OrderEntry>[]);
 
+  /// The user's own average riding speed (km/h), measured from his
+  /// completed trip history — used to personalize ETA estimates.
+  ///
+  /// Only GPS-tracked legs whose implied speed falls in a sane riding
+  /// window (10–80 km/h) count: that drops legs with long customer
+  /// stops (which would drag the average down) and GPS glitches
+  /// (which would spike it). Takes the newest [maxTrips] trips.
+  ///
+  /// Returns null when there is no usable history yet — the caller
+  /// then falls back to the server's estimate.
+  double? personalAvgSpeedKmh({int maxTrips = 20}) {
+    final legs = <({int ts, double km, int sec})>[];
+    for (final record in _orders.values) {
+      for (final entry in record.entries) {
+        if (!entry.isCompleted) continue;
+        if (entry.gpsKmOut > 0 && entry.outgoingDurationSec > 0) {
+          legs.add((
+            ts: entry.timestampMillis,
+            km: entry.gpsKmOut,
+            sec: entry.outgoingDurationSec
+          ));
+        }
+        if (entry.gpsKmBack > 0 && entry.returnDurationSec > 0) {
+          legs.add((
+            ts: entry.timestampMillis,
+            km: entry.gpsKmBack,
+            sec: entry.returnDurationSec
+          ));
+        }
+      }
+    }
+    if (legs.isEmpty) return null;
+    legs.sort((a, b) => b.ts.compareTo(a.ts));
+    double distKm = 0;
+    double timeHrs = 0;
+    var used = 0;
+    for (final leg in legs) {
+      if (used >= maxTrips * 2) break;
+      final kmh = leg.km / (leg.sec / 3600.0);
+      if (kmh < 10 || kmh > 80) continue;
+      distKm += leg.km;
+      timeHrs += leg.sec / 3600.0;
+      used++;
+    }
+    if (timeHrs <= 0) return null;
+    return distKm / timeHrs;
+  }
+
   /// Adds one order entry to the day's record (creating it if needed) and
   /// bumps the day's order count.
   Future<OrderEntry> addOrderEntry({

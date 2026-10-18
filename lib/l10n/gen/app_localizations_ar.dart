@@ -1060,6 +1060,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get navRouteFailed => 'تعذر حساب الطريق، حاول مرة أخرى';
 
   @override
+  String get reroutingNow => 'جاري إعادة حساب الطريق…';
+
+  @override
   String routeRecommendBoth(Object km, Object min) {
     return 'نرشحلك: الطريق الأسرع والأقصر ✅ ($km كم، $min دقيقة)';
   }

@@ -163,7 +163,11 @@ Future<void> handleSharedGeoUri(
     dest = LatLng(target.lat!, target.lng!);
   } else {
     // Address-only share: brief blocking loader while geocoding.
+    // v21: REAL staged progress — shown → sent → received → done.
+    // The bar advances only on real stages and hits 1.0 as the dialog
+    // dismisses. No looping, no faking.
     if (!context.mounted) return;
+    final geoStages = LoadingStages(4);
     showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -171,16 +175,23 @@ Future<void> handleSharedGeoUri(
       builder: (ctx) => AlertDialog(
         content: Row(
           children: [
-            const DeliveryLoadingBar(width: 120),
+            ValueListenableBuilder<double>(
+              valueListenable: geoStages.progress,
+              builder: (_, p, __) =>
+                  DeliveryLoadingBar(width: 120, progress: p),
+            ),
             const SizedBox(width: 12),
             Expanded(child: Text(l10n.geoPreparingOrder)),
           ],
         ),
       ),
     );
+    geoStages.advance(); // dialog shown
     LatLng? geocoded;
     try {
+      geoStages.advance(); // request sent
       geocoded = await geocodeAddress(target.label);
+      geoStages.advance(); // response received
     } catch (_) {
       geocoded = null;
     }
@@ -188,6 +199,8 @@ Future<void> handleSharedGeoUri(
       // Matches the useRootNavigator: true of the loader dialog above.
       Navigator.of(context, rootNavigator: true).pop();
     }
+    geoStages.advance(); // done — exactly 1.0 as we move on
+    geoStages.dispose();
     if (geocoded == null) {
       await fail(l10n.geoAddressNotFound);
       return;
@@ -221,6 +234,8 @@ Future<void> handleSharedGeoUri(
         statusLine: l10n.onWayToCustomer,
         address: target.label,
         phone: entry.phone,
+        // v21: blended ETA — 50% his own measured riding speed.
+        personalSpeedKmh: db.personalAvgSpeedKmh(),
       ),
     ),
   );

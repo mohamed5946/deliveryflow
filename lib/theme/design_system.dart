@@ -334,15 +334,56 @@ class EmptyState extends StatelessWidget {
 }
 
 /// Shimmer-free loading indicator inside a glass surface.
+/// Honest stage-based progress for real multi-stage work.
+///
+/// The bar advances ONLY when a real stage completes
+/// ([advance] is called by the actual work, never by a timer), sits at
+/// 0.0 before the first stage, and reaches 1.0 exactly when the last
+/// stage finishes. No looping, no creeping, no fake motion —
+///
+/// Mohamed's explicit rule: a loader must reflect real work, never
+/// "kill time" for the viewer.
+class LoadingStages {
+  /// Number of real stages in the work being tracked.
+  final int total;
+
+  int _done = 0;
+
+  /// 0.0–1.0 progress; listen with ValueListenableBuilder and pass to
+  /// DeliveryLoadingBar(progress:).
+  final ValueNotifier<double> progress = ValueNotifier<double>(0);
+
+  LoadingStages(this.total) : assert(total > 0);
+
+  /// Mark one real stage complete. Extra calls past [total] are
+  /// ignored so the bar can never overshoot.
+  void advance() {
+    if (_done < total) {
+      _done++;
+      progress.value = _done / total;
+    }
+  }
+
+  void dispose() => progress.dispose();
+}
+
 class GlassLoading extends StatelessWidget {
-  const GlassLoading({super.key});
+  /// Real progress 0.0–1.0 when the work has observable stages.
+  ///
+  /// Null means the work is a single in-flight operation (one DB
+  /// query / one provider future): the bar parks at 50% — "waiting on
+  /// the request" — and dismisses exactly when data arrives. It never
+  /// loops or creeps, so it cannot fake progress it doesn't have.
+  final double? progress;
+
+  const GlassLoading({super.key, this.progress});
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    return Center(
       child: Padding(
-        padding: EdgeInsets.all(48),
-        child: DeliveryLoadingBar(),
+        padding: const EdgeInsets.all(48),
+        child: DeliveryLoadingBar(progress: progress ?? 0.5),
       ),
     );
   }
@@ -358,8 +399,9 @@ class GlassLoading extends StatelessWidget {
 ///
 /// Pass [progress] (0.0–1.0) for REAL determinate loading: the scooter
 /// sits exactly at the progress position and reaches the end of the
-/// track exactly at 1.0. Leave it null for the legacy looping
-/// animation (used where true progress is unknowable).
+/// track exactly at 1.0. Passing null keeps the legacy looping
+/// animation — do NOT use it for new work: every loader in the app
+/// must report real progress (see [LoadingStages] / [GlassLoading]).
 class DeliveryLoadingBar extends StatefulWidget {
   final double width;
   final double trackHeight;

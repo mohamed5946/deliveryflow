@@ -353,6 +353,7 @@
   "locatingYou": "جاري تحديد موقعك…",
   "minute": "دقيقة",
   "navRouteFailed": "تعذر حساب الطريق، حاول مرة أخرى",
+  "reroutingNow": "جاري إعادة حساب الطريق…",
   "routeRecommendBoth": "نرشحلك: الطريق الأسرع والأقصر ✅ ({km} كم، {min} دقيقة)",
   "routeRecommendShortest": "نرشحلك: الطريق الأقصر ({km} كم، {min} دقيقة) — يوفّر بنزين ⛽",
   "mapModeNorthUp": "اتجاه الشمال",

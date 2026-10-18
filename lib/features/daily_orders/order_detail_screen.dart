@@ -811,6 +811,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
   /// Mohamed explicitly wants navigation INSIDE the app, not Google Maps.
   void _openNavigation(BuildContext context, LatLng loc, OrderEntry entry) {
     final l10n = AppLocalizations.of(context);
+    final db = ref.read(databaseServiceProvider);
     final shortId = entry.id.length > 6
         ? entry.id.substring(entry.id.length - 6)
         : entry.id;
@@ -834,6 +835,8 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
           statusLine: statusLine,
           address: entry.notes,
           phone: entry.phone,
+          // v21: blended ETA — 50% his own measured riding speed.
+          personalSpeedKmh: db.personalAvgSpeedKmh(),
         ),
       ),
     );
@@ -1558,13 +1561,20 @@ class _DeliveryHeroMapState extends ConsumerState<_DeliveryHeroMap> {
     final progress = _progress;
     final n = progress?.pointCount ?? 0;
     if (progress == null || n == 0) {
+      // v21: waiting for the first GPS breadcrumb is a pure event
+      // wait — there are no stages to measure, so we show an honest
+      // status indicator instead of a fake progress bar.
       return Container(
         color: LiquidPalette.cardTint(isDark),
         child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const DeliveryLoadingBar(width: 170),
+              const Icon(
+                Icons.satellite_alt_rounded,
+                size: 34,
+                color: LiquidPalette.primaryBlue,
+              ),
               const SizedBox(height: 10),
               Text(
                 l10n.waitingForGps,

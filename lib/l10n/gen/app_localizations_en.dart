@@ -1061,6 +1061,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get navRouteFailed => 'Could not calculate the route, try again';
 
   @override
+  String get reroutingNow => 'Recalculating route…';
+
+  @override
   String routeRecommendBoth(Object km, Object min) {
     return 'Recommended: fastest & shortest route ✅ ($km km, $min min)';
   }

@@ -2108,6 +2108,12 @@ abstract class AppLocalizations {
   /// **'Could not calculate the route, try again'**
   String get navRouteFailed;
 
+  /// No description provided for @reroutingNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Recalculating route…'**
+  String get reroutingNow;
+
   /// No description provided for @routeRecommendBoth.
   ///
   /// In en, this message translates to:

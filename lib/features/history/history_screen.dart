@@ -58,8 +58,10 @@ class HistoryScreen extends ConsumerWidget {
                       child: SizedBox(
                           height: 60,
                           child: Center(
-                              child:
-                                  DeliveryLoadingBar(width: 160)))),
+                              // v21: single provider op — parked at 50%
+                              // ("waiting"), never a fake loop.
+                              child: DeliveryLoadingBar(
+                                  width: 160, progress: 0.5)))),
                   error: (_, __) => const SizedBox.shrink(),
                   data: (r) {
                     final end = WeekCalendar.parseDateKey(

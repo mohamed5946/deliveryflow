@@ -401,6 +401,7 @@
   "locatingYou": "Locating you…",
   "minute": "min",
   "navRouteFailed": "Could not calculate the route, try again",
+  "reroutingNow": "Recalculating route…",
   "routeRecommendBoth": "Recommended: fastest & shortest route ✅ ({km} km, {min} min)",
   "routeRecommendShortest": "Recommended: shortest route ({km} km, {min} min) — saves fuel ⛽",
   "mapModeNorthUp": "North up",

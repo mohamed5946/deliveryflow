@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:deliveryflow/l10n/gen/app_localizations.dart';
@@ -27,6 +28,11 @@ class NavigationScreen extends StatefulWidget {
   final String address;
   final String phone;
 
+  /// The courier's own average riding speed (km/h) measured from his
+  /// completed trip history, or null when there is no history yet.
+  /// Used to blend the ETA: 50% personal speed + 50% server estimate.
+  final double? personalSpeedKmh;
+
   const NavigationScreen({
     super.key,
     required this.dateKey,
@@ -36,6 +42,7 @@ class NavigationScreen extends StatefulWidget {
     required this.statusLine,
     required this.address,
     required this.phone,
+    this.personalSpeedKmh,
   });
 
   @override
@@ -47,14 +54,16 @@ enum _MapMode {
   /// Classic north-up follow (v19 behavior).
   northUp,
 
-  /// Heading-up: map rotates so the direction of travel points up.
+  /// Heading-up: map rotates so the direction of travel points up,
+  /// scooter framed at the lower third like Google Maps navigation.
   headingUp,
 
   /// Overview: whole active route fitted on screen, follow paused.
   overview,
 }
 
-class _NavigationScreenState extends State<NavigationScreen> {
+class _NavigationScreenState extends State<NavigationScreen>
+    with SingleTickerProviderStateMixin {
   final MapController _mapController = MapController();
   final RouteSnapService _snap = RouteSnapService();
   StreamSubscription<Position>? _posSub;
@@ -63,7 +72,6 @@ class _NavigationScreenState extends State<NavigationScreen> {
   List<LatLng> _routePoints = [];
   double? _remainingKm;
   int? _etaMin;
-  bool _locating = true;
   bool _denied = false;
   bool _mapReady = false;
   bool _routeFailedNoteShown = false;
@@ -71,6 +79,28 @@ class _NavigationScreenState extends State<NavigationScreen> {
   // shows the recenter button; tapping the button resumes follow.
   bool _following = true;
   static const double _followZoom = 16.0;
+
+  // ---- v21: Google-Maps-style nav camera ----
+  /// Camera glide animation: smooth follow on every GPS fix, no jumps.
+  AnimationController? _camAnim;
+
+  // ---- v21: off-route auto re-route ----
+  /// Non-blocking "recalculating" pill state.
+  bool _rerouting = false;
+
+  /// Consecutive GPS fixes >60m off the active route.
+  int _deviationCount = 0;
+
+  /// Throttle: at most one automatic re-route per 30s.
+  DateTime? _lastRerouteAt;
+
+  // ---- v21: real staged nav loading ----
+  /// 0.25 permission OK → 0.5 first GPS fix → 0.75 route request sent →
+  /// 1.0 route drawn. Advances ONLY on real stages, never by timer.
+  double _navProgress = 0;
+
+  /// True once the first route is drawn (or its loud failure shown).
+  bool _routeReady = false;
 
   // ---- v20: alternative routes ----
   /// Up to 3 OSRM route alternatives for the current position.
@@ -87,8 +117,9 @@ class _NavigationScreenState extends State<NavigationScreen> {
   bool _recDismissed = false;
 
   // ---- v20: map perspectives ----
-  _MapMode _mapMode = _MapMode.northUp;
-  _MapMode _modeBeforeOverview = _MapMode.northUp;
+  // v21: heading-up is the DEFAULT (Google-Maps-style nav camera).
+  _MapMode _mapMode = _MapMode.headingUp;
+  _MapMode _modeBeforeOverview = _MapMode.headingUp;
 
   /// Last stable GPS bearing (degrees clockwise from north). Only
   /// updated from GPS heading while actually moving, to avoid jitter
@@ -139,6 +170,8 @@ class _NavigationScreenState extends State<NavigationScreen> {
       if (mounted) setState(() => _denied = true);
       return;
     }
+    // v21 stage 1/4: permission + location service OK.
+    if (mounted) setState(() => _navProgress = 0.25);
     _posSub = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.high,
@@ -163,23 +196,15 @@ class _NavigationScreenState extends State<NavigationScreen> {
     }
     setState(() {
       _current = pos;
-      _locating = false;
+      // v21 stage 2/4: first real GPS fix acquired.
+      if (first) _navProgress = 0.5;
     });
-    // Continuous camera follow (fixed zoom), per perspective mode.
-    // Guarded so a single failed move can never wedge the camera:
-    // the next GPS fix retries.
-    if (_following && _mapReady && _mapMode != _MapMode.overview) {
-      try {
-        if (_mapMode == _MapMode.headingUp) {
-          // flutter_map rotation is degrees with 0° = North, so
-          // rotation == bearing gives heading-up.
-          _mapController.moveAndRotate(pos, _followZoom, _lastBearing);
-        } else {
-          _mapController.move(pos, _followZoom);
-        }
-      } catch (_) {}
-    }
-    if (first) await _refreshRoute();
+    // Continuous camera follow per perspective mode (v21: smooth glide,
+    // heading-up frames the scooter at the lower third).
+    _updateFollowCamera(pos);
+    // v21: off-route detection → automatic re-route.
+    _checkDeviation(pos, p.speed);
+    if (first) await _refreshRoute(initial: true);
   }
 
   /// Smallest signed difference between two bearings in degrees.
@@ -194,16 +219,157 @@ class _NavigationScreenState extends State<NavigationScreen> {
     final cur = _current;
     if (cur == null || !mounted) return;
     setState(() => _following = true);
-    if (_mapReady) {
+    _updateFollowCamera(cur);
+  }
+
+  // ---- v21: Google-Maps-style nav camera ----
+
+  /// Moves the camera for the current perspective mode. Called on every
+  /// accepted GPS fix while following, on recenter, and on perspective
+  /// switches. Never throws: a failed move is retried on the next fix.
+  void _updateFollowCamera(LatLng pos) {
+    if (!_following || !_mapReady || !mounted) return;
+    if (_mapMode == _MapMode.overview) return;
+    try {
+      if (_mapMode == _MapMode.headingUp) {
+        // flutter_map rotation is degrees with 0° = North, so
+        // rotation == bearing gives heading-up.
+        _glideCamera(_headingUpTarget(pos, _lastBearing), _followZoom,
+            _lastBearing);
+      } else {
+        // North-up keeps whatever rotation the map currently has.
+        double rot = 0;
+        try {
+          rot = _mapController.camera.rotation;
+        } catch (_) {}
+        _glideCamera(pos, _followZoom, rot);
+      }
+    } catch (_) {}
+  }
+
+  /// Google-Maps-style framing: in heading-up mode the scooter sits at
+  /// the lower third of the screen with the road ahead visible. Done by
+  /// aiming the camera at a point ahead of the scooter along the
+  /// bearing, scaled to the visible map height at the current zoom.
+  LatLng _headingUpTarget(LatLng pos, double bearing) {
+    try {
+      final b = _mapController.camera.visibleBounds;
+      const d = Distance();
+      final spanM = d.distance(
+        LatLng(b.north, b.west),
+        LatLng(b.south, b.west),
+      );
+      if (spanM > 0) {
+        // Scooter renders ~68% down the screen.
+        return d.offset(pos, spanM * 0.18, bearing);
+      }
+    } catch (_) {}
+    return pos;
+  }
+
+  /// Glides the camera to [target] over ~450ms instead of jumping.
+  /// Rotation takes the shortest arc. A new GPS fix restarts the glide
+  /// from the current camera state, so motion stays continuous.
+  void _glideCamera(LatLng target, double zoom, double rotation) {
+    if (!_mapReady || !mounted) return;
+    try {
+      final cam = _mapController.camera;
+      final fromC = cam.center;
+      final fromR = cam.rotation;
+      var dR = (rotation - fromR) % 360;
+      if (dR > 180) dR -= 360;
+      if (dR < -180) dR += 360;
+      _camAnim?.dispose();
+      final anim = AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 450),
+      );
+      _camAnim = anim;
+      anim.addListener(() {
+        if (!mounted) return;
+        final t = Curves.easeOut.transform(anim.value);
+        final lat =
+            fromC.latitude + (target.latitude - fromC.latitude) * t;
+        final lng =
+            fromC.longitude + (target.longitude - fromC.longitude) * t;
+        try {
+          _mapController.moveAndRotate(
+              LatLng(lat, lng), zoom, fromR + dR * t);
+        } catch (_) {}
+      });
+      anim.forward();
+    } catch (_) {
       try {
-        _mapController.move(cur, _followZoom);
+        _mapController.moveAndRotate(target, zoom, rotation);
       } catch (_) {}
     }
   }
 
-  Future<void> _refreshRoute() async {
+  // ---- v21: off-route auto re-route ----
+
+  /// Minimum distance (meters) from [p] to the active route polyline,
+  /// via point-to-segment projection (equirectangular — accurate well
+  /// under 1 km, and we only care about the 60 m threshold).
+  double _distanceToRoute(LatLng p) {
+    double minD = double.infinity;
+    final pts = _routePoints;
+    final latR = p.latitude * math.pi / 180;
+    final cosLat = math.cos(latR);
+    for (var i = 0; i + 1 < pts.length; i++) {
+      final a = pts[i], b = pts[i + 1];
+      final ax = (a.longitude - p.longitude) * cosLat;
+      final ay = a.latitude - p.latitude;
+      final bx = (b.longitude - p.longitude) * cosLat;
+      final by = b.latitude - p.latitude;
+      final abx = bx - ax, aby = by - ay;
+      final denom = abx * abx + aby * aby;
+      var t = denom == 0 ? 0.0 : -((ax * abx + ay * aby) / denom);
+      t = t.clamp(0.0, 1.0);
+      final cx = ax + abx * t, cy = ay + aby * t;
+      final mx = cx * 111320 * cosLat;
+      final my = cy * 110540;
+      final dist = math.sqrt(mx * mx + my * my);
+      if (dist < minD) minD = dist;
+    }
+    return minD;
+  }
+
+  /// Off-route detection: more than 60 m from the active route for 3
+  /// fixes in a row (while actually moving) triggers one automatic
+  /// re-route from the current position. Throttled to one re-route
+  /// per 30 s so OSRM is never spammed.
+  void _checkDeviation(LatLng pos, double speed) {
+    if (_routePoints.length < 2 || _rerouting || speed <= 2) return;
+    if (_distanceToRoute(pos) > 60) {
+      _deviationCount++;
+    } else {
+      _deviationCount = 0;
+      return;
+    }
+    if (_deviationCount < 3) return;
+    _deviationCount = 0;
+    final now = DateTime.now();
+    if (_lastRerouteAt != null &&
+        now.difference(_lastRerouteAt!) < const Duration(seconds: 30)) {
+      return;
+    }
+    _lastRerouteAt = now;
+    _autoReroute();
+  }
+
+  Future<void> _autoReroute() async {
+    if (!mounted || _rerouting) return;
+    setState(() => _rerouting = true);
+    await _refreshRoute(fromReroute: true);
+    if (mounted) setState(() => _rerouting = false);
+  }
+
+  Future<void> _refreshRoute(
+      {bool initial = false, bool fromReroute = false}) async {
     final cur = _current;
     if (cur == null || !mounted) return;
+    // v21 stage 3/4: route request sent to OSRM.
+    if (initial && mounted) setState(() => _navProgress = 0.75);
     final alts = await _snap.fetchRouteAlternatives(
         from: cur, to: widget.destination);
     if (!mounted) return;
@@ -212,22 +378,35 @@ class _NavigationScreenState extends State<NavigationScreen> {
         final countChanged = alts.length != _routes.length;
         _routes = alts;
         _computeRouteStats();
-        if (countChanged) {
-          // New set of alternatives: auto-select the recommended one
-          // (shortest = fuel saver).
+        if (fromReroute || countChanged) {
+          // Fresh alternatives (or an off-route re-route): auto-select
+          // the recommended route (shortest = fuel saver).
           _selectedRoute = _shortestIdx;
         } else {
           // Keep the user's manual selection stable across refreshes.
           _selectedRoute = _selectedRoute.clamp(0, _routes.length - 1);
         }
         _applySelectedRoute();
-      } else if (!_routeFailedNoteShown) {
-        _routeFailedNoteShown = true;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content:
-                  Text(AppLocalizations.of(context).navRouteFailed)),
-        );
+        if (initial) {
+          // v21 stage 4/4: route drawn — the bar hits 1.0 exactly as
+          // the map becomes ready, then dismisses.
+          _navProgress = 1.0;
+          _routeReady = true;
+        }
+      } else {
+        if (initial) {
+          // Loud failure shown, but the map itself is still usable.
+          _navProgress = 1.0;
+          _routeReady = true;
+        }
+        if (!_routeFailedNoteShown) {
+          _routeFailedNoteShown = true;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content:
+                    Text(AppLocalizations.of(context).navRouteFailed)),
+          );
+        }
       }
     });
     // Keep overview fitted to the fresh geometry.
@@ -259,7 +438,42 @@ class _NavigationScreenState extends State<NavigationScreen> {
     final sel = _routes[_selectedRoute];
     _routePoints = sel.geometry;
     _remainingKm = sel.distanceKm;
-    _etaMin = (sel.durationSec / 60).round();
+    _etaMin = _blendedEtaMin(sel);
+  }
+
+  /// Blended ETA for a route: 50% the courier's own measured riding
+  /// speed (from his completed trip history) + 50% the server's
+  /// implied speed for this route. Falls back to 100% server estimate
+  /// when there is no trip history yet.
+  ///
+  /// HONESTY NOTE: there is NO live-traffic data source — OSRM has
+  /// none, and we claim none anywhere. The personal-speed half
+  /// implicitly embeds the real traffic he rides through, because it
+  /// is measured from his actual trips (distance / moving time).
+  /// Distance stays the real OSRM road distance — only TIME is
+  /// blended.
+  int _blendedEtaMin(RouteDirections r) {
+    double? serverSpeed;
+    if (r.durationSec > 0) {
+      serverSpeed = r.distanceKm / (r.durationSec / 3600.0);
+    }
+    final personal = widget.personalSpeedKmh;
+    final double speed;
+    if (personal != null &&
+        personal > 0 &&
+        serverSpeed != null &&
+        serverSpeed > 0) {
+      speed = 0.5 * personal + 0.5 * serverSpeed;
+    } else if (personal != null && personal > 0) {
+      speed = personal;
+    } else if (serverSpeed != null && serverSpeed > 0) {
+      speed = serverSpeed;
+    } else {
+      return (r.durationSec / 60).round();
+    }
+    // One bad history batch can never break the ETA.
+    final clamped = speed.clamp(10.0, 80.0);
+    return (r.distanceKm / clamped * 60).round();
   }
 
   /// User taps a route chip: make it the actively tracked route.
@@ -303,11 +517,12 @@ class _NavigationScreenState extends State<NavigationScreen> {
       switch (_mapMode) {
         case _MapMode.northUp:
           _mapController.rotate(0);
-          if (_following) _mapController.move(cur, _followZoom);
+          if (_following) _glideCamera(cur, _followZoom, 0);
           break;
         case _MapMode.headingUp:
           if (_following) {
-            _mapController.moveAndRotate(cur, _followZoom, _lastBearing);
+            _glideCamera(_headingUpTarget(cur, _lastBearing),
+                _followZoom, _lastBearing);
           } else {
             _mapController.rotate(_lastBearing);
           }
@@ -378,7 +593,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
       final geo = _routes[i].geometry;
       if (geo.length < 3) continue;
       final r = _routes[i];
-      final mins = (r.durationSec / 60).round();
+      final mins = _blendedEtaMin(r);
       final selected = i == _selectedRoute;
       markers.add(
         Marker(
@@ -459,7 +674,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
   String _recommendationText(AppLocalizations l10n) {
     final rec = _routes[_shortestIdx];
     final km = rec.distanceKm.toStringAsFixed(1);
-    final min = (rec.durationSec / 60).round().toString();
+    final min = _blendedEtaMin(rec).toString();
     if (_fastestIdx == _shortestIdx) {
       return l10n.routeRecommendBoth(km, min);
     }
@@ -470,6 +685,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
   void dispose() {
     _posSub?.cancel();
     _routeTimer?.cancel();
+    _camAnim?.dispose();
     _mapController.dispose();
     super.dispose();
   }
@@ -584,16 +800,47 @@ class _NavigationScreenState extends State<NavigationScreen> {
                 ),
               ),
             ),
-          if (_locating && !_denied)
+          // v21: real staged loading — the bar advances ONLY on real
+          // stages (permission → GPS fix → request → drawn) and hits
+          // 1.0 exactly when the map is ready. No looping, no faking.
+          if (!_routeReady && !_denied)
             Center(
               child: GlassCard(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const DeliveryLoadingBar(width: 170),
+                    DeliveryLoadingBar(
+                        width: 170, progress: _navProgress),
                     const SizedBox(height: 10),
                     Text(l10n.locatingYou),
                   ],
+                ),
+              ),
+            ),
+          // v21: off-route re-route — small NON-BLOCKING pill while the
+          // new route is fetched. Never a blocking dialog for this
+          // routine case; loud dialogs stay for real failures.
+          if (_rerouting && !_denied)
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 118,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: GlassCard(
+                  borderRadius: GlassTokens.radiusM,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const DeliveryLoadingBar(
+                          width: 90, progress: 0.5),
+                      const SizedBox(width: 10),
+                      Text(
+                        l10n.reroutingNow,
+                        style: text.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w700),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
