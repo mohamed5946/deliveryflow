@@ -369,6 +369,8 @@ class _RegionPickerScreenState extends State<RegionPickerScreen> {
                             .toStringAsFixed(0),
                         '$_tileCount',
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: text.bodySmall?.copyWith(
                           color: scheme.primary,
                           fontWeight: FontWeight.bold),

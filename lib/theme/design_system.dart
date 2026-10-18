@@ -160,6 +160,9 @@ class GlassButton extends StatelessWidget {
         : (isDark
             ? [Colors.white.withValues(alpha: 0.16), Colors.white.withValues(alpha: 0.08)]
             : [Colors.white.withValues(alpha: 0.9), Colors.white.withValues(alpha: 0.6)]);
+    // v23: narrow phones (~360dp and below) give each button in a 2-button
+    // row only ~160dp. Shrink horizontal padding so the label has room.
+    final narrow = MediaQuery.of(context).size.width < 380;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 220),
       curve: Curves.easeOut,
@@ -189,8 +192,11 @@ class GlassButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(GlassTokens.radiusM),
           onTap: onPressed,
           child: Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+            // v23: adaptive padding — tighter on narrow phones so long
+            // Arabic labels fit; the FittedBox below shrinks the label
+            // instead of letting it paint outside the button.
+            padding: EdgeInsets.symmetric(
+                horizontal: narrow ? 14 : 22, vertical: 14),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
@@ -208,12 +214,23 @@ class GlassButton extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                 ],
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: primary ? Colors.white : scheme.onSurface,
+                // v23: Flexible + FittedBox.scaleDown — the label shrinks
+                // to fit the available width instead of overflowing the
+                // button (seen with "عرض تفاصيل الأسبوع" at ~360dp).
+                // maxLines: 1 keeps the button height stable.
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.center,
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: primary ? Colors.white : scheme.onSurface,
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -269,10 +286,14 @@ class StatTile extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: text.headlineSmall
                   ?.copyWith(fontWeight: FontWeight.w800, height: 1.0)),
           const SizedBox(height: 4),
           Text(label,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               style: text.bodySmall?.copyWith(
                   color:
                       text.bodySmall?.color?.withValues(alpha: 0.75),
@@ -1084,10 +1105,15 @@ class SectionHeader extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            title,
-            style: text.titleMedium
-                ?.copyWith(fontWeight: FontWeight.w800),
+          // v23: long titles must not push the action button out.
+          Flexible(
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: text.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w800),
+            ),
           ),
           if (actionLabel != null)
             TextButton(

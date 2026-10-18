@@ -68,26 +68,69 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final text = Theme.of(context).textTheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // v23: guarantee contrast on the first-launch screen — white text when
+    // the effective background is dark, near-black when it is light,
+    // regardless of theme text-style drift.
+    final onBg = isDark ? Colors.white : const Color(0xFF111418);
+    final onBgSoft = (isDark ? Colors.white : const Color(0xFF111418))
+        .withValues(alpha: 0.72);
     return Scaffold(
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(24),
-          children: [
-            const SizedBox(height: 24),
-            Text(l10n.onboardingTitle,
-                style: text.headlineMedium
-                    ?.copyWith(fontWeight: FontWeight.w800),
-                textAlign: TextAlign.center),
-            const SizedBox(height: 8),
-            Text(l10n.onboardingSubtitle,
-                style: text.bodyMedium, textAlign: TextAlign.center),
-            const SizedBox(height: 32),
+      backgroundColor: Colors.transparent,
+      // v23: same Liquid Glass skin as the rest of the app — the onboarding
+      // route sits outside the shell, so it needs its own AuroraBackground
+      // (otherwise it floats over an undefined backdrop).
+      body: Stack(
+        children: [
+          const AuroraBackground(),
+          SafeArea(
+            child: ListView(
+              padding: const EdgeInsets.all(24),
+              children: [
+                const SizedBox(height: 8),
+                // v23: brand mark — same 72dp gradient tile as the
+                // registration gate, so both first-launch screens share
+                // the app's Liquid Glass identity.
+                Center(
+                  child: Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                      gradient: LiquidPalette.brandGradientLg,
+                      boxShadow: [
+                        BoxShadow(
+                          color: LiquidPalette.primaryBlue
+                              .withValues(alpha: 0.4),
+                          blurRadius: 24,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.waving_hand_rounded,
+                      color: Colors.white,
+                      size: 38,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(l10n.onboardingTitle,
+                    style: text.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.w800, color: onBg),
+                    textAlign: TextAlign.center),
+                const SizedBox(height: 8),
+                Text(l10n.onboardingSubtitle,
+                    style:
+                        text.bodyMedium?.copyWith(color: onBgSoft),
+                    textAlign: TextAlign.center),
+                const SizedBox(height: 32),
             GlassCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(l10n.displayNameLabel,
-                      style: text.titleSmall),
+                      style: text.titleSmall?.copyWith(color: onBg)),
                   const SizedBox(height: 8),
                   TextField(
                     controller: _name,
@@ -103,7 +146,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(l10n.preferredLanguage,
-                      style: text.titleSmall),
+                      style: text.titleSmall?.copyWith(color: onBg)),
                   const SizedBox(height: 8),
                   SegmentedButton<String>(
                     segments: const [
@@ -124,7 +167,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(l10n.preferredTheme,
-                      style: text.titleSmall),
+                      style: text.titleSmall?.copyWith(color: onBg)),
                   const SizedBox(height: 8),
                   SegmentedButton<int>(
                     segments: [
@@ -150,7 +193,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     children: [
                       Expanded(
                           child: Text(l10n.reminderTimeLabel,
-                              style: text.titleSmall)),
+                              style: text.titleSmall?.copyWith(color: onBg))),
                       TextButton(
                         onPressed: _pickTime,
                         child: Text(_reminder.format(context),
@@ -160,7 +203,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   ),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: Text(l10n.notificationsEnabled),
+                    title: Text(l10n.notificationsEnabled,
+                        style: text.titleSmall?.copyWith(color: onBg)),
                     value: _notifications,
                     onChanged: (v) =>
                         setState(() => _notifications = v),
@@ -174,7 +218,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(l10n.weeklyOrderGoal,
-                      style: text.titleSmall),
+                      style: text.titleSmall?.copyWith(color: onBg)),
                   const SizedBox(height: 8),
                   TextField(
                     controller: _goalOrders,
@@ -184,7 +228,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   ),
                   const SizedBox(height: 12),
                   Text(l10n.weeklyHoursGoal,
-                      style: text.titleSmall),
+                      style: text.titleSmall?.copyWith(color: onBg)),
                   const SizedBox(height: 8),
                   TextField(
                     controller: _goalHours,
@@ -208,6 +252,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             ),
           ],
         ),
+      ),
+      ],
       ),
     );
   }

@@ -58,6 +58,10 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     final l10n = AppLocalizations.of(context);
     final text = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // v23: guarantee contrast — white text when the effective background
+    // is dark, near-black when it is light.
+    final onBg = isDark ? Colors.white : const Color(0xFF111418);
 
     return PopScope(
       canPop: false,
@@ -103,6 +107,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                           textAlign: TextAlign.center,
                           style: text.headlineSmall?.copyWith(
                             fontWeight: FontWeight.w800,
+                            color: onBg,
                           ),
                         ),
                         const SizedBox(height: 20),
@@ -126,6 +131,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                             style: text.bodyLarge?.copyWith(
                               fontWeight: FontWeight.w700,
                               letterSpacing: 2,
+                              color: onBg,
                             ),
                             decoration: InputDecoration(
                               hintText: l10n.registerHint,

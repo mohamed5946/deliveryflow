@@ -133,6 +133,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                                         ?.withValues(alpha: 0.65))),
                             Text(
                               name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: text.headlineSmall?.copyWith(
                                   fontWeight: FontWeight.w800, height: 1.2),
                             ),

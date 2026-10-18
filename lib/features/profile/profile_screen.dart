@@ -7,6 +7,7 @@ import 'package:deliveryflow/l10n/gen/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -39,6 +40,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   /// Advances only on real stages, never by timer.
   double _photoProgress = 0;
 
+  /// v23: real app version from the installed package (never hardcoded).
+  /// Null while loading — the version row shows an empty value until then
+  /// (no fake placeholder).
+  String? _appVersion;
+
   @override
   void initState() {
     super.initState();
@@ -49,7 +55,23 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       // When the field loses focus, flush any pending debounced save.
       if (!_nameFocus.hasFocus) _flushNameSave();
     });
+    _loadAppVersion();
   }
+
+  /// v23: reads the real version (e.g. 23.0.0+25) from the installed APK.
+  Future<void> _loadAppVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (!mounted) return;
+      setState(() => _appVersion = '${info.version}+${info.buildNumber}');
+    } catch (_) {
+      // Leave null — the row shows empty rather than a fake version.
+    }
+  }
+
+  /// v23: version row value — real version once loaded, empty before that.
+  String _versionValue(AppLocalizations l10n) =>
+      _appVersion == null ? '' : '${l10n.versionLabel}: $_appVersion';
 
   @override
   void dispose() {
@@ -355,7 +377,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 _infoRow(
                   icon: Icons.info_rounded,
                   label: l10n.aboutApp,
-                  value: '${l10n.versionLabel}: 1.0.0+1',
+                  value: _versionValue(l10n),
                 ),
                 const SizedBox(height: 4),
                 _infoRow(
@@ -661,7 +683,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     _infoRow(
                       icon: Icons.info_rounded,
                       label: l10n.aboutApp,
-                      value: '${l10n.versionLabel}: 1.0.0+1',
+                      value: _versionValue(l10n),
                     ),
                     const SizedBox(height: 4),
                     _infoRow(
@@ -1315,8 +1337,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 style: text.titleSmall
                     ?.copyWith(fontWeight: FontWeight.w600)),
           ),
-          Text(value,
-              style: const TextStyle(fontWeight: FontWeight.w700)),
+          // v23: value must never paint outside the row on narrow phones.
+          Flexible(
+            child: Text(value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.end,
+                style: const TextStyle(fontWeight: FontWeight.w700)),
+          ),
         ],
       ),
     );

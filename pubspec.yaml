@@ -1,7 +1,7 @@
 name: deliveryflow
 description: DeliveryFlow - weekly schedules, order tracking, working hours and reports for delivery drivers.
 publish_to: 'none'
-version: 22.0.0+24
+version: 23.0.0+25
 
 environment:
   sdk: ^3.6.0
@@ -32,6 +32,7 @@ dependencies:
   image_picker: ^1.1.2
   url_launcher: ^6.3.1
   flutter_map_tile_caching: ^9.0.1
+  package_info_plus: ^8.0.0
 
 dev_dependencies:
   flutter_test:
