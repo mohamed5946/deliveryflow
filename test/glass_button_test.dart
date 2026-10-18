@@ -35,16 +35,16 @@ void main() {
           child: Scaffold(
             body: Padding(
               padding: const EdgeInsets.all(16),
-              child: Row(
-                children: const [
+              child: const Row(
+                children: [
                   Expanded(
                     child: GlassButton(
                       label: 'أضف أوردر',
                       icon: Icons.add_rounded,
                     ),
                   ),
-                  SizedBox(width: 10),
-                  Expanded(
+                  const SizedBox(width: 10),
+                  const Expanded(
                     child: GlassButton(
                       label: 'عرض تفاصيل الأسبوع',
                       icon: Icons.chevron_right_rounded,
