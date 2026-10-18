@@ -91,5 +91,34 @@ void main() {
     test('unsupported https URL returns null', () async {
       expect(await parseShareInput('https://example.com/foo'), isNull);
     });
+
+    group('v24.1 Flex format: customer address @ lat,lng', () {
+      test('coords become the location, address becomes the label', () async {
+        final t = await parseShareInput(
+            'شارع عبدالحليم محمود عمارة 15 الدور الاخير @ 29.987240,30.979383');
+        expect(t, isNotNull);
+        expect(t!.hasCoords, isTrue);
+        expect(t.lat, closeTo(29.987240, 1e-6));
+        expect(t.lng, closeTo(30.979383, 1e-6));
+        // Customer's written address is kept as a label — never geocoded.
+        expect(t.label, contains('عبدالحليم محمود'));
+        expect(t.label, isNot(contains('29.987240')));
+      });
+
+      test('coords without space after comma parse correctly', () async {
+        final t = await parseShareInput('بعض العنوان @30.0,31.0');
+        expect(t, isNotNull);
+        expect(t!.lat, closeTo(30.0, 1e-6));
+        expect(t.lng, closeTo(31.0, 1e-6));
+      });
+
+      test('out-of-range numbers are rejected', () async {
+        expect(await parseShareInput('عنوان @ 999.0,31.0'), isNull);
+      });
+
+      test('address-only text still returns null (geocoded later)', () async {
+        expect(await parseShareInput('شارع فيصل الرئيسي'), isNull);
+      });
+    });
   });
 }

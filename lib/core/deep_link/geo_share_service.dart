@@ -240,18 +240,44 @@ Future<GeoShareTarget?> parseShareInput(String raw) async {
   // Strip trailing punctuation the share text may have glued on.
   candidate = candidate.replaceAll(RegExp(r'[.,;)\]]+$'), '');
   if (candidate.startsWith('geo:')) return parseGeoUri(candidate);
-  if (!_looksLikeMapsUrl(candidate)) return null;
-  var finalUrl = candidate;
-  final lower = candidate.toLowerCase();
-  if (lower.contains('goo.gl') || lower.contains('maps.app.goo.gl')) {
-    try {
-      finalUrl = await _resolveShortLink(candidate)
-          .timeout(const Duration(seconds: 15));
-    } catch (_) {
-      finalUrl = candidate;
+  if (_looksLikeMapsUrl(candidate)) {
+    var finalUrl = candidate;
+    final lower = candidate.toLowerCase();
+    if (lower.contains('goo.gl') || lower.contains('maps.app.goo.gl')) {
+      try {
+        finalUrl = await _resolveShortLink(candidate)
+            .timeout(const Duration(seconds: 15));
+      } catch (_) {
+        finalUrl = candidate;
+      }
     }
+    final parsed = _parseGoogleMapsUrl(finalUrl);
+    if (parsed != null) return parsed;
   }
-  return _parseGoogleMapsUrl(finalUrl);
+  // v24.1: Flex-style free text: "customer address @ lat,lng".
+  // The coordinates are the EXACT location (source of truth); the
+  // customer's written address is only a label for the notes — it is
+  // never geocoded or treated as the location when coords exist.
+  return _extractCoordsFromText(text);
+}
+
+/// v24.1: extracts a "lat,lng" pair embedded in free text, e.g.
+/// "شارع عبدالحليم محمود عمارة 15 الدور الاخير @ 29.987240,30.979383".
+/// The remaining text becomes the label (customer's address).
+/// Returns null when no valid coordinate pair is found.
+GeoShareTarget? _extractCoordsFromText(String text) {
+  final m =
+      RegExp(r'(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)').firstMatch(text);
+  if (m == null) return null;
+  final lat = double.tryParse(m.group(1)!);
+  final lng = double.tryParse(m.group(2)!);
+  if (lat == null || lng == null) return null;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  final label = (text.substring(0, m.start) + ' ' + text.substring(m.end))
+      .replaceAll(RegExp(r'[@\-–—:;،,]+'), ' ')
+      .replaceAll(RegExp(r'\s{2,}'), ' ')
+      .trim();
+  return GeoShareTarget(lat: lat, lng: lng, label: label);
 }
 
 /// Resolves a free-text address to coordinates via Nominatim
