@@ -52,3 +52,13 @@ flutter_launcher_icons:
   ios: false
   image_path: "assets/icon/app_icon.png"
   min_sdk_android: 23
+
+# v22: objectbox_flutter_libs is vendored under plugins/ (same pattern as
+# Study Assistant's vendored flutter_tesseract_ocr). The stock 2.5.1
+# hardcodes compileSdkVersion 31 in android/build.gradle, which fails
+# :objectbox_flutter_libs:checkReleaseAarMetadata on AGP 9 because its
+# transitive androidx deps require 34+. The vendored copy is identical
+# except compileSdkVersion 34 (see the comment in its build.gradle).
+dependency_overrides:
+  objectbox_flutter_libs:
+    path: plugins/objectbox_flutter_libs

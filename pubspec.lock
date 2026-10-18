@@ -678,12 +678,11 @@ packages:
     source: hosted
     version: "2.5.1"
   objectbox_flutter_libs:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
-      name: objectbox_flutter_libs
-      sha256: dca86b2d1074110573b69cbd9afb6b67ab9d2c824704c6ac5187e546418baf9c
-      url: "https://pub.dev"
-    source: hosted
+      path: "plugins/objectbox_flutter_libs"
+      relative: true
+    source: path
     version: "2.5.1"
   objective_c:
     dependency: transitive

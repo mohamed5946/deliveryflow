@@ -1,0 +1,63 @@
+group 'io.objectbox.objectbox_flutter_libs'
+version '1.0-SNAPSHOT'
+
+buildscript {
+    ext.kotlin_version = '1.6.10'
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    dependencies {
+        classpath 'com.android.tools.build:gradle:7.1.2'
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
+
+android {
+    if (project.android.hasProperty("namespace")) {
+        namespace 'io.objectbox.objectbox_flutter_libs'
+    }
+
+    // Vendored by DeliveryFlow v22: bumped from 31 to 34. The stock
+    // 2.5.1 declares compileSdkVersion 31, but its transitive androidx
+    // deps (fragment 1.7.1, window 1.2.0 via the Flutter embedding)
+    // require compiling against 34+, which fails
+    // :objectbox_flutter_libs:checkReleaseAarMetadata on AGP 9.
+    // compileSdk only widens compile-time APIs; minSdk (19) is untouched.
+    compileSdkVersion 34
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+
+    sourceSets {
+        main.java.srcDirs += 'src/main/kotlin'
+    }
+
+    defaultConfig {
+        minSdkVersion 19 // ObjectBox Android requires Android 4.4 (API level 19)
+    }
+
+    dependencies {
+        // ObjectBox Android library that includes an ObjectBox C library version compatible with
+        // the C API binding of the ObjectBox Dart package.
+        // https://central.sonatype.com/search?q=g:io.objectbox%20objectbox-android
+        implementation "io.objectbox:objectbox-android:3.8.0"
+    }
+}
