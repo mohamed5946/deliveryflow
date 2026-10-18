@@ -273,7 +273,7 @@ GeoShareTarget? _extractCoordsFromText(String text) {
   final lng = double.tryParse(m.group(2)!);
   if (lat == null || lng == null) return null;
   if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
-  final label = (text.substring(0, m.start) + ' ' + text.substring(m.end))
+  final label = ('${text.substring(0, m.start)} ${text.substring(m.end)}')
       .replaceAll(RegExp(r'[@\-–—:;،,]+'), ' ')
       .replaceAll(RegExp(r'\s{2,}'), ' ')
       .trim();
