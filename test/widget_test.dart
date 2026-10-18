@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:deliveryflow/core/database/database_service.dart';
 import 'package:deliveryflow/core/notifications/notification_service.dart';
 import 'package:deliveryflow/core/providers.dart';
+import 'package:deliveryflow/features/daily_orders/order_detail_screen.dart';
 import 'package:deliveryflow/features/daily_orders/order_entry_screen.dart';
 import 'package:deliveryflow/features/dashboard/dashboard_screen.dart';
 import 'package:deliveryflow/features/profile/profile_screen.dart';
@@ -151,22 +152,17 @@ void main() {
           findsOneWidget);
     });
 
-    testWidgets('add order sheet shows km fields', (tester) async {
+    testWidgets('add order creates entry and opens detail screen',
+        (tester) async {
       await pumpScreen(tester, const OrderEntryScreen(), db: db);
       await tester.tap(find.text('أضف أوردر'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
-      // Sheet opened with per-order km fields and save action.
-      expect(
-          find.widgetWithText(TextField, 'رايح (كم)',
-              skipOffstage: false),
+      // Current flow: tapping creates a pending order instantly (no km
+      // questions — distances come from GPS tracking) and opens the
+      // detail screen so the courier can start the delivery.
+      expect(find.byType(OrderDetailScreen, skipOffstage: false),
           findsOneWidget);
-      expect(
-          find.widgetWithText(TextField, 'راجع (كم)',
-              skipOffstage: false),
-          findsOneWidget);
-      expect(find.text('حفظ', skipOffstage: false), findsOneWidget);
-      // DB-level entry save with km is covered in database_logic_test.
     });
   });
 
