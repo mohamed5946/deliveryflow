@@ -30,12 +30,12 @@ void main() {
         theme: AppTheme.light(),
         darkTheme: AppTheme.dark(),
         themeMode: themeMode,
-        home: Directionality(
+        home: const Directionality(
           textDirection: TextDirection.rtl,
           child: Scaffold(
             body: Padding(
-              padding: const EdgeInsets.all(16),
-              child: const Row(
+              padding: EdgeInsets.all(16),
+              child: Row(
                 children: [
                   Expanded(
                     child: GlassButton(
@@ -43,8 +43,8 @@ void main() {
                       icon: Icons.add_rounded,
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  const Expanded(
+                  SizedBox(width: 10),
+                  Expanded(
                     child: GlassButton(
                       label: 'عرض تفاصيل الأسبوع',
                       icon: Icons.chevron_right_rounded,
