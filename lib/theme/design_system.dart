@@ -194,11 +194,18 @@ class GlassButton extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 if (icon != null) ...[
-                  Icon(icon,
-                      size: 20,
-                      color: primary ? Colors.white : scheme.onSurface),
+                  // Optical nudge: Arabic glyphs sit slightly above the
+                  // geometric center of their line box, so a perfectly
+                  // centered icon looks low next to them.
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: Icon(icon,
+                        size: 20,
+                        color: primary ? Colors.white : scheme.onSurface),
+                  ),
                   const SizedBox(width: 8),
                 ],
                 Text(
@@ -976,6 +983,10 @@ class WeekDayStrip extends StatelessWidget {
                   margin: const EdgeInsets.symmetric(horizontal: 3),
                   padding:
                       const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+                  // Center the column: without this the day number sits
+                  // off-center inside the pill (Container defaults to
+                  // top-left placement).
+                  alignment: Alignment.center,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(14),
                     gradient: isHighlighted
@@ -1007,9 +1018,11 @@ class WeekDayStrip extends StatelessWidget {
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Text(
                         _dayNames[i],
+                        textAlign: TextAlign.center,
                         style: text.bodySmall?.copyWith(
                           fontSize: 10,
                           fontWeight: FontWeight.w600,
@@ -1024,6 +1037,7 @@ class WeekDayStrip extends StatelessWidget {
                       const SizedBox(height: 4),
                       Text(
                         '${day.day}',
+                        textAlign: TextAlign.center,
                         style: text.titleSmall?.copyWith(
                           fontWeight: FontWeight.w800,
                           color: isHighlighted

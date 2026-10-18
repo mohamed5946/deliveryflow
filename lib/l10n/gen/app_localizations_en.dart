@@ -1081,4 +1081,108 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get mapModeOverview => 'Overview';
+
+  @override
+  String get offlineMaps => 'Offline maps';
+
+  @override
+  String get offlineMapsHint =>
+      'The map works without internet, but route calculation needs internet';
+
+  @override
+  String get downloadNewRegion => 'Download a new area';
+
+  @override
+  String get noOfflineRegions =>
+      'No downloaded areas — download your area so the map opens fast even on weak internet';
+
+  @override
+  String get deleteRegion => 'Delete area';
+
+  @override
+  String get deleteRegionConfirm => 'Delete this area and its tiles?';
+
+  @override
+  String get clearAllRegions => 'Clear all';
+
+  @override
+  String get clearAllRegionsConfirm => 'Delete all downloaded areas?';
+
+  @override
+  String get pickRegionTitle => 'Pick an area';
+
+  @override
+  String get pickRegionHint =>
+      'Pan and zoom the map to frame the rectangle you want to download';
+
+  @override
+  String get useThisArea => 'Download this area';
+
+  @override
+  String get zoomFrom => 'From zoom';
+
+  @override
+  String get zoomTo => 'To zoom';
+
+  @override
+  String get estimatingRegion => 'Calculating size…';
+
+  @override
+  String regionEstimate(Object mb, Object tiles) {
+    return '$tiles tiles • about $mb MB';
+  }
+
+  @override
+  String get startDownload => 'Start download';
+
+  @override
+  String get downloadingRegion => 'Downloading…';
+
+  @override
+  String downloadProgress(Object done, Object mb, Object total) {
+    return '$done / $total tiles • $mb MB';
+  }
+
+  @override
+  String get downloadComplete => 'Download complete ✅';
+
+  @override
+  String get downloadFailed => 'Download failed';
+
+  @override
+  String get downloadFailedMsg =>
+      'Something went wrong during the download. Check storage and internet and try again.';
+
+  @override
+  String get downloadCancelled => 'Download cancelled';
+
+  @override
+  String get mobileDataWarnTitle => 'Data warning';
+
+  @override
+  String get mobileDataWarnMsg =>
+      'Downloading uses mobile data — Wi-Fi is recommended if available.';
+
+  @override
+  String get continueDownload => 'Continue';
+
+  @override
+  String get largeRegionTitle => 'Large area';
+
+  @override
+  String largeRegionMsg(Object mb) {
+    return 'This area is about $mb MB — are you sure you want to download it?';
+  }
+
+  @override
+  String regionLabel(Object date) {
+    return 'Area $date';
+  }
+
+  @override
+  String get offlineStorageError => 'Storage problem';
+
+  @override
+  String get offlineStorageErrorMsg =>
+      'Could not save the tiles — make sure there is free space and try again.';
 }

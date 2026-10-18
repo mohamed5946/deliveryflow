@@ -15,6 +15,8 @@ import '../features/registration/registration_screen.dart';
 import '../features/schedule/schedule_screen.dart';
 import '../features/weekly_reports/report_screen.dart';
 import '../features/work_sessions/session_screen.dart';
+import '../features/offline_maps/offline_maps_screen.dart';
+import '../features/offline_maps/region_picker_screen.dart';
 
 const _paths = ['/home', '/schedule', '/reports', '/history', '/profile'];
 
@@ -244,6 +246,14 @@ GoRouter buildRouter(WidgetRef ref) {
           final dateKey = state.uri.queryParameters['date'];
           return SessionScreen(dateKey: dateKey);
         },
+      ),
+      GoRoute(
+        path: '/offline-maps',
+        builder: (context, state) => const OfflineMapsScreen(),
+      ),
+      GoRoute(
+        path: '/offline-maps/pick',
+        builder: (context, state) => const RegionPickerScreen(),
       ),
     ],
   );

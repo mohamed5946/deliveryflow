@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../core/date_time/week_calendar.dart';
+import '../../core/offline_maps/offline_map_service.dart';
 import '../../core/providers.dart';
 import '../../theme/design_system.dart';
 
@@ -98,12 +99,8 @@ class WeeklyHeatmapScreen extends ConsumerWidget {
                           ),
                         ),
                         children: [
-                          TileLayer(
-                            urlTemplate:
-                                'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                            userAgentPackageName:
-                                'com.valor.deliveryflow',
-                          ),
+                          OfflineMapService.instance.baseTileLayer(),
+                          const OfflineRegionLayers(),
                           CircleLayer(
                             circles: points
                                 .map((p) => CircleMarker(

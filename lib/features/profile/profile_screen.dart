@@ -440,6 +440,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ),
                     const SizedBox(height: 4),
                     _menuRow(
+                      icon: Icons.map_rounded,
+                      label: l10n.offlineMaps,
+                      onTap: () => context.go('/offline-maps'),
+                    ),
+                    const SizedBox(height: 4),
+                    _menuRow(
                       icon: Icons.support_agent_rounded,
                       label: l10n.helpSupport,
                       onTap: _showHelpSheet,

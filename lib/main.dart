@@ -7,6 +7,7 @@ import 'app/app.dart';
 import 'core/database/database_service.dart';
 import 'core/date_time/week_calendar.dart';
 import 'core/notifications/notification_service.dart';
+import 'core/offline_maps/offline_map_service.dart';
 import 'core/providers.dart';
 
 Future<void> main() async {
@@ -30,6 +31,12 @@ Future<void> main() async {
   // Local-first storage.
   final db = DatabaseService();
   await db.init();
+
+  // Offline map tiles (flutter_map_tile_caching). Best effort: if it
+  // fails, maps still work online and offline features hide themselves.
+  try {
+    await OfflineMapService.instance.init();
+  } catch (_) {}
 
   // Local notifications (best effort — never crash startup).
   final notif = NotificationService();

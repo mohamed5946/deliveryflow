@@ -8,6 +8,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../core/tracking/route_snap_service.dart';
+import '../../core/offline_maps/offline_map_service.dart';
 import '../../theme/design_system.dart';
 import '../../theme/pressable.dart';
 import '../daily_orders/phone_sheet.dart';
@@ -83,6 +84,21 @@ class _NavigationScreenState extends State<NavigationScreen>
   // ---- v21: Google-Maps-style nav camera ----
   /// Camera glide animation: smooth follow on every GPS fix, no jumps.
   AnimationController? _camAnim;
+
+  // ---- v22: map-lag fix ("الخريطة بتعلق") ----
+  /// Live scooter position. Updated on EVERY GPS fix WITHOUT setState —
+  /// only the scooter marker (a ValueListenableBuilder) rebuilds, never
+  /// the whole screen. The camera moves via the MapController directly.
+  final ValueNotifier<LatLng?> _positionN = ValueNotifier<LatLng?>(null);
+
+  /// Last automatic camera-glide start (epoch ms) for the 900ms throttle.
+  int _lastCamMoveMs = 0;
+
+  /// Throttle for automatic camera glides: at most one per 900ms. GPS
+  /// fixes arrive ~2x/sec at riding speed (distanceFilter 5m); firing a
+  /// new 450ms glide animation on every fix queued overlapping animations
+  /// and was the main visible stutter. User-initiated moves (recenter,
+  /// perspective switch) bypass the throttle.
 
   // ---- v21: off-route auto re-route ----
   /// Non-blocking "recalculating" pill state.
@@ -194,13 +210,15 @@ class _NavigationScreenState extends State<NavigationScreen>
         _lastBearing = p.heading;
       }
     }
-    setState(() {
-      _current = pos;
-      // v21 stage 2/4: first real GPS fix acquired.
-      if (first) _navProgress = 0.5;
-    });
+    _current = pos;
+    // v22: scoped rebuild — only the scooter marker listens to this
+    // notifier, never the whole screen (this was the map-lag root cause:
+    // a full-screen setState on every GPS fix, ~2x/sec at riding speed).
+    _positionN.value = pos;
+    // v21 stage 2/4: first real GPS fix acquired (screen-level state).
+    if (first && mounted) setState(() => _navProgress = 0.5);
     // Continuous camera follow per perspective mode (v21: smooth glide,
-    // heading-up frames the scooter at the lower third).
+    // v22: throttled to one glide per 900ms).
     _updateFollowCamera(pos);
     // v21: off-route detection → automatic re-route.
     _checkDeviation(pos, p.speed);
@@ -219,7 +237,7 @@ class _NavigationScreenState extends State<NavigationScreen>
     final cur = _current;
     if (cur == null || !mounted) return;
     setState(() => _following = true);
-    _updateFollowCamera(cur);
+    _updateFollowCamera(cur, immediate: true);
   }
 
   // ---- v21: Google-Maps-style nav camera ----
@@ -227,9 +245,18 @@ class _NavigationScreenState extends State<NavigationScreen>
   /// Moves the camera for the current perspective mode. Called on every
   /// accepted GPS fix while following, on recenter, and on perspective
   /// switches. Never throws: a failed move is retried on the next fix.
-  void _updateFollowCamera(LatLng pos) {
+  ///
+  /// v22: automatic (per-fix) glides are throttled to one per 900ms —
+  /// overlapping 450ms animations were the main map stutter. Pass
+  /// [immediate] for user-initiated moves (recenter) that must not wait.
+  void _updateFollowCamera(LatLng pos, {bool immediate = false}) {
     if (!_following || !_mapReady || !mounted) return;
     if (_mapMode == _MapMode.overview) return;
+    if (!immediate) {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      if (now - _lastCamMoveMs < 900) return;
+      _lastCamMoveMs = now;
+    }
     try {
       if (_mapMode == _MapMode.headingUp) {
         // flutter_map rotation is degrees with 0° = North, so
@@ -537,6 +564,21 @@ class _NavigationScreenState extends State<NavigationScreen>
     } catch (_) {}
   }
 
+  /// v22: decimate drawn geometry (DRAWING ONLY — distance math uses the
+  /// raw data). OSRM alternatives can carry thousands of points; repainting
+  /// them all on every frame was part of the map stutter. Strided sampling
+  /// keeps the shape; first/last points are always kept.
+  List<LatLng> _decimateForDraw(List<LatLng> pts, [int max = 600]) {
+    if (pts.length <= max) return pts;
+    final stride = (pts.length / max).ceil();
+    final out = <LatLng>[];
+    for (var i = 0; i < pts.length; i += stride) {
+      out.add(pts[i]);
+    }
+    if (out.last != pts.last) out.add(pts.last);
+    return out;
+  }
+
   /// Polylines: alternatives in grey underneath, the selected route in
   /// brand blue (#0A84FF), thicker, on top.
   List<Polyline> _routePolylines(BuildContext context) {
@@ -547,14 +589,14 @@ class _NavigationScreenState extends State<NavigationScreen>
       if (i == _selectedRoute) continue;
       if (_routes[i].geometry.length < 2) continue;
       lines.add(Polyline(
-        points: _routes[i].geometry,
+        points: _decimateForDraw(_routes[i].geometry),
         strokeWidth: 5,
         color: altColor,
       ));
     }
     if (_routePoints.length > 1) {
       lines.add(Polyline(
-        points: _routePoints,
+        points: _decimateForDraw(_routePoints),
         strokeWidth: 7,
         color: LiquidPalette.primaryBlue,
       ));
@@ -674,6 +716,7 @@ class _NavigationScreenState extends State<NavigationScreen>
     _posSub?.cancel();
     _routeTimer?.cancel();
     _camAnim?.dispose();
+    _positionN.dispose();
     _mapController.dispose();
     super.dispose();
   }
@@ -728,11 +771,11 @@ class _NavigationScreenState extends State<NavigationScreen>
                   mapController: _mapController,
                   options: _mapOptions,
                   children: [
-                    TileLayer(
-                      urlTemplate:
-                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName: 'com.valor.deliveryflow',
-                    ),
+                    // Base tiles: FMTC browse cache (instant when cached),
+                    // network fallback. Region overlays (downloaded offline
+                    // areas) draw above and serve instantly even offline.
+                    OfflineMapService.instance.baseTileLayer(),
+                    const OfflineRegionLayers(),
                     // Route alternatives: non-selected in grey underneath,
                     // selected in brand blue on top.
                     if (_routePoints.length > 1)
@@ -753,36 +796,47 @@ class _NavigationScreenState extends State<NavigationScreen>
                             size: 44,
                           ),
                         ),
-                        // Live courier position.
-                        if (_current != null)
-                          Marker(
-                            point: _current!,
-                            width: 52,
-                            height: 52,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: LiquidPalette.primaryBlue,
-                                  width: 3,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black
-                                        .withValues(alpha: 0.3),
-                                    blurRadius: 8,
+                      ],
+                    ),
+                    // v22: live courier position — rebuilds ONLY on GPS
+                    // fixes via the notifier, never on route/card state.
+                    // (Previously the whole screen rebuilt per fix.)
+                    ValueListenableBuilder<LatLng?>(
+                      valueListenable: _positionN,
+                      builder: (context, pos, _) {
+                        if (pos == null) return const SizedBox.shrink();
+                        return MarkerLayer(
+                          markers: [
+                            Marker(
+                              point: pos,
+                              width: 52,
+                              height: 52,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: LiquidPalette.primaryBlue,
+                                    width: 3,
                                   ),
-                                ],
-                              ),
-                              child: const Icon(
-                                Icons.delivery_dining_rounded,
-                                color: LiquidPalette.primaryBlue,
-                                size: 26,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black
+                                          .withValues(alpha: 0.3),
+                                      blurRadius: 8,
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  Icons.delivery_dining_rounded,
+                                  color: LiquidPalette.primaryBlue,
+                                  size: 26,
+                                ),
                               ),
                             ),
-                          ),
-                      ],
+                          ],
+                        );
+                      },
                     ),
                   ],
                 ),

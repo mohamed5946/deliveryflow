@@ -2143,6 +2143,186 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Overview'**
   String get mapModeOverview;
+
+  /// No description provided for @offlineMaps.
+  ///
+  /// In en, this message translates to:
+  /// **'Offline maps'**
+  String get offlineMaps;
+
+  /// No description provided for @offlineMapsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'The map works without internet, but route calculation needs internet'**
+  String get offlineMapsHint;
+
+  /// No description provided for @downloadNewRegion.
+  ///
+  /// In en, this message translates to:
+  /// **'Download a new area'**
+  String get downloadNewRegion;
+
+  /// No description provided for @noOfflineRegions.
+  ///
+  /// In en, this message translates to:
+  /// **'No downloaded areas — download your area so the map opens fast even on weak internet'**
+  String get noOfflineRegions;
+
+  /// No description provided for @deleteRegion.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete area'**
+  String get deleteRegion;
+
+  /// No description provided for @deleteRegionConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete this area and its tiles?'**
+  String get deleteRegionConfirm;
+
+  /// No description provided for @clearAllRegions.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear all'**
+  String get clearAllRegions;
+
+  /// No description provided for @clearAllRegionsConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete all downloaded areas?'**
+  String get clearAllRegionsConfirm;
+
+  /// No description provided for @pickRegionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick an area'**
+  String get pickRegionTitle;
+
+  /// No description provided for @pickRegionHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Pan and zoom the map to frame the rectangle you want to download'**
+  String get pickRegionHint;
+
+  /// No description provided for @useThisArea.
+  ///
+  /// In en, this message translates to:
+  /// **'Download this area'**
+  String get useThisArea;
+
+  /// No description provided for @zoomFrom.
+  ///
+  /// In en, this message translates to:
+  /// **'From zoom'**
+  String get zoomFrom;
+
+  /// No description provided for @zoomTo.
+  ///
+  /// In en, this message translates to:
+  /// **'To zoom'**
+  String get zoomTo;
+
+  /// No description provided for @estimatingRegion.
+  ///
+  /// In en, this message translates to:
+  /// **'Calculating size…'**
+  String get estimatingRegion;
+
+  /// No description provided for @regionEstimate.
+  ///
+  /// In en, this message translates to:
+  /// **'{tiles} tiles • about {mb} MB'**
+  String regionEstimate(Object mb, Object tiles);
+
+  /// No description provided for @startDownload.
+  ///
+  /// In en, this message translates to:
+  /// **'Start download'**
+  String get startDownload;
+
+  /// No description provided for @downloadingRegion.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading…'**
+  String get downloadingRegion;
+
+  /// No description provided for @downloadProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'{done} / {total} tiles • {mb} MB'**
+  String downloadProgress(Object done, Object mb, Object total);
+
+  /// No description provided for @downloadComplete.
+  ///
+  /// In en, this message translates to:
+  /// **'Download complete ✅'**
+  String get downloadComplete;
+
+  /// No description provided for @downloadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Download failed'**
+  String get downloadFailed;
+
+  /// No description provided for @downloadFailedMsg.
+  ///
+  /// In en, this message translates to:
+  /// **'Something went wrong during the download. Check storage and internet and try again.'**
+  String get downloadFailedMsg;
+
+  /// No description provided for @downloadCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Download cancelled'**
+  String get downloadCancelled;
+
+  /// No description provided for @mobileDataWarnTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Data warning'**
+  String get mobileDataWarnTitle;
+
+  /// No description provided for @mobileDataWarnMsg.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading uses mobile data — Wi-Fi is recommended if available.'**
+  String get mobileDataWarnMsg;
+
+  /// No description provided for @continueDownload.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue'**
+  String get continueDownload;
+
+  /// No description provided for @largeRegionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Large area'**
+  String get largeRegionTitle;
+
+  /// No description provided for @largeRegionMsg.
+  ///
+  /// In en, this message translates to:
+  /// **'This area is about {mb} MB — are you sure you want to download it?'**
+  String largeRegionMsg(Object mb);
+
+  /// No description provided for @regionLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Area {date}'**
+  String regionLabel(Object date);
+
+  /// No description provided for @offlineStorageError.
+  ///
+  /// In en, this message translates to:
+  /// **'Storage problem'**
+  String get offlineStorageError;
+
+  /// No description provided for @offlineStorageErrorMsg.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save the tiles — make sure there is free space and try again.'**
+  String get offlineStorageErrorMsg;
 }
 
 class _AppLocalizationsDelegate
