@@ -18,6 +18,13 @@ void main() {
     });
 
     test('parses address-only share', () {
+      final t = parseGeoUri(
+          'geo:0,0?q=%D8%B4%D8%A7%D8%B1%D8%B9%20%D8%A7%D9%84%D8%AA%D8%AD%D8%B1%D9%8A%D8%B1')!;
+      expect(t.hasCoords, isFalse);
+      expect(t.label, 'شارع التحرير');
+    });
+
+    test('tolerates non-encoded q label instead of throwing', () {
       final t = parseGeoUri('geo:0,0?q=شارع التحرير')!;
       expect(t.hasCoords, isFalse);
       expect(t.label, 'شارع التحرير');

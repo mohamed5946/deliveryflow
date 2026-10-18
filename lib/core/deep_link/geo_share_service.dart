@@ -82,7 +82,14 @@ GeoShareTarget? parseGeoUri(String raw) {
   for (final part in query.split('&')) {
     final kv = part.split('=');
     if (kv.length == 2 && kv[0] == 'q') {
-      label = Uri.decodeComponent(kv[1].replaceAll('+', ' ')).trim();
+      // v24: tolerate non-percent-encoded labels (real shares are
+      // sometimes sloppy) — never crash the share flow on decode.
+      final rawLabel = kv[1].replaceAll('+', ' ');
+      try {
+        label = Uri.decodeComponent(rawLabel).trim();
+      } catch (_) {
+        label = rawLabel.trim();
+      }
     }
   }
   if (lat == null || lng == null) {
@@ -146,6 +153,17 @@ Future<String> _resolveShortLink(String url) async {
   return current;
 }
 
+/// v24: percent-decodes a URL component, tolerating values that were
+/// never encoded (never throws).
+String _safeDecode(String v) {
+  final spaced = v.replaceAll('+', ' ');
+  try {
+    return Uri.decodeComponent(spaced).trim();
+  } catch (_) {
+    return spaced.trim();
+  }
+}
+
 /// v24: parses Google Maps share URLs —
 /// `maps.google.com/?q=`, `google.com/maps/search/…`, `/place/…/@lat,lng`,
 /// `?q=lat,lng`, `?query=`, `?destination=`, `?daddr=`.
@@ -165,10 +183,8 @@ GeoShareTarget? _parseGoogleMapsUrl(String url) {
       var label = '';
       final placeMatch = RegExp(r'/place/([^/?#@]+)').firstMatch(uri.path);
       if (placeMatch != null) {
-        label = Uri.decodeComponent(placeMatch.group(1)!)
-            .replaceAll('+', ' ')
-            .replaceAll('_', ' ')
-            .trim();
+        label =
+            _safeDecode(placeMatch.group(1)!).replaceAll('_', ' ').trim();
       }
       return GeoShareTarget(lat: lat, lng: lng, label: label);
     }
@@ -183,19 +199,14 @@ GeoShareTarget? _parseGoogleMapsUrl(String url) {
   // /search/<address> path segment.
   final searchMatch = RegExp(r'/search/([^/?#]+)').firstMatch(uri.path);
   if (searchMatch != null) {
-    final v = Uri.decodeComponent(searchMatch.group(1)!)
-        .replaceAll('+', ' ')
-        .trim();
+    final v = _safeDecode(searchMatch.group(1)!);
     if (v.isNotEmpty) return _coordsOrLabel(v);
   }
 
   // /place/<name> without coordinates — geocode the name.
   final placeOnly = RegExp(r'/place/([^/?#@]+)').firstMatch(uri.path);
   if (placeOnly != null) {
-    final v = Uri.decodeComponent(placeOnly.group(1)!)
-        .replaceAll('+', ' ')
-        .replaceAll('_', ' ')
-        .trim();
+    final v = _safeDecode(placeOnly.group(1)!).replaceAll('_', ' ').trim();
     if (v.isNotEmpty) return GeoShareTarget(label: v);
   }
   return null;
