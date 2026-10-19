@@ -178,6 +178,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get geoShareFailedTitle => 'تعذر فتح الموقع المشارك';
   String get geoShareFailedWithLabelTitle => 'تعذر فتح الموقع المشارك';
   String get geoShareReceivedText => 'النص المستلم:';
+  String get geoShareFailureReason => 'السبب';
 
   @override
   String get greetingHello => 'مرحباً';

@@ -107,7 +107,8 @@
   "geoShareFailedBody": "We couldn't understand the location shared from the other app. Try sharing it again.",
   "geoShareFailedTitle": "Couldn't open the shared location",
   "geoShareFailedWithLabelTitle": "Couldn't open the shared location",
-  "geoShareReceivedText": "Received text:",
+  "geoShareReceivedText": "Received text:",,
+  "geoShareFailureReason": "Reason"
   "greetingHello": "Hello",
   "reportsMenu": "Reports & Statistics",
   "callUs": "Call us",

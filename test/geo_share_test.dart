@@ -120,5 +120,31 @@ void main() {
         expect(await parseShareInput('شارع فيصل الرئيسي'), isNull);
       });
     });
+
+    group('v24.2 share-text normalization', () {
+      test('Arabic-Indic digits parse as coordinates', () async {
+        final t = await parseShareInput('عنوان العميل @ ٢٩.٩٨٧٣٢١,٣٠.٩٦٣٨٨٩');
+        expect(t, isNotNull);
+        expect(t!.hasCoords, isTrue);
+        expect(t.lat, closeTo(29.987321, 1e-6));
+        expect(t.lng, closeTo(30.963889, 1e-6));
+      });
+
+      test('Arabic comma separates coordinates', () async {
+        final t = await parseShareInput('عنوان @ 29.987321،30.963889');
+        expect(t, isNotNull);
+        expect(t!.hasCoords, isTrue);
+        expect(t.lat, closeTo(29.987321, 1e-6));
+      });
+
+      test('invisible Unicode marks do not break parsing', () async {
+        final t = await parseShareInput(
+            'غرب سوميد المجاورة الأولى 11@\u200F29.987321,30.963889');
+        expect(t, isNotNull);
+        expect(t!.hasCoords, isTrue);
+        expect(t.lat, closeTo(29.987321, 1e-6));
+        expect(t.lng, closeTo(30.963889, 1e-6));
+      });
+    });
   });
 }

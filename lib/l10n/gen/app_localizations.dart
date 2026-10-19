@@ -440,6 +440,12 @@ abstract class AppLocalizations {
   /// **'Received text:'**
   String get geoShareReceivedText;
 
+  /// No description provided for @geoShareFailureReason.
+  ///
+  /// In en, this message translates to:
+  /// **'Reason'**
+  String get geoShareFailureReason;
+
   /// No description provided for @greetingHello.
   ///
   /// In en, this message translates to:

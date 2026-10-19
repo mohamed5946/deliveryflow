@@ -178,6 +178,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get geoShareFailedTitle => 'Couldn\'t open the shared location';
   String get geoShareFailedWithLabelTitle => 'Couldn\'t open the shared location';
   String get geoShareReceivedText => 'Received text:';
+  String get geoShareFailureReason => 'Reason';
 
   @override
   String get greetingHello => 'Hello';

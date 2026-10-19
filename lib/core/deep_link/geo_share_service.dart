@@ -225,6 +225,25 @@ GeoShareTarget _coordsOrLabel(String v) {
   return GeoShareTarget(label: v);
 }
 
+/// v24.2: normalizes share text before parsing. Flex/WhatsApp shares can
+/// carry Arabic-Indic digits (٢٩.٩٨٧), the Arabic comma (،), or invisible
+/// Unicode marks (ZWSP, RLM/LRM) that silently break coordinate parsing.
+/// The coordinates are the exact location, so normalize aggressively.
+String _normalizeShareText(String s) {
+  var out = s;
+  const arabicDigits = '٠١٢٣٤٥٦٧٨٩';
+  const extDigits = '۰۱۲۳۴۵۶۷۸۹';
+  const asciiDigits = '0123456789';
+  for (var i = 0; i < 10; i++) {
+    out = out.replaceAll(arabicDigits[i], asciiDigits[i]);
+    out = out.replaceAll(extDigits[i], asciiDigits[i]);
+  }
+  out = out.replaceAll('،', ',');
+  // Strip invisible Unicode marks: ZWSP, ZWNJ, ZWJ, LRM, RLM, BOM.
+  out = out.replaceAll(RegExp('[\u200B\u200C\u200D\u200E\u200F\uFEFF]'), '');
+  return out;
+}
+
 /// v24: unified share entry point. Accepts:
 /// - `geo:` URIs,
 /// - Google Maps URLs (`maps.google.com/?q=`, `google.com/maps/search/`,
@@ -233,7 +252,7 @@ GeoShareTarget _coordsOrLabel(String v) {
 /// - share-sheet text wrapping any of the above (first URL wins).
 /// Returns null when nothing usable is found.
 Future<GeoShareTarget?> parseShareInput(String raw) async {
-  final text = raw.trim();
+  final text = _normalizeShareText(raw.trim());
   if (text.isEmpty) return null;
   final urlMatch = RegExp(r'https?://[^\s]+').firstMatch(text);
   var candidate = (urlMatch?.group(0) ?? text).trim();
@@ -379,7 +398,10 @@ Future<void> handleSharedGeoUri(
 
   /// v24: failure dialog that SHOWS the exact received address/label
   /// text — never a dead-end message without it.
-  Future<void> failWithReceived(String received) async {
+  /// v24.2: optional [reason] — a short technical note explaining WHY
+  /// the share failed (parse vs geocode vs exception), so field
+  /// failures can be diagnosed from a screenshot.
+  Future<void> failWithReceived(String received, [String? reason]) async {
     if (!context.mounted) return;
     final shown = received.length > 500
         ? '${received.substring(0, 500)}…'
@@ -427,6 +449,16 @@ Future<void> handleSharedGeoUri(
                   style: text.bodyMedium,
                 ),
               ),
+              if (reason != null && reason.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                SelectableText(
+                  '${l10n.geoShareFailureReason}: $reason',
+                  style: text.bodySmall?.copyWith(
+                    color: scheme.onSurface.withValues(alpha: 0.55),
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ],
             ],
           ),
           actions: [
@@ -444,12 +476,12 @@ Future<void> handleSharedGeoUri(
   final GeoShareTarget? target;
   try {
     target = await parseShareInput(raw);
-  } catch (_) {
-    await failWithReceived(raw.trim());
+  } catch (e) {
+    await failWithReceived(raw.trim(), 'parse: $e');
     return;
   }
   if (target == null) {
-    await failWithReceived(raw.trim());
+    await failWithReceived(raw.trim(), 'parse: no coords/address found');
     return;
   }
 
@@ -507,7 +539,7 @@ Future<void> handleSharedGeoUri(
     geoStages.advance(); // done — exactly 1.0 as we move on
     geoStages.dispose();
     if (geocoded == null) {
-      await failWithReceived(target.label);
+      await failWithReceived(target.label, 'geocode: address not found');
       return;
     }
     dest = geocoded;

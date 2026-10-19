@@ -56,7 +56,8 @@
   "geoShareFailedBody": "مقدرناش نفهم الموقع اللي اتبعت من التطبيق التاني. جرب تشاركه تاني.",
   "geoShareFailedTitle": "تعذر فتح الموقع المشارك",
   "geoShareFailedWithLabelTitle": "تعذر فتح الموقع المشارك",
-  "geoShareReceivedText": "النص المستلم:",
+  "geoShareReceivedText": "النص المستلم:",,
+  "geoShareFailureReason": "السبب"
   "greetingHello": "مرحباً",
   "reportsMenu": "التقارير والإحصائيات",
   "callUs": "اتصل بنا",
