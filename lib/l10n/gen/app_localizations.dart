@@ -431,7 +431,7 @@ abstract class AppLocalizations {
   /// No description provided for @geoShareFailedWithLabelTitle.
   ///
   /// In en, this message translates to:
-  /// **'Couldn't open the shared location'**
+  /// **'Couldn\'t open the shared location'**
   String get geoShareFailedWithLabelTitle;
 
   /// No description provided for @geoShareReceivedText.
@@ -445,6 +445,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Reason'**
   String get geoShareFailureReason;
+
+  /// No description provided for @autoNavSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic navigation'**
+  String get autoNavSection;
+
+  /// No description provided for @autoNavInApp.
+  ///
+  /// In en, this message translates to:
+  /// **'In-app'**
+  String get autoNavInApp;
+
+  /// No description provided for @autoNavGoogleMaps.
+  ///
+  /// In en, this message translates to:
+  /// **'Google Maps'**
+  String get autoNavGoogleMaps;
+
+  /// No description provided for @autoNavGoogleMapsDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Shared locations open Google Maps automatically; distance tracking keeps running in the background'**
+  String get autoNavGoogleMapsDesc;
+
+  /// No description provided for @activeOrderBanner.
+  ///
+  /// In en, this message translates to:
+  /// **'Active order — tracking'**
+  String get activeOrderBanner;
+
+  /// No description provided for @activeOrderBannerTap.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to return to the order'**
+  String get activeOrderBannerTap;
 
   /// No description provided for @greetingHello.
   ///

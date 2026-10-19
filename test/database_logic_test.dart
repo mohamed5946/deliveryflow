@@ -367,6 +367,17 @@ void main() {
       expect(re.dailyFixedPay, 100);
       expect(re.themePreset, 3);
     });
+
+    test('v25: autoNavMode defaults to in-app (0) and persists', () async {
+      expect(db.settings.autoNavMode, 0);
+      final s = db.settings;
+      s.autoNavMode = 1;
+      await db.saveSettings(s);
+      expect(db.settings.autoNavMode, 1);
+      // JSON round-trip keeps the value.
+      final rt = UserSettings.fromJson(db.settings.toJson());
+      expect(rt.autoNavMode, 1);
+    });
   });
 
   group('v18: edit/delete recomputation', () {

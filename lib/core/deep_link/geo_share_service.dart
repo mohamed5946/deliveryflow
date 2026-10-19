@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../features/navigation/navigation_screen.dart';
 import '../../l10n/gen/app_localizations.dart';
@@ -12,6 +13,7 @@ import '../../theme/design_system.dart';
 import '../../theme/page_transitions.dart';
 import '../date_time/week_calendar.dart';
 import '../providers.dart';
+import '../tracking/delivery_tracking_service.dart';
 
 /// Result of parsing a shared location: a `geo:` URI, a Google Maps URL,
 /// or share-sheet text containing one.
@@ -556,6 +558,24 @@ Future<void> handleSharedGeoUri(
   bumpDataVersion(ref);
   if (!context.mounted) return;
 
+  // v25 middleman mode: instead of the in-app NavigationScreen, the
+  // order is auto-started (tracking begins immediately, exactly like
+  // pressing "بدأ التوصيل") and Google Maps opens with the destination.
+  // Tracking keeps recording the full round trip in the background;
+  // the persistent tracking notification brings him back to the order
+  // to press "وصلت للعميل" / "وصلت للمارت".
+  final settings = ref.read(settingsProvider);
+  if (settings.autoNavMode == 1) {
+    await _startMiddlemanTrip(context, ref, l10n,
+        dateKey: dateKey,
+        entryId: entry.id,
+        dest: dest,
+        label: label,
+        phone: entry.phone,
+        personalSpeedKmh: db.personalAvgSpeedKmh());
+    return;
+  }
+
   final shortId = entry.id.length > 6
       ? entry.id.substring(entry.id.length - 6)
       : entry.id;
@@ -576,4 +596,76 @@ Future<void> handleSharedGeoUri(
       ),
     ),
   );
+}
+
+/// v25 middleman mode: auto-starts background tracking for the shared
+/// order (same as "بدأ التوصيل"), then opens Google Maps with the
+/// destination. Never silent: a tracking failure shows a loud blocking
+/// dialog and Google Maps is NOT opened (an untracked trip defeats the
+/// purpose). If Google Maps itself can't open, falls back to the
+/// in-app NavigationScreen.
+Future<void> _startMiddlemanTrip(
+  BuildContext context,
+  WidgetRef ref,
+  AppLocalizations l10n, {
+  required String dateKey,
+  required String entryId,
+  required LatLng dest,
+  required String label,
+  required String phone,
+  required double? personalSpeedKmh,
+}) async {
+  final svc = ref.read(deliveryTrackingServiceProvider);
+  try {
+    await svc.startOutgoing(dateKey: dateKey, entryId: entryId);
+  } catch (e) {
+    if (!context.mounted) return;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.trackingFailedTitle),
+        content: Text(e is StateError ? e.message : e.toString()),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(l10n.ok),
+          ),
+        ],
+      ),
+    );
+    return;
+  }
+  bumpDataVersion(ref);
+  if (!context.mounted) return;
+  final url = Uri.parse(
+    'https://www.google.com/maps/dir/?api=1'
+    '&destination=${dest.latitude},${dest.longitude}',
+  );
+  var opened = false;
+  try {
+    opened = await launchUrl(url, mode: LaunchMode.externalApplication);
+  } catch (_) {
+    opened = false;
+  }
+  if (!opened && context.mounted) {
+    // Google Maps unavailable — fall back to in-app navigation so the
+    // trip is never stranded without guidance.
+    final shortId =
+        entryId.length > 6 ? entryId.substring(entryId.length - 6) : entryId;
+    await Navigator.of(context, rootNavigator: true).push(
+      SmoothPageRoute(
+        builder: (_) => NavigationScreen(
+          dateKey: dateKey,
+          entryId: entryId,
+          shortOrderId: shortId,
+          destination: dest,
+          statusLine: l10n.onWayToCustomer,
+          address: label,
+          phone: phone,
+          personalSpeedKmh: personalSpeedKmh,
+        ),
+      ),
+    );
+  }
 }

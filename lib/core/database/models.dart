@@ -63,6 +63,8 @@ class UserSettings extends HiveObject {
   List<String> dismissedNotificationIds; // swiped-away notification ids
   @HiveField(26)
   bool registered; // first-launch registration-code gate accepted
+  @HiveField(27)
+  int autoNavMode; // 0=in-app navigation (default), 1=Google Maps middleman
 
   UserSettings({
     this.displayName = '',
@@ -92,6 +94,7 @@ class UserSettings extends HiveObject {
     List<String>? readNotificationIds,
     List<String>? dismissedNotificationIds,
     this.registered = false,
+    this.autoNavMode = 0,
   })  : readNotificationIds = readNotificationIds ?? [],
         dismissedNotificationIds = dismissedNotificationIds ?? [];
 
@@ -123,6 +126,7 @@ class UserSettings extends HiveObject {
         'readNotificationIds': readNotificationIds,
         'dismissedNotificationIds': dismissedNotificationIds,
         'registered': registered,
+        'autoNavMode': autoNavMode,
         'schemaVersion': kSchemaVersion,
       };
 
@@ -165,6 +169,7 @@ class UserSettings extends HiveObject {
         dismissedNotificationIds:
             (json['dismissedNotificationIds'] as List?)?.cast<String>() ?? [],
         registered: (json['registered'] as bool?) ?? false,
+        autoNavMode: (json['autoNavMode'] as num?)?.toInt() ?? 0,
       );
 }
 
@@ -207,13 +212,14 @@ class UserSettingsAdapter extends TypeAdapter<UserSettings> {
       dismissedNotificationIds:
           (fields[25] as List?)?.cast<String>() ?? [],
       registered: (fields[26] as bool?) ?? false,
+      autoNavMode: (fields[27] as int?) ?? 0,
     );
   }
 
   @override
   void write(BinaryWriter writer, UserSettings obj) {
     writer
-      ..writeByte(27)
+      ..writeByte(28)
       ..writeByte(0)
       ..write(obj.displayName)
       ..writeByte(1)
@@ -267,7 +273,9 @@ class UserSettingsAdapter extends TypeAdapter<UserSettings> {
       ..writeByte(25)
       ..write(obj.dismissedNotificationIds)
       ..writeByte(26)
-      ..write(obj.registered);
+      ..write(obj.registered)
+      ..writeByte(27)
+      ..write(obj.autoNavMode);
   }
 }
 

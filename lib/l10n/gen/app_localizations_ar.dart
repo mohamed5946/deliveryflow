@@ -176,9 +176,34 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get geoShareFailedTitle => 'تعذر فتح الموقع المشارك';
+
+  @override
   String get geoShareFailedWithLabelTitle => 'تعذر فتح الموقع المشارك';
+
+  @override
   String get geoShareReceivedText => 'النص المستلم:';
+
+  @override
   String get geoShareFailureReason => 'السبب';
+
+  @override
+  String get autoNavSection => 'الملاحة التلقائية';
+
+  @override
+  String get autoNavInApp => 'داخل التطبيق';
+
+  @override
+  String get autoNavGoogleMaps => 'خرائط جوجل';
+
+  @override
+  String get autoNavGoogleMapsDesc =>
+      'مشاركة الموقع تفتح خرائط جوجل تلقائيًا، وحساب المسافة يستمر في الخلفية';
+
+  @override
+  String get activeOrderBanner => 'أوردر نشط — جارٍ التتبع';
+
+  @override
+  String get activeOrderBannerTap => 'اضغط للعودة للأوردر';
 
   @override
   String get greetingHello => 'مرحباً';
@@ -698,6 +723,8 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get recenter => 'موقعي الحالي';
+
+  @override
   String get openInGoogleMaps => 'افتح في خرائط جوجل';
 
   @override
@@ -1084,6 +1111,8 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get mapModeOverview => 'نظرة عامة';
+
+  @override
   String get mapModeFollowCam => 'منظور المتابعة';
 
   @override

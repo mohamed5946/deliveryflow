@@ -511,6 +511,44 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               _section(l10n.chooseTheme),
               _presetsGrid(settings, notifier),
               const SizedBox(height: 12),
+              // ── الملاحة التلقائية ─────────────────────────
+              _section(l10n.autoNavSection),
+              GlassCard(
+                child: Column(
+                  children: [
+                    _radioRow(
+                      icon: Icons.navigation_rounded,
+                      label: l10n.autoNavInApp,
+                      selected: settings.autoNavMode == 0,
+                      onTap: () =>
+                          notifier.update((s) => s..autoNavMode = 0),
+                    ),
+                    const SizedBox(height: 4),
+                    _radioRow(
+                      icon: Icons.map_rounded,
+                      label: l10n.autoNavGoogleMaps,
+                      selected: settings.autoNavMode == 1,
+                      onTap: () =>
+                          notifier.update((s) => s..autoNavMode = 1),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      l10n.autoNavGoogleMapsDesc,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(
+                            color: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.color
+                                ?.withValues(alpha: 0.6),
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
               // ── الإشعارات ─────────────────────────────────
               _section(l10n.notificationsSection),
               GlassCard(

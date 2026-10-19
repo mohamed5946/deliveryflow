@@ -7,9 +7,11 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/database/models.dart';
+import '../../core/database/database_service.dart';
 import '../../core/date_time/week_calendar.dart';
 import '../../core/deep_link/geo_share_service.dart';
 import '../../core/providers.dart';
+import '../../core/tracking/delivery_tracking_service.dart';
 import '../../theme/design_system.dart';
 import '../../theme/page_transitions.dart';
 import '../../theme/pressable.dart';
@@ -119,6 +121,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _saturdayPrompt(context, ref, l10n),
+                  _activeTrackingBanner(context, ref, l10n, todayKey, db),
                   // Greeting header: text + avatar + bell
                   Row(
                     children: [
@@ -578,6 +581,94 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
           onPressed: () => Navigator.pop(context),
         ),
       ],
+    );
+  }
+
+  /// v25 middleman mode: when background tracking is running for a shared
+  /// order (no navigation screen open), show a prominent banner that
+  /// returns him to the order with one tap — so he can press
+  /// "وصلت للعميل" / "وصلت للمارت" and the full round-trip is recorded.
+  Widget _activeTrackingBanner(
+    BuildContext context,
+    WidgetRef ref,
+    AppLocalizations l10n,
+    String todayKey,
+    DatabaseService db,
+  ) {
+    final svc = ref.watch(deliveryTrackingServiceProvider);
+    if (!svc.isTracking) return const SizedBox.shrink();
+    final trackingId = svc.trackingOrderId;
+    if (trackingId == null) return const SizedBox.shrink();
+    OrderEntry? match;
+    for (final e in db.orderEntries(todayKey)) {
+      if (e.id == trackingId) {
+        match = e;
+        break;
+      }
+    }
+    if (match == null) return const SizedBox.shrink();
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Pressable(
+        onTap: () => Navigator.of(context).push(
+          SmoothPageRoute(
+            builder: (_) => OrderDetailScreen(
+              dateKey: todayKey,
+              entryId: trackingId,
+            ),
+          ),
+        ),
+        child: GlassCard(
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: scheme.primary.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  Icons.local_shipping_rounded,
+                  color: scheme.primary,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.activeOrderBanner,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: text.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      l10n.activeOrderBannerTap,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: text.bodySmall?.copyWith(
+                        color:
+                            text.bodySmall?.color?.withValues(alpha: 0.65),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_left_rounded,
+                color: scheme.onSurface.withValues(alpha: 0.5),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
