@@ -262,6 +262,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get followUpReminderTime => 'Follow-up reminder';
 
   @override
+  String get shiftEndReminder => 'Shift-end reminder';
+
+  @override
+  String get shiftEndReminderDesc =>
+      'A reminder at your shift end (from your schedule) to log the day\'s orders';
+
+  @override
   String get friday => 'Friday';
 
   @override
@@ -687,6 +694,21 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get addOrder => 'Add order';
+
+  @override
+  String get logCountOnly => 'Log count only';
+
+  @override
+  String get bulkCountTitle => 'Orders count for this day';
+
+  @override
+  String get bulkCountHint =>
+      'Enter the total count — it is saved without per-order details.';
+
+  @override
+  String bulkCountIncludesDetails(int count) {
+    return 'Includes $count order(s) already logged with details — the total can\'t be lower.';
+  }
 
   @override
   String get editOrder => 'Edit order';

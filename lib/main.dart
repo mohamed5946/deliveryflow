@@ -71,6 +71,15 @@ Future<void> main() async {
           }
           return true;
         },
+        scheduleForDate: (k) {
+          final sched =
+              db.scheduleForWeek(WeekCalendar.parseDateKey(k));
+          if (sched == null) return null;
+          for (final d in sched.dailySchedules) {
+            if (d.dateKey == k) return d;
+          }
+          return null;
+        },
       );
     } catch (_) {}
   });

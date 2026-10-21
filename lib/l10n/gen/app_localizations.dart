@@ -590,6 +590,18 @@ abstract class AppLocalizations {
   /// **'Follow-up reminder'**
   String get followUpReminderTime;
 
+  /// No description provided for @shiftEndReminder.
+  ///
+  /// In en, this message translates to:
+  /// **'Shift-end reminder'**
+  String get shiftEndReminder;
+
+  /// No description provided for @shiftEndReminderDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'A reminder at your shift end (from your schedule) to log the day\'s orders'**
+  String get shiftEndReminderDesc;
+
   /// No description provided for @friday.
   ///
   /// In en, this message translates to:
@@ -1393,6 +1405,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Add order'**
   String get addOrder;
+
+  /// No description provided for @logCountOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Log count only'**
+  String get logCountOnly;
+
+  /// No description provided for @bulkCountTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Orders count for this day'**
+  String get bulkCountTitle;
+
+  /// No description provided for @bulkCountHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter the total count — it is saved without per-order details.'**
+  String get bulkCountHint;
+
+  /// No description provided for @bulkCountIncludesDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Includes {count} order(s) already logged with details — the total can\'t be lower.'**
+  String bulkCountIncludesDetails(int count);
 
   /// No description provided for @editOrder.
   ///

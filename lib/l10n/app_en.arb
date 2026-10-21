@@ -133,6 +133,8 @@
   "finishWork": "Finish work",
   "followUpReminderEnabled": "Follow-up reminder",
   "followUpReminderTime": "Follow-up reminder",
+  "shiftEndReminder": "Shift-end reminder",
+  "shiftEndReminderDesc": "A reminder at your shift end (from your schedule) to log the day's orders",
   "friday": "Friday",
   "getStarted": "Get started",
   "greetingAfternoon": "Good afternoon",
@@ -267,6 +269,18 @@
   "workingDay": "Working day",
   "zeroOrders": "0 orders",
   "addOrder": "Add order",
+  "logCountOnly": "Log count only",
+  "bulkCountTitle": "Orders count for this day",
+  "bulkCountHint": "Enter the total count — it is saved without per-order details.",
+  "bulkCountIncludesDetails": "Includes {count} order(s) already logged with details — the total can't be lower.",
+  "@bulkCountIncludesDetails": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "3"
+      }
+    }
+  },
   "editOrder": "Edit order",
   "deleteOrderTitle": "Delete order?",
   "deleteOrderConfirm": "This order will be removed from the day's log.",

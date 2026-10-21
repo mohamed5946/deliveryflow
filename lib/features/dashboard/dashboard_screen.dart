@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/database/models.dart';
 import '../../core/database/database_service.dart';
+import '../../core/date_time/day_rollover.dart';
 import '../../core/date_time/week_calendar.dart';
 import '../../core/deep_link/geo_share_service.dart';
 import '../../core/providers.dart';
@@ -33,12 +34,17 @@ class DashboardScreen extends ConsumerStatefulWidget {
 class _DashboardScreenState extends ConsumerState<DashboardScreen>
     with WidgetsBindingObserver {
   bool _saturdayPromptShown = false;
-  late final DateTime _today = DateTime.now();
+
+  /// v26: "today" is mutable state — it advances automatically when the
+  /// calendar day rolls over while the app stays open (see _rollover).
+  DateTime _today = WeekCalendar.dateOnly(DateTime.now());
 
   /// Day-filter: tapping a week-strip cell selects that day and the cards
   /// above reflect it. Days with no recorded work show zero.
   late DateTime _selectedDay =
       DateTime(_today.year, _today.month, _today.day);
+
+  late final DayRolloverWatcher _rollover;
 
   /// geo: share intake (e.g. navigation shared from the Amazon Flex
   /// driver app): checked once the home tab is ready (cold start) and
@@ -50,13 +56,27 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _rollover = DayRolloverWatcher(onDayChanged: _handleDayChanged);
+    _rollover.start();
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkGeoIntent());
   }
 
   @override
   void dispose() {
+    _rollover.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  /// v26 midnight rollover: advance "today" in place; when the selected
+  /// day was the old today, follow it to the new today.
+  void _handleDayChanged(DateTime previous, DateTime current) {
+    if (!mounted) return;
+    setState(() {
+      final wasTodaySelected = WeekCalendar.isSameDay(_selectedDay, previous);
+      _today = current;
+      if (wasTodaySelected) _selectedDay = current;
+    });
   }
 
   @override
@@ -107,6 +127,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
           loading: () => const GlassLoading(),
           error: (e, _) => Center(child: Text('$e')),
           data: (report) {
+            // v26: the selected day's hours card/dialog show the report's
+            // effective minutes (recorded, or auto-credited planned hours).
+            var shownMinutes = selectedMinutes;
+            for (final d in report.days) {
+              if (d.dateKey == selectedKey) {
+                shownMinutes = d.workMinutes;
+                break;
+              }
+            }
             final hasAnyData = report.recordedDaysCount > 0 ||
                 db.scheduleForWeek(_today) != null;
             final lang = settings.languageCode == 'ar' ? 'ar' : 'en';
@@ -255,7 +284,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                                   context,
                                   l10n,
                                   selectedCompleted,
-                                  selectedMinutes,
+                                  shownMinutes,
                                   selectedOrder),
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(
@@ -308,7 +337,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                             context,
                             l10n.weekHours,
                             WeekCalendar.formatHoursMinutes(
-                                selectedMinutes),
+                                shownMinutes),
                             Icons.schedule_rounded,
                             onTap: () =>
                                 context.push('/hours?date=$selectedKey'),

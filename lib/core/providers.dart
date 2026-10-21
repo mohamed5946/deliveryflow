@@ -48,6 +48,15 @@ class SettingsNotifier extends StateNotifier<UserSettings> {
           }
           return true;
         },
+        scheduleForDate: (k) {
+          final sched =
+              _db.scheduleForWeek(WeekCalendar.parseDateKey(k));
+          if (sched == null) return null;
+          for (final d in sched.dailySchedules) {
+            if (d.dateKey == k) return d;
+          }
+          return null;
+        },
       );
     } catch (_) {
       // Notifications are best-effort; never break settings saves.

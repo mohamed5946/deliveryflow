@@ -82,6 +82,8 @@
   "finishWork": "إنهاء العمل",
   "followUpReminderEnabled": "تذكير المتابعة",
   "followUpReminderTime": "تذكير المتابعة",
+  "shiftEndReminder": "تذكير نهاية الشيفت",
+  "shiftEndReminderDesc": "تنبيه عند نهاية شيفتك (من الجدول) لتسجيل أوردرات اليوم",
   "friday": "الجمعة",
   "getStarted": "ابدأ",
   "greetingAfternoon": "مساء الخير",
@@ -219,6 +221,18 @@
   "workingDay": "يوم عمل",
   "zeroOrders": "0 أوردر",
   "addOrder": "أضف أوردر",
+  "logCountOnly": "تسجيل العدد فقط",
+  "bulkCountTitle": "عدد أوردرات اليوم",
+  "bulkCountHint": "اكتب العدد الإجمالي — هيتسجل من غير تفاصيل لكل أوردر.",
+  "bulkCountIncludesDetails": "يشمل {count} أوردر مسجل بالتفاصيل — الإجمالي ميقدرش يقل عن كده.",
+  "@bulkCountIncludesDetails": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "3"
+      }
+    }
+  },
   "editOrder": "تعديل الأوردر",
   "deleteOrderTitle": "حذف الأوردر؟",
   "deleteOrderConfirm": "هيتمسح الأوردر ده من سجل اليوم.",

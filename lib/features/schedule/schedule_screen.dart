@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/database/database_service.dart';
 import '../../core/database/models.dart';
+import '../../core/date_time/day_rollover.dart';
 import '../../core/date_time/week_calendar.dart';
 import '../../core/providers.dart';
 import '../../theme/design_system.dart';
@@ -27,12 +28,34 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
   bool _loaded = false;
   bool _editing = false;
   String? _error;
+  late final DayRolloverWatcher _rollover;
 
   @override
   void initState() {
     super.initState();
     _weekAnchor = DateTime.now();
+    _rollover = DayRolloverWatcher(onDayChanged: _handleDayChanged);
+    _rollover.start();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _rollover.dispose();
+    super.dispose();
+  }
+
+  /// v26 midnight rollover: when the displayed week was the current one,
+  /// follow into the new week; otherwise just refresh the today markers.
+  /// Never yank the view while he is editing.
+  void _handleDayChanged(DateTime previous, DateTime current) {
+    if (!mounted) return;
+    setState(() {
+      if (!_editing && WeekCalendar.isSameWeek(_weekAnchor, previous)) {
+        _weekAnchor = current;
+        _load();
+      }
+    });
   }
 
   void _load() {

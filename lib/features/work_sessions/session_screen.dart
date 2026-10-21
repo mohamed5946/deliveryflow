@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/database/models.dart';
+import '../../core/date_time/day_rollover.dart';
 import '../../core/date_time/week_calendar.dart';
 import '../../core/providers.dart';
 import '../../theme/design_system.dart';
@@ -27,6 +28,7 @@ class _SessionScreenState extends ConsumerState<SessionScreen> {
   late String _dateKey;
   Timer? _ticker;
   bool _restoredNoticeShown = false;
+  late final DayRolloverWatcher _rollover;
 
   // Manual entry state
   TimeOfDay _mStart = const TimeOfDay(hour: 9, minute: 0);
@@ -39,14 +41,28 @@ class _SessionScreenState extends ConsumerState<SessionScreen> {
   void initState() {
     super.initState();
     _dateKey = widget.dateKey ?? WeekCalendar.dateKey(DateTime.now());
+    _rollover = DayRolloverWatcher(onDayChanged: _handleDayChanged);
+    _rollover.start();
     final db = ref.read(databaseServiceProvider);
     _mBreak.text = db.settings.defaultBreakDurationMinutes.toString();
     _ticker = Timer.periodic(
         const Duration(seconds: 1), (_) => setState(() {}));
   }
 
+  /// v26 midnight rollover: follow into the new day only when this screen
+  /// defaulted to "today" and no session is running — an active session
+  /// keeps accruing to the day it started.
+  void _handleDayChanged(DateTime previous, DateTime current) {
+    if (!mounted) return;
+    if (widget.dateKey != null) return;
+    final db = ref.read(databaseServiceProvider);
+    if (db.activeSession() != null) return;
+    setState(() => _dateKey = WeekCalendar.dateKey(current));
+  }
+
   @override
   void dispose() {
+    _rollover.dispose();
     _ticker?.cancel();
     _mBreak.dispose();
     _mNotes.dispose();

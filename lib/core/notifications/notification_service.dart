@@ -1,9 +1,42 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
 import '../date_time/week_calendar.dart';
 import '../database/models.dart';
+
+/// One shift-end reminder instant (local wall-clock).
+class ShiftEndReminderTime {
+  final DateTime when;
+
+  /// True for the 23:55 same-day reminder of an overnight shift.
+  final bool preMidnight;
+
+  const ShiftEndReminderTime(this.when, {this.preMidnight = false});
+}
+
+/// v26: reminder instants for a shift that starts on [day].
+///
+/// - Normal shift (end after start): one reminder at the shift end.
+/// - Overnight shift (end <= start, so it ends the next day): TWO
+///   reminders — one at 23:55 on [day] to log the pre-midnight orders,
+///   and one at the shift end on the next day to log the rest.
+List<ShiftEndReminderTime> shiftEndReminderTimes({
+  required DateTime day,
+  required int startMinutes,
+  required int endMinutes,
+}) {
+  final base = DateTime(day.year, day.month, day.day);
+  if (endMinutes > startMinutes) {
+    return [ShiftEndReminderTime(base.add(Duration(minutes: endMinutes)))];
+  }
+  return [
+    ShiftEndReminderTime(base.add(const Duration(hours: 23, minutes: 55)),
+        preMidnight: true),
+    ShiftEndReminderTime(base.add(Duration(days: 1, minutes: endMinutes))),
+  ];
+}
 
 /// Local-only notification scheduling.
 ///
@@ -28,11 +61,22 @@ class NotificationService {
   static const int _followUpBase = 2000;
   static const int _scheduleId = 3001;
   static const int _reportId = 3002;
+  static const int _shiftEndBase = 4000; // + dayOffset*2 + slot
   static const int _testId = 9999;
 
   Future<void> init() async {
     if (_initialized) return;
     tzdata.initializeTimeZones();
+    // v26 fix: tz.local defaults to UTC when setLocalLocation is never
+    // called, so every zonedSchedule fired on UTC wall-clock (3 hours off
+    // Cairo) and enabled reminders effectively never arrived. Resolve the
+    // device timezone and set it BEFORE any scheduling happens.
+    try {
+      final info = await FlutterTimezone.getLocalTimezone();
+      tz.setLocalLocation(tz.getLocation(info.identifier));
+    } catch (_) {
+      // Keep the UTC fallback — scheduling still works, just offset.
+    }
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
     const settings = InitializationSettings(android: android);
     await _plugin.initialize(settings);
@@ -152,6 +196,7 @@ class NotificationService {
     required UserSettings settings,
     required bool Function(String dateKey) hasOrderRecord,
     required bool Function(String dateKey) isWorkingDay,
+    DailySchedule? Function(String dateKey)? scheduleForDate,
   }) async {
     await cancelAll();
     if (!settings.notificationsEnabled) return;
@@ -208,6 +253,58 @@ class NotificationService {
           uiLocalNotificationDateInterpretation:
               UILocalNotificationDateInterpretation.absoluteTime,
         );
+      }
+    }
+
+    // v26 shift-end reminders (opt-in): at each working day's shift end,
+    // remind him to log that day's orders. Overnight shifts also get a
+    // 23:55 reminder (see shiftEndReminderTimes). Scheduled for the next
+    // 14 days like follow-ups; rescheduleAll re-runs on app start, on
+    // settings changes and on schedule changes (refreshReminders).
+    if (settings.shiftEndReminderEnabled && scheduleForDate != null) {
+      const details = NotificationDetails(
+        android: AndroidNotificationDetails(
+          channelId,
+          channelName,
+          channelDescription: channelDesc,
+          importance: Importance.defaultImportance,
+        ),
+      );
+      final tzNow = tz.TZDateTime.now(tz.local);
+      final today = DateTime.now();
+      for (var i = 0; i < 14; i++) {
+        final day = WeekCalendar.addDays(today, i);
+        final key = WeekCalendar.dateKey(day);
+        final sched = scheduleForDate(key);
+        if (sched == null || !sched.isWorkingDay) continue;
+        final overnight = sched.endMinutes <= sched.startMinutes;
+        final times = shiftEndReminderTimes(
+          day: day,
+          startMinutes: sched.startMinutes,
+          endMinutes: sched.endMinutes,
+        );
+        for (var j = 0; j < times.length; j++) {
+          final t = times[j];
+          final when = tz.TZDateTime(tz.local, t.when.year, t.when.month,
+              t.when.day, t.when.hour, t.when.minute);
+          if (!when.isAfter(tzNow)) continue;
+          await _plugin.zonedSchedule(
+            _shiftEndBase + i * 2 + j,
+            t.preMidnight ? strings.shiftPreMidnightTitle : strings.shiftEndTitle,
+            t.preMidnight
+                ? strings.shiftPreMidnightBody
+                : (overnight
+                    ? strings.shiftOvernightEndBody
+                    : strings.shiftEndBody),
+            when,
+            details,
+            androidScheduleMode: exact
+                ? AndroidScheduleMode.exactAllowWhileIdle
+                : AndroidScheduleMode.inexactAllowWhileIdle,
+            uiLocalNotificationDateInterpretation:
+                UILocalNotificationDateInterpretation.absoluteTime,
+          );
+        }
       }
     }
 
@@ -273,6 +370,11 @@ class _LocalizedStrings {
   final String scheduleBody;
   final String reportTitle;
   final String reportBody;
+  final String shiftEndTitle;
+  final String shiftEndBody;
+  final String shiftPreMidnightTitle;
+  final String shiftPreMidnightBody;
+  final String shiftOvernightEndBody;
 
   factory _LocalizedStrings(String languageCode) {
     if (languageCode == 'ar') {
@@ -286,6 +388,14 @@ class _LocalizedStrings {
             'جهّز جدول الأسبوع الجديد! حدّد مواعيد شغلك من الأحد للسبت.',
         reportTitle: 'تقرير الأسبوع جاهز 📊',
         reportBody: 'تقرير الأسبوع جاهز! شوف إجمالي أوردراتك وساعات شغلك.',
+        shiftEndTitle: 'خلصت الشيفت؟ 🏁',
+        shiftEndBody:
+            'سجّل أوردرات اليوم وانت فاكرها — دي آخر خطوة في يومك.',
+        shiftPreMidnightTitle: 'قبل ما اليوم يخلص 🌙',
+        shiftPreMidnightBody:
+            'سجّل أوردرات النهارده اللي عملتها لحد دلوقتي، وبكرة كمّل باقي الشيفت.',
+        shiftOvernightEndBody:
+            'سجّل باقي أوردرات الشيفت اللي خلّصته عشان يومك يبقى كامل.',
       );
     }
     return const _LocalizedStrings._(
@@ -300,6 +410,14 @@ class _LocalizedStrings {
       reportTitle: 'Weekly report ready 📊',
       reportBody:
           'Your weekly report is ready. Review your orders and working hours.',
+      shiftEndTitle: 'Shift over? 🏁',
+      shiftEndBody:
+          "Log today's orders while they're fresh — the last step of your day.",
+      shiftPreMidnightTitle: 'Before the day ends 🌙',
+      shiftPreMidnightBody:
+          "Log today's orders so far — you'll add the rest when your shift ends.",
+      shiftOvernightEndBody:
+          'Log the remaining orders from your finished shift to complete the day.',
     );
   }
 
@@ -312,5 +430,10 @@ class _LocalizedStrings {
     required this.scheduleBody,
     required this.reportTitle,
     required this.reportBody,
+    required this.shiftEndTitle,
+    required this.shiftEndBody,
+    required this.shiftPreMidnightTitle,
+    required this.shiftPreMidnightBody,
+    required this.shiftOvernightEndBody,
   });
 }

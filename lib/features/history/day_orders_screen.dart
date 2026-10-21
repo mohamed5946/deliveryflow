@@ -32,10 +32,13 @@ class DayOrdersScreen extends ConsumerWidget {
     final db = ref.watch(databaseServiceProvider);
     ref.watch(dataVersionProvider);
     final day = WeekCalendar.parseDateKey(dateKey);
+    final record = db.orderRecord(dateKey);
     final entries =
-        List<OrderEntry>.from(db.orderRecord(dateKey)?.entries ?? [])
+        List<OrderEntry>.from(record?.entries ?? [])
           ..sort((a, b) =>
               a.timestampMillis.compareTo(b.timestampMillis));
+    // v26: a day can hold a bulk count with no detailed entries.
+    final bulkCount = record?.completedOrders ?? 0;
 
     return GlassScaffold(
       appBar: AppBar(
@@ -47,13 +50,33 @@ class DayOrdersScreen extends ConsumerWidget {
           ? Center(
               child: Padding(
                 padding: const EdgeInsets.all(32),
-                child: Text(
-                  l10n.noOrdersThisDay,
-                  textAlign: TextAlign.center,
-                  style: text.bodyMedium?.copyWith(
-                    color: scheme.onSurface.withValues(alpha: 0.6),
-                  ),
-                ),
+                child: bulkCount > 0
+                    ? Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('$bulkCount',
+                              style: text.displaySmall?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: scheme.primary)),
+                          const SizedBox(height: 4),
+                          Text(l10n.ordersLabel, style: text.bodyMedium),
+                          const SizedBox(height: 8),
+                          Text(
+                            l10n.ordersWithoutDetails(bulkCount),
+                            textAlign: TextAlign.center,
+                            style: text.bodySmall?.copyWith(
+                                color: scheme.onSurface
+                                    .withValues(alpha: 0.6)),
+                          ),
+                        ],
+                      )
+                    : Text(
+                        l10n.noOrdersThisDay,
+                        textAlign: TextAlign.center,
+                        style: text.bodyMedium?.copyWith(
+                          color: scheme.onSurface.withValues(alpha: 0.6),
+                        ),
+                      ),
               ),
             )
           : ListView.builder(

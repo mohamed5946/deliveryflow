@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../core/database/models.dart';
+import '../../core/date_time/day_rollover.dart';
 import '../../core/date_time/week_calendar.dart';
 import '../../core/providers.dart';
 import '../../theme/design_system.dart';
@@ -24,6 +25,33 @@ class ReportScreen extends ConsumerStatefulWidget {
 
 class _ReportScreenState extends ConsumerState<ReportScreen> {
   DateTime _anchor = DateTime.now();
+  late final DayRolloverWatcher _rollover;
+
+  @override
+  void initState() {
+    super.initState();
+    _rollover = DayRolloverWatcher(onDayChanged: _handleDayChanged);
+    _rollover.start();
+  }
+
+  @override
+  void dispose() {
+    _rollover.dispose();
+    super.dispose();
+  }
+
+  /// v26 midnight rollover: when the displayed week was the current one,
+  /// shift the anchor by the same delta so the new week shows in place;
+  /// the "اليوم" summary card also re-reads the fresh date on rebuild.
+  void _handleDayChanged(DateTime previous, DateTime current) {
+    if (!mounted) return;
+    setState(() {
+      if (WeekCalendar.isSameWeek(_anchor, previous)) {
+        _anchor = WeekCalendar.addDays(
+            _anchor, WeekCalendar.daysBetween(previous, current));
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -352,7 +380,8 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
         entries.where((e) => e.status == 1 || e.status == 2).length;
     final pending = entries.where((e) => e.status == 0).length;
     final total = entries.length;
-    final minutes = db.recordedMinutesForDate(todayKey);
+    // v26: effective minutes — auto-credited planned hours included.
+    final minutes = db.effectiveMinutesForDate(todayKey);
     final km = rec?.totalKm ?? 0;
     final loc = ref.watch(settingsProvider.select((s) => s.languageCode)) == 'ar' ? 'ar' : 'en';
 

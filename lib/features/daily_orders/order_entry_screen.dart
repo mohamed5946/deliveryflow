@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/database/models.dart';
+import '../../core/date_time/day_rollover.dart';
 import '../../core/date_time/week_calendar.dart';
 import '../../core/providers.dart';
 import '../../core/tracking/delivery_tracking_service.dart';
@@ -32,14 +33,28 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
   final _notesFocus = FocusNode();
   bool _loaded = false;
   bool _notesDirty = false;
+  late final DayRolloverWatcher _rollover;
 
   @override
   void initState() {
     super.initState();
     _dateKey = widget.dateKey ?? WeekCalendar.dateKey(DateTime.now());
+    _rollover = DayRolloverWatcher(onDayChanged: _handleDayChanged);
+    _rollover.start();
     _notesFocus.addListener(() {
       if (!_notesFocus.hasFocus && _notesDirty) _saveNotes();
     });
+    _load();
+  }
+
+  /// v26 midnight rollover: only follow into the new day when this screen
+  /// defaulted to "today" and is still untouched — never retarget a day
+  /// the user is actively working on.
+  void _handleDayChanged(DateTime previous, DateTime current) {
+    if (!mounted) return;
+    if (widget.dateKey != null) return;
+    if (_notesDirty || _entries.isNotEmpty || _count > 0) return;
+    _dateKey = WeekCalendar.dateKey(current);
     _load();
   }
 
@@ -58,6 +73,7 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
 
   @override
   void dispose() {
+    _rollover.dispose();
     if (_notesDirty) _saveNotesSync();
     _notes.dispose();
     _notesFocus.dispose();
@@ -105,6 +121,70 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
       ),
     );
     if (mounted) _load();
+  }
+
+  /// v26 bulk entry: record the day's TOTAL order count with no
+  /// per-order details. Stored on the same [DailyOrderRecord] count the
+  /// reports/dashboard already read, so totals and auto-hours see it too.
+  Future<void> _logBulkCount() async {
+    final l10n = AppLocalizations.of(context);
+    final ctrl =
+        TextEditingController(text: _count > 0 ? '$_count' : '');
+    final value = await showDialog<int>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.bulkCountTitle),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(l10n.bulkCountHint,
+                style: Theme.of(ctx).textTheme.bodySmall),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              keyboardType: TextInputType.number,
+              autofocus: true,
+              decoration:
+                  InputDecoration(hintText: l10n.ordersLabel),
+            ),
+            if (_entries.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(l10n.bulkCountIncludesDetails(_entries.length),
+                  style: Theme.of(ctx).textTheme.bodySmall),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(l10n.cancel),
+          ),
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(ctx, int.tryParse(ctrl.text.trim())),
+            child: Text(l10n.save),
+          ),
+        ],
+      ),
+    );
+    if (value == null || !mounted) return;
+    // The total can never drop below the detailed entries already logged.
+    final total = value.clamp(_entries.length, 9999);
+    final db = ref.read(databaseServiceProvider);
+    await db.upsertOrderRecord(
+      dateKey: _dateKey,
+      completedOrders: total,
+      notes: _notes.text.trim(),
+    );
+    _notesDirty = false;
+    if (!mounted) return;
+    bumpDataVersion(ref);
+    await ref.read(settingsProvider.notifier).refreshReminders();
+    _load();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(l10n.recordSaved)));
   }
 
   Future<void> _editEntry(OrderEntry entry) async {
@@ -249,6 +329,16 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
               label: l10n.addOrder,
               icon: Icons.add_rounded,
               onPressed: _addEntry,
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: GlassButton(
+              label: l10n.logCountOnly,
+              icon: Icons.numbers_rounded,
+              primary: false,
+              onPressed: _logBulkCount,
             ),
           ),
           const SizedBox(height: 12),

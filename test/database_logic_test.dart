@@ -459,4 +459,155 @@ void main() {
       expect(db.orderRecord(day1)!.completedOrders, 0);
     });
   });
+
+  group('v26 auto work-hours (planned hours count when orders logged)', () {
+    // Week of Sun 2026-10-11. Planned net minutes:
+    // Mon 600 (9-19, no break), Tue 420 (9-17, 60 break), Wed 480,
+    // Thu OFF, Fri 480, Sat 240, Sun 480.
+    Future<void> saveWeekSchedule() => db.saveSchedule(WorkSchedule(
+          id: 'w1',
+          weekStartKey: '2026-10-11',
+          weekEndKey: '2026-10-17',
+          dailySchedules: [
+            DailySchedule(
+                dateKey: '2026-10-11',
+                startMinutes: 9 * 60,
+                endMinutes: 17 * 60,
+                breakDurationMinutes: 0),
+            DailySchedule(
+                dateKey: '2026-10-12',
+                startMinutes: 9 * 60,
+                endMinutes: 19 * 60,
+                breakDurationMinutes: 0),
+            DailySchedule(
+                dateKey: '2026-10-13',
+                startMinutes: 9 * 60,
+                endMinutes: 17 * 60,
+                breakDurationMinutes: 60),
+            DailySchedule(
+                dateKey: '2026-10-14',
+                startMinutes: 9 * 60,
+                endMinutes: 17 * 60,
+                breakDurationMinutes: 0),
+            DailySchedule(
+                dateKey: '2026-10-15',
+                isWorkingDay: false,
+                startMinutes: 9 * 60,
+                endMinutes: 17 * 60,
+                breakDurationMinutes: 0),
+            DailySchedule(
+                dateKey: '2026-10-16',
+                startMinutes: 9 * 60,
+                endMinutes: 17 * 60,
+                breakDurationMinutes: 0),
+            DailySchedule(
+                dateKey: '2026-10-17',
+                startMinutes: 9 * 60,
+                endMinutes: 13 * 60,
+                breakDurationMinutes: 0),
+          ],
+          createdAtMillis: 1,
+          updatedAtMillis: 2,
+        ));
+
+    DayBreakdown dayOf(WeeklyReport r, String key) =>
+        r.days.firstWhere((d) => d.dateKey == key);
+
+    test('orders >= 1 with no session credits the planned minutes',
+        () async {
+      await saveWeekSchedule();
+      // Bulk count entry (v26 Change 5 path): bare count, no details.
+      await db.upsertOrderRecord(dateKey: '2026-10-12', completedOrders: 15);
+      final r = db.buildWeeklyReport(DateTime(2026, 10, 14));
+      expect(dayOf(r, '2026-10-12').workMinutes, 600);
+      expect(dayOf(r, '2026-10-12').orders, 15);
+      expect(r.totalOrders, 15);
+      expect(r.totalRecordedHours, 10.0);
+      expect(db.effectiveMinutesForDate('2026-10-12'), 600);
+    });
+
+    test('recorded zero orders earn no auto-credit', () async {
+      await saveWeekSchedule();
+      await db.upsertOrderRecord(dateKey: '2026-10-13', completedOrders: 0);
+      final r = db.buildWeeklyReport(DateTime(2026, 10, 14));
+      expect(dayOf(r, '2026-10-13').workMinutes, 0);
+      expect(r.totalRecordedHours, 0.0);
+    });
+
+    test('unrecorded orders earn no auto-credit', () async {
+      await saveWeekSchedule();
+      final r = db.buildWeeklyReport(DateTime(2026, 10, 14));
+      expect(dayOf(r, '2026-10-14').workMinutes, 0);
+      expect(r.missingRecordDates, contains('2026-10-14'));
+    });
+
+    test('a recorded session always wins over the auto value', () async {
+      await saveWeekSchedule();
+      await db.upsertOrderRecord(dateKey: '2026-10-16', completedOrders: 5);
+      await db.saveManualSession(
+        dateKey: '2026-10-16',
+        startMinutes: 9 * 60,
+        endMinutes: 11 * 60,
+        breakMinutes: 0,
+      );
+      final r = db.buildWeeklyReport(DateTime(2026, 10, 14));
+      expect(dayOf(r, '2026-10-16').workMinutes, 120);
+      expect(db.effectiveMinutesForDate('2026-10-16'), 120);
+    });
+
+    test('a day off earns no auto-credit even with orders', () async {
+      await saveWeekSchedule();
+      await db.upsertOrderRecord(dateKey: '2026-10-15', completedOrders: 8);
+      final r = db.buildWeeklyReport(DateTime(2026, 10, 14));
+      expect(dayOf(r, '2026-10-15').workMinutes, 0);
+      expect(r.totalOrders, 8); // orders still count, hours do not
+      expect(r.totalRecordedHours, 0.0);
+    });
+
+    test('no schedule for the week means no auto-credit', () async {
+      await db.upsertOrderRecord(dateKey: '2026-10-12', completedOrders: 9);
+      final r = db.buildWeeklyReport(DateTime(2026, 10, 14));
+      expect(dayOf(r, '2026-10-12').workMinutes, 0);
+    });
+
+    test('pure rule: effectiveWorkMinutes branches', () {
+      final sched = DailySchedule(
+          dateKey: '2026-10-12',
+          startMinutes: 9 * 60,
+          endMinutes: 17 * 60,
+          breakDurationMinutes: 30);
+      expect(
+          effectiveWorkMinutes(
+              recordedMinutes: 0, orders: 3, schedule: sched),
+          450);
+      expect(
+          effectiveWorkMinutes(
+              recordedMinutes: 90, orders: 3, schedule: sched),
+          90);
+      expect(
+          effectiveWorkMinutes(
+              recordedMinutes: 0, orders: 0, schedule: sched),
+          0);
+      expect(
+          effectiveWorkMinutes(
+              recordedMinutes: 0, orders: null, schedule: sched),
+          0);
+      expect(
+          effectiveWorkMinutes(
+              recordedMinutes: 0, orders: 3, schedule: null),
+          0);
+      final off = DailySchedule(dateKey: '2026-10-12', isWorkingDay: false);
+      expect(
+          effectiveWorkMinutes(
+              recordedMinutes: 0, orders: 3, schedule: off),
+          0);
+    });
+
+    test('shiftEndReminderEnabled defaults off and round-trips', () {
+      expect(UserSettings().shiftEndReminderEnabled, isFalse);
+      final s = UserSettings()..shiftEndReminderEnabled = true;
+      final back = UserSettings.fromJson(s.toJson());
+      expect(back.shiftEndReminderEnabled, isTrue);
+    });
+  });
 }

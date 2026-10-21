@@ -261,6 +261,13 @@ class AppLocalizationsAr extends AppLocalizations {
   String get followUpReminderTime => 'تذكير المتابعة';
 
   @override
+  String get shiftEndReminder => 'تذكير نهاية الشيفت';
+
+  @override
+  String get shiftEndReminderDesc =>
+      'تنبيه عند نهاية شيفتك (من الجدول) لتسجيل أوردرات اليوم';
+
+  @override
   String get friday => 'الجمعة';
 
   @override
@@ -687,6 +694,21 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get addOrder => 'أضف أوردر';
+
+  @override
+  String get logCountOnly => 'تسجيل العدد فقط';
+
+  @override
+  String get bulkCountTitle => 'عدد أوردرات اليوم';
+
+  @override
+  String get bulkCountHint =>
+      'اكتب العدد الإجمالي — هيتسجل من غير تفاصيل لكل أوردر.';
+
+  @override
+  String bulkCountIncludesDetails(int count) {
+    return 'يشمل $count أوردر مسجل بالتفاصيل — الإجمالي ميقدرش يقل عن كده.';
+  }
 
   @override
   String get editOrder => 'تعديل الأوردر';

@@ -1,7 +1,7 @@
 import 'package:hive/hive.dart';
 
 /// Schema version for migrations. Bump when a model changes shape.
-const int kSchemaVersion = 8;
+const int kSchemaVersion = 9;
 
 // ---------------------------------------------------------------------------
 // UserSettings (typeId 0)
@@ -65,6 +65,8 @@ class UserSettings extends HiveObject {
   bool registered; // first-launch registration-code gate accepted
   @HiveField(27)
   int autoNavMode; // 0=in-app navigation (default), 1=Google Maps middleman
+  @HiveField(28)
+  bool shiftEndReminderEnabled; // v26: remind at shift end to log orders
 
   UserSettings({
     this.displayName = '',
@@ -95,6 +97,7 @@ class UserSettings extends HiveObject {
     List<String>? dismissedNotificationIds,
     this.registered = false,
     this.autoNavMode = 0,
+    this.shiftEndReminderEnabled = false,
   })  : readNotificationIds = readNotificationIds ?? [],
         dismissedNotificationIds = dismissedNotificationIds ?? [];
 
@@ -127,6 +130,7 @@ class UserSettings extends HiveObject {
         'dismissedNotificationIds': dismissedNotificationIds,
         'registered': registered,
         'autoNavMode': autoNavMode,
+        'shiftEndReminderEnabled': shiftEndReminderEnabled,
         'schemaVersion': kSchemaVersion,
       };
 
@@ -170,6 +174,8 @@ class UserSettings extends HiveObject {
             (json['dismissedNotificationIds'] as List?)?.cast<String>() ?? [],
         registered: (json['registered'] as bool?) ?? false,
         autoNavMode: (json['autoNavMode'] as num?)?.toInt() ?? 0,
+        shiftEndReminderEnabled:
+            (json['shiftEndReminderEnabled'] as bool?) ?? false,
       );
 }
 
@@ -213,13 +219,14 @@ class UserSettingsAdapter extends TypeAdapter<UserSettings> {
           (fields[25] as List?)?.cast<String>() ?? [],
       registered: (fields[26] as bool?) ?? false,
       autoNavMode: (fields[27] as int?) ?? 0,
+      shiftEndReminderEnabled: (fields[28] as bool?) ?? false,
     );
   }
 
   @override
   void write(BinaryWriter writer, UserSettings obj) {
     writer
-      ..writeByte(28)
+      ..writeByte(29)
       ..writeByte(0)
       ..write(obj.displayName)
       ..writeByte(1)
@@ -275,7 +282,9 @@ class UserSettingsAdapter extends TypeAdapter<UserSettings> {
       ..writeByte(26)
       ..write(obj.registered)
       ..writeByte(27)
-      ..write(obj.autoNavMode);
+      ..write(obj.autoNavMode)
+      ..writeByte(28)
+      ..write(obj.shiftEndReminderEnabled);
   }
 }
 
@@ -982,10 +991,26 @@ class WorkSessionAdapter extends TypeAdapter<WorkSession> {
 // WeeklyReport (derived, not stored)
 // ---------------------------------------------------------------------------
 
+/// v26 auto work-hours rule (derived only — stored data is never rewritten):
+/// when a day has NO recorded session minutes but at least one logged order
+/// and a planned working schedule, the day's net planned minutes count as
+/// worked. A recorded session always wins; a day off or a day with zero /
+/// unrecorded orders earns no automatic credit.
+int effectiveWorkMinutes({
+  required int recordedMinutes,
+  required int? orders,
+  required DailySchedule? schedule,
+}) {
+  if (recordedMinutes > 0) return recordedMinutes;
+  if (schedule == null || !schedule.isWorkingDay) return 0;
+  if (orders == null || orders < 1) return 0;
+  return schedule.netPlannedMinutes;
+}
+
 class DayBreakdown {
   final String dateKey;
   final int? orders; // null => unrecorded
-  final int workMinutes; // recorded net minutes (0 when none)
+  final int workMinutes; // effective minutes (recorded, else v26 auto-hours)
   final double plannedHours;
   final bool isWorkingDay;
   final double kmOut; // detailed entries only

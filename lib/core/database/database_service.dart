@@ -446,6 +446,28 @@ class DatabaseService {
     return total;
   }
 
+  /// Effective worked minutes for one date: recorded session minutes, or —
+  /// v26 auto-hours — the day's net planned minutes when at least one order
+  /// was logged and no session was recorded. Same rule the weekly report
+  /// applies per day (see [effectiveWorkMinutes]).
+  int effectiveMinutesForDate(String dateKey) {
+    final schedule = scheduleForWeek(WeekCalendar.parseDateKey(dateKey));
+    DailySchedule? daySchedule;
+    if (schedule != null) {
+      for (final d in schedule.dailySchedules) {
+        if (d.dateKey == dateKey) {
+          daySchedule = d;
+          break;
+        }
+      }
+    }
+    return effectiveWorkMinutes(
+      recordedMinutes: recordedMinutesForDate(dateKey),
+      orders: orderRecord(dateKey)?.completedOrders,
+      schedule: daySchedule,
+    );
+  }
+
   // ---------------------------------------------------------------- counts --
   Map<String, int> recordCounts() => {
         'schedules': _schedules.length,
@@ -663,15 +685,22 @@ class DatabaseService {
       final kmBack = order?.totalKmBack ?? 0;
       totalKmOut += kmOut;
       totalKmBack += kmBack;
-      totalMinutes += minutes;
+      // v26: planned schedule hours count as worked when the day has at
+      // least one logged order but no recorded session (derived only).
+      final effMinutes = effectiveWorkMinutes(
+        recordedMinutes: minutes,
+        orders: orders,
+        schedule: sched,
+      );
+      totalMinutes += effMinutes;
       if (isWorking && hasData) {
         workingDaysWithData++;
-        workingMinutesSum += minutes;
+        workingMinutesSum += effMinutes;
       }
       breakdown.add(DayBreakdown(
         dateKey: key,
         orders: orders,
-        workMinutes: minutes,
+        workMinutes: effMinutes,
         plannedHours: planned,
         isWorkingDay: isWorking,
         kmOut: kmOut,

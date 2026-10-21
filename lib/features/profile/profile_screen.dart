@@ -327,6 +327,30 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 
+  /// v26: shift-end reminder toggle — the time comes from the work
+  /// schedule, so there is no time picker for this one.
+  Future<void> _setShiftEndReminder(bool v) async {
+    final l10n = AppLocalizations.of(context);
+    final notifier = ref.read(settingsProvider.notifier);
+    if (v) {
+      try {
+        final ok =
+            await ref.read(notificationServiceProvider).requestPermission();
+        if (!ok && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(l10n.notificationPermissionNeeded)));
+        }
+      } catch (_) {}
+      await notifier.update((s) {
+        s.shiftEndReminderEnabled = true;
+        s.notificationsEnabled = true;
+        return s;
+      });
+    } else {
+      await notifier.update((s) => s..shiftEndReminderEnabled = false);
+    }
+  }
+
   // ── Bottom sheets ──────────────────────────────────────────
 
   Future<void> _showSheet(Widget body) {
@@ -955,6 +979,24 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         label: l10n.weeklyScheduleNotif,
         value: settings.scheduleReminderEnabled,
         onChanged: (v) => _setReminder(v, daily: false),
+      ),
+      const SizedBox(height: 4),
+      _toggleRow(
+        icon: Icons.alarm_rounded,
+        label: l10n.shiftEndReminder,
+        value: settings.shiftEndReminderEnabled,
+        onChanged: _setShiftEndReminder,
+      ),
+      Padding(
+        padding: const EdgeInsets.only(left: 38, right: 4, bottom: 4),
+        child: Text(
+          l10n.shiftEndReminderDesc,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context)
+                  .colorScheme
+                  .onSurface
+                  .withValues(alpha: 0.6)),
+        ),
       ),
       const SizedBox(height: 4),
       _timeRow2(
