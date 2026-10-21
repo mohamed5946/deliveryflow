@@ -227,23 +227,71 @@ GeoShareTarget _coordsOrLabel(String v) {
   return GeoShareTarget(label: v);
 }
 
-/// v24.2: normalizes share text before parsing. Flex/WhatsApp shares can
-/// carry Arabic-Indic digits (٢٩.٩٨٧), the Arabic comma (،), or invisible
-/// Unicode marks (ZWSP, RLM/LRM) that silently break coordinate parsing.
-/// The coordinates are the exact location, so normalize aggressively.
+/// v24.2/v25.1: normalizes share text before parsing. Flex/WhatsApp shares
+/// can carry non-ASCII digits (Arabic-Indic ٢٩.٩٨٧ and many other scripts),
+/// look-alike separators (Arabic decimal separator ٫ U+066B, one-dot leader
+/// U+2024, fullwidth ．，) that render identically to "." / "," in
+/// screenshots, the Arabic comma (،), or invisible Unicode marks (ZWSP,
+/// RLM/LRM) that silently break coordinate parsing. The coordinates are
+/// the exact location, so normalize aggressively: one pass over the code
+/// units converts every known decimal-digit block and separator to ASCII
+/// and drops invisible marks.
 String _normalizeShareText(String s) {
-  var out = s;
-  const arabicDigits = '٠١٢٣٤٥٦٧٨٩';
-  const extDigits = '۰۱۲۳۴۵۶۷۸۹';
-  const asciiDigits = '0123456789';
-  for (var i = 0; i < 10; i++) {
-    out = out.replaceAll(arabicDigits[i], asciiDigits[i]);
-    out = out.replaceAll(extDigits[i], asciiDigits[i]);
+  // Zero code points of common Unicode decimal-digit (Nd) blocks; each
+  // block is ten consecutive code points for digits 0–9.
+  const digitBases = <int>[
+    0x0660, // Arabic-Indic
+    0x06F0, // Extended Arabic-Indic
+    0x0966, // Devanagari
+    0x09E6, // Bengali
+    0x0A66, // Gurmukhi
+    0x0AE6, // Gujarati
+    0x0B66, // Oriya
+    0x0BE6, // Tamil
+    0x0C66, // Telugu
+    0x0CE6, // Kannada
+    0x0D66, // Malayalam
+    0x0E50, // Thai
+    0x0ED0, // Lao
+    0x0F20, // Tibetan
+    0x1040, // Myanmar
+    0x17E0, // Khmer
+    0x1810, // Mongolian
+    0xFF10, // Fullwidth
+  ];
+  final buf = StringBuffer();
+  for (final unit in s.codeUnits) {
+    // Invisible Unicode marks: ZWSP, ZWNJ, ZWJ, LRM, RLM, BOM — drop.
+    if (unit == 0x200B ||
+        unit == 0x200C ||
+        unit == 0x200D ||
+        unit == 0x200E ||
+        unit == 0x200F ||
+        unit == 0xFEFF) {
+      continue;
+    }
+    // Look-alike decimal separators → ASCII period: ٫ ․ ．
+    if (unit == 0x066B || unit == 0x2024 || unit == 0xFF0E) {
+      buf.write('.');
+      continue;
+    }
+    // Comma look-alikes → ASCII comma: ٬ ， ،
+    if (unit == 0x066C || unit == 0xFF0C || unit == 0x060C) {
+      buf.write(',');
+      continue;
+    }
+    // Non-ASCII decimal digits → ASCII.
+    var isDigit = false;
+    for (final base in digitBases) {
+      if (unit >= base && unit <= base + 9) {
+        buf.writeCharCode(0x30 + (unit - base));
+        isDigit = true;
+        break;
+      }
+    }
+    if (!isDigit) buf.writeCharCode(unit);
   }
-  out = out.replaceAll('،', ',');
-  // Strip invisible Unicode marks: ZWSP, ZWNJ, ZWJ, LRM, RLM, BOM.
-  out = out.replaceAll(RegExp('[\u200B\u200C\u200D\u200E\u200F\uFEFF]'), '');
-  return out;
+  return buf.toString();
 }
 
 /// v24: unified share entry point. Accepts:

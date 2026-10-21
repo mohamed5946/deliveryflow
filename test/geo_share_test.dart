@@ -145,6 +145,44 @@ void main() {
         expect(t.lat, closeTo(29.987321, 1e-6));
         expect(t.lng, closeTo(30.963889, 1e-6));
       });
+
+      test('v25.1: Arabic decimal separator U+066B parses as coords',
+          () async {
+        final t = await parseShareInput(
+            'شارع الوجيه 2\n29\u066B999738,30\u066B982174@29');
+        expect(t, isNotNull);
+        expect(t!.hasCoords, isTrue);
+        expect(t.lat, closeTo(29.999738, 1e-6));
+        expect(t.lng, closeTo(30.982174, 1e-6));
+      });
+
+      test('v25.1: one-dot-leader U+2024 parses as coords', () async {
+        final t = await parseShareInput(
+            'شارع الوجيه 2\n29\u2024999738,30\u2024982174@29');
+        expect(t, isNotNull);
+        expect(t!.hasCoords, isTrue);
+        expect(t.lat, closeTo(29.999738, 1e-6));
+        expect(t.lng, closeTo(30.982174, 1e-6));
+      });
+
+      test('v25.1: fullwidth digits parse as coordinates', () async {
+        final t = await parseShareInput(
+            'عنوان @ \uFF12\uFF19.\uFF19\uFF19\uFF19\uFF17\uFF13\uFF18'
+            ',\uFF13\uFF10.\uFF19\uFF18\uFF12\uFF11\uFF17\uFF14');
+        expect(t, isNotNull);
+        expect(t!.hasCoords, isTrue);
+        expect(t.lat, closeTo(29.999738, 1e-6));
+        expect(t.lng, closeTo(30.982174, 1e-6));
+      });
+
+      test('v25.1: fullwidth stop and comma parse as separators', () async {
+        final t = await parseShareInput(
+            'عنوان @ 29\uFF0E999738\uFF0C30\uFF0E982174');
+        expect(t, isNotNull);
+        expect(t!.hasCoords, isTrue);
+        expect(t.lat, closeTo(29.999738, 1e-6));
+        expect(t.lng, closeTo(30.982174, 1e-6));
+      });
     });
   });
 }
