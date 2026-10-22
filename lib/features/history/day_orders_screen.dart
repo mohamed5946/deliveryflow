@@ -101,14 +101,18 @@ class DayOrdersScreen extends ConsumerWidget {
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Pressable(
-                    onTap: () => Navigator.of(context).push(
-                      SmoothPageRoute(
-                        builder: (_) => OrderDetailScreen(
-                          dateKey: dateKey,
-                          entryId: entry.id,
-                        ),
-                      ),
-                    ),
+                    // v27.1: count-only rows have no delivery detail to
+                    // open — they stay non-navigating (delete only).
+                    onTap: entry.countOnly
+                        ? null
+                        : () => Navigator.of(context).push(
+                              SmoothPageRoute(
+                                builder: (_) => OrderDetailScreen(
+                                  dateKey: dateKey,
+                                  entryId: entry.id,
+                                ),
+                              ),
+                            ),
                     child: GlassCard(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 14, vertical: 12),
@@ -140,7 +144,9 @@ class DayOrdersScreen extends ConsumerWidget {
                                 Row(
                                   children: [
                                     Text(
-                                      '${entry.effectiveKmTotal.toStringAsFixed(2)} ${l10n.kmUnit}',
+                                      entry.countOnly
+                                          ? l10n.countOnlyOrder
+                                          : '${entry.effectiveKmTotal.toStringAsFixed(2)} ${l10n.kmUnit}',
                                       style: text.bodyMedium?.copyWith(
                                         fontWeight: FontWeight.w700,
                                       ),
@@ -183,13 +189,15 @@ class DayOrdersScreen extends ConsumerWidget {
                             ),
                           ),
                           const SizedBox(width: 4),
-                          Icon(
-                            Icons.chevron_right_rounded,
-                            size: 18,
-                            color: scheme.onSurface
-                                .withValues(alpha: 0.4),
-                          ),
-                          const SizedBox(width: 2),
+                          if (!entry.countOnly) ...[
+                            Icon(
+                              Icons.chevron_right_rounded,
+                              size: 18,
+                              color: scheme.onSurface
+                                  .withValues(alpha: 0.4),
+                            ),
+                            const SizedBox(width: 2),
+                          ],
                           Pressable(
                             onTap: () =>
                                 _deleteEntry(context, ref, entry),

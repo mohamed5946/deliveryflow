@@ -374,12 +374,13 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
     final now = DateTime.now();
     final todayKey = WeekCalendar.dateKey(now);
     final rec = db.orderRecord(todayKey);
-    final entries = rec?.entries ?? const <OrderEntry>[];
-    final completed = entries.where((e) => e.status == 3).length;
-    final inProgress =
-        entries.where((e) => e.status == 1 || e.status == 2).length;
-    final pending = entries.where((e) => e.status == 0).length;
-    final total = entries.length;
+    // v27.1: tallies include the undetailed remainder, so a day whose
+    // orders were bulk-logged (no counted entries) no longer shows 0/0.
+    final tallies = daySummaryTallies(rec);
+    final completed = tallies.completed;
+    final inProgress = tallies.inProgress;
+    final pending = tallies.pending;
+    final total = tallies.total;
     // v26: effective minutes — auto-credited planned hours included.
     final minutes = db.effectiveMinutesForDate(todayKey);
     final km = rec?.totalKm ?? 0;

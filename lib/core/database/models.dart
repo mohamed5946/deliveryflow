@@ -1,7 +1,7 @@
 import 'package:hive/hive.dart';
 
 /// Schema version for migrations. Bump when a model changes shape.
-const int kSchemaVersion = 10;
+const int kSchemaVersion = 11;
 
 // ---------------------------------------------------------------------------
 // UserSettings (typeId 0)
@@ -589,6 +589,9 @@ class OrderEntry extends HiveObject {
   // --- Optional phone number (v11) ---
   @HiveField(22)
   String phone;
+  // --- Count-only bulk entry (v27.1) ---
+  @HiveField(23)
+  bool countOnly;
 
   OrderEntry({
     required this.id,
@@ -614,6 +617,7 @@ class OrderEntry extends HiveObject {
     this.roadBackLat = const [],
     this.roadBackLng = const [],
     this.phone = '',
+    this.countOnly = false,
   })  : assert(kmOut >= 0, 'kmOut cannot be negative'),
         assert(kmBack >= 0, 'kmBack cannot be negative');
 
@@ -681,6 +685,7 @@ class OrderEntry extends HiveObject {
         'roadBackLat': roadBackLat,
         'roadBackLng': roadBackLng,
         'phone': phone,
+        'countOnly': countOnly,
       };
 
   static OrderEntry fromJson(Map<String, dynamic> json) => OrderEntry(
@@ -731,6 +736,7 @@ class OrderEntry extends HiveObject {
                 .toList() ??
             const [],
         phone: (json['phone'] as String?) ?? '',
+        countOnly: (json['countOnly'] as bool?) ?? false,
       );
 }
 
@@ -768,13 +774,14 @@ class OrderEntryAdapter extends TypeAdapter<OrderEntry> {
       roadBackLat: (fields[20] as List?)?.cast<double>() ?? const [],
       roadBackLng: (fields[21] as List?)?.cast<double>() ?? const [],
       phone: (fields[22] as String?) ?? '',
+      countOnly: (fields[23] as bool?) ?? false,
     );
   }
 
   @override
   void write(BinaryWriter writer, OrderEntry obj) {
     writer
-      ..writeByte(23)
+      ..writeByte(24)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -820,7 +827,9 @@ class OrderEntryAdapter extends TypeAdapter<OrderEntry> {
       ..writeByte(21)
       ..write(obj.roadBackLng)
       ..writeByte(22)
-      ..write(obj.phone);
+      ..write(obj.phone)
+      ..writeByte(23)
+      ..write(obj.countOnly);
   }
 }
 
@@ -1016,6 +1025,59 @@ int recomputedCountedOrders(DailyOrderRecord record) {
   final bulkBase = record.completedOrders - record.entries.length;
   final started = record.entries.where((e) => e.status >= 1).length;
   return (bulkBase < 0 ? 0 : bulkBase) + started;
+}
+
+/// v27.1 migration helper: builds the count-only entries that replace a
+/// record's legacy "undetailed" remainder — orders present in the
+/// stored total but backed by no counted entry (before v27.1 a bulk log
+/// stored ONLY the number, so such days showed 0/0 in the report's
+/// entry-based day summary). The remainder is
+/// `completedOrders - entries(status >= 1)`, clamped at 0. The built
+/// entries are born completed (status 3) at the record day's local
+/// noon, so their place in the day's list is stable and the stored
+/// total never changes — each new entry is already inside it.
+List<OrderEntry> countOnlyEntriesForLegacyRemainder(
+    DailyOrderRecord record) {
+  final counted = record.entries.where((e) => e.status >= 1).length;
+  final remainder = record.completedOrders - counted;
+  if (remainder <= 0) return const [];
+  final parts = record.dateKey.split('-');
+  final noon = DateTime(
+    int.parse(parts[0]),
+    int.parse(parts[1]),
+    int.parse(parts[2]),
+    12,
+  );
+  return [
+    for (var i = 0; i < remainder; i++)
+      OrderEntry(
+        id: 'oe_mig_${record.dateKey}_$i',
+        dateKey: record.dateKey,
+        timestampMillis: noon.millisecondsSinceEpoch,
+        status: 3,
+        countOnly: true,
+      ),
+  ];
+}
+
+/// Derived tallies for the weekly report's day-summary card (v27.1).
+/// [completed] and [total] additionally include the day's undetailed
+/// remainder (counted orders with no counted entry — e.g. a legacy
+/// bulk log not yet converted by the schema-11 migration), so a
+/// bulk-only day never renders as 0/0.
+({int completed, int inProgress, int pending, int total}) daySummaryTallies(
+    DailyOrderRecord? record) {
+  final entries = record?.entries ?? const <OrderEntry>[];
+  final counted = entries.where((e) => e.status >= 1).length;
+  var undetailed = (record?.completedOrders ?? 0) - counted;
+  if (undetailed < 0) undetailed = 0;
+  return (
+    completed: entries.where((e) => e.status == 3).length + undetailed,
+    inProgress:
+        entries.where((e) => e.status == 1 || e.status == 2).length,
+    pending: entries.where((e) => e.status == 0).length,
+    total: entries.length + undetailed,
+  );
 }
 
 /// Derived day status for report rows (v27) — computed live from the

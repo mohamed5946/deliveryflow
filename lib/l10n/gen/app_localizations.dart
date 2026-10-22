@@ -308,62 +308,6 @@ abstract class AppLocalizations {
   /// **'Daily order reminder'**
   String get dailyReminderTime;
 
-  /// No description provided for @exactAlarmOffTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Exact alarms are off'**
-  String get exactAlarmOffTitle;
-  /// No description provided for @exactAlarmOffDesc.
-  ///
-  /// In en, this message translates to:
-  /// **'Without the exact-alarm permission, Android may deliver reminders late. Grant it so they arrive right on time.'**
-  String get exactAlarmOffDesc;
-  /// No description provided for @batteryExemptTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Battery optimization exemption'**
-  String get batteryExemptTitle;
-  /// No description provided for @batteryExemptDesc.
-  ///
-  /// In en, this message translates to:
-  /// **'Battery saving can delay or even block reminders — especially on Infinix phones. Exempt the app so reminders arrive on time.'**
-  String get batteryExemptDesc;
-  /// No description provided for @enableAction.
-  ///
-  /// In en, this message translates to:
-  /// **'Enable'**
-  String get enableAction;
-  /// No description provided for @testNotificationNow.
-  ///
-  /// In en, this message translates to:
-  /// **'Instant notification test'**
-  String get testNotificationNow;
-  /// No description provided for @testNotificationScheduled.
-  ///
-  /// In en, this message translates to:
-  /// **'Scheduled test (in 1 minute)'**
-  String get testNotificationScheduled;
-  /// No description provided for @testNotificationTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Notification test'**
-  String get testNotificationTitle;
-  /// No description provided for @testNotificationBody.
-  ///
-  /// In en, this message translates to:
-  /// **'Instant notification received — if you can read this, notifications work.'**
-  String get testNotificationBody;
-  /// No description provided for @testScheduledBody.
-  ///
-  /// In en, this message translates to:
-  /// **'The scheduled notification arrived — scheduled reminders work.'**
-  String get testScheduledBody;
-  /// No description provided for @testScheduledInstructions.
-  ///
-  /// In en, this message translates to:
-  /// **'A notification was scheduled for 1 minute from now. Close the app and wait — if it arrives while the app is closed, reminders work.'**
-  String get testScheduledInstructions;
-
   /// No description provided for @dailySummary.
   ///
   /// In en, this message translates to:
@@ -1462,17 +1406,6 @@ abstract class AppLocalizations {
   /// **'Add order'**
   String get addOrder;
 
-  /// No description provided for @addOrderDetailed.
-  ///
-  /// In en, this message translates to:
-  /// **'Order with details'**
-  String get addOrderDetailed;
-  /// No description provided for @addOrderDetailedDesc.
-  ///
-  /// In en, this message translates to:
-  /// **'A new order that opens right away — so you can start delivery and track the distance.'**
-  String get addOrderDetailedDesc;
-
   /// No description provided for @logCountOnly.
   ///
   /// In en, this message translates to:
@@ -2312,6 +2245,96 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Follow cam'**
   String get mapModeFollowCam;
+
+  /// No description provided for @exactAlarmOffTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Exact alarms are off'**
+  String get exactAlarmOffTitle;
+
+  /// No description provided for @exactAlarmOffDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Without the exact-alarm permission, Android may deliver reminders late. Grant it so they arrive right on time.'**
+  String get exactAlarmOffDesc;
+
+  /// No description provided for @batteryExemptTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Battery optimization exemption'**
+  String get batteryExemptTitle;
+
+  /// No description provided for @batteryExemptDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Battery saving can delay or even block reminders — especially on Infinix phones. Exempt the app so reminders arrive on time.'**
+  String get batteryExemptDesc;
+
+  /// No description provided for @enableAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable'**
+  String get enableAction;
+
+  /// No description provided for @testNotificationNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Instant notification test'**
+  String get testNotificationNow;
+
+  /// No description provided for @testNotificationScheduled.
+  ///
+  /// In en, this message translates to:
+  /// **'Scheduled test (in 1 minute)'**
+  String get testNotificationScheduled;
+
+  /// No description provided for @testNotificationTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Notification test'**
+  String get testNotificationTitle;
+
+  /// No description provided for @testNotificationBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Instant notification received — if you can read this, notifications work.'**
+  String get testNotificationBody;
+
+  /// No description provided for @testScheduledBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The scheduled notification arrived — scheduled reminders work.'**
+  String get testScheduledBody;
+
+  /// No description provided for @testScheduledInstructions.
+  ///
+  /// In en, this message translates to:
+  /// **'A notification was scheduled for 1 minute from now. Close the app and wait — if it arrives while the app is closed, reminders work.'**
+  String get testScheduledInstructions;
+
+  /// No description provided for @testScheduledFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t schedule the test notification — make sure notifications are allowed, then try again.'**
+  String get testScheduledFailed;
+
+  /// No description provided for @countOnlyOrder.
+  ///
+  /// In en, this message translates to:
+  /// **'Order (count only)'**
+  String get countOnlyOrder;
+
+  /// No description provided for @addOrderDetailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Order with details'**
+  String get addOrderDetailed;
+
+  /// No description provided for @addOrderDetailedDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'A new order that opens right away — so you can start delivery and track the distance.'**
+  String get addOrderDetailedDesc;
 }
 
 class _AppLocalizationsDelegate

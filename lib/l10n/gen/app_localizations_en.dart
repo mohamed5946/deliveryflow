@@ -117,29 +117,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get dailyReminderTime => 'Daily order reminder';
 
   @override
-  String get exactAlarmOffTitle => 'Exact alarms are off';
-  @override
-  String get exactAlarmOffDesc => 'Without the exact-alarm permission, Android may deliver reminders late. Grant it so they arrive right on time.';
-  @override
-  String get batteryExemptTitle => 'Battery optimization exemption';
-  @override
-  String get batteryExemptDesc => 'Battery saving can delay or even block reminders — especially on Infinix phones. Exempt the app so reminders arrive on time.';
-  @override
-  String get enableAction => 'Enable';
-  @override
-  String get testNotificationNow => 'Instant notification test';
-  @override
-  String get testNotificationScheduled => 'Scheduled test (in 1 minute)';
-  @override
-  String get testNotificationTitle => 'Notification test';
-  @override
-  String get testNotificationBody => 'Instant notification received — if you can read this, notifications work.';
-  @override
-  String get testScheduledBody => 'The scheduled notification arrived — scheduled reminders work.';
-  @override
-  String get testScheduledInstructions => 'A notification was scheduled for 1 minute from now. Close the app and wait — if it arrives while the app is closed, reminders work.';
-
-  @override
   String get dailySummary => 'Daily summary';
 
   @override
@@ -719,11 +696,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get addOrder => 'Add order';
 
   @override
-  String get addOrderDetailed => 'Order with details';
-  @override
-  String get addOrderDetailedDesc => 'A new order that opens right away — so you can start delivery and track the distance.';
-
-  @override
   String get logCountOnly => 'Log count only';
 
   @override
@@ -1166,4 +1138,56 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get mapModeFollowCam => 'Follow cam';
+
+  @override
+  String get exactAlarmOffTitle => 'Exact alarms are off';
+
+  @override
+  String get exactAlarmOffDesc =>
+      'Without the exact-alarm permission, Android may deliver reminders late. Grant it so they arrive right on time.';
+
+  @override
+  String get batteryExemptTitle => 'Battery optimization exemption';
+
+  @override
+  String get batteryExemptDesc =>
+      'Battery saving can delay or even block reminders — especially on Infinix phones. Exempt the app so reminders arrive on time.';
+
+  @override
+  String get enableAction => 'Enable';
+
+  @override
+  String get testNotificationNow => 'Instant notification test';
+
+  @override
+  String get testNotificationScheduled => 'Scheduled test (in 1 minute)';
+
+  @override
+  String get testNotificationTitle => 'Notification test';
+
+  @override
+  String get testNotificationBody =>
+      'Instant notification received — if you can read this, notifications work.';
+
+  @override
+  String get testScheduledBody =>
+      'The scheduled notification arrived — scheduled reminders work.';
+
+  @override
+  String get testScheduledInstructions =>
+      'A notification was scheduled for 1 minute from now. Close the app and wait — if it arrives while the app is closed, reminders work.';
+
+  @override
+  String get testScheduledFailed =>
+      'Couldn\'t schedule the test notification — make sure notifications are allowed, then try again.';
+
+  @override
+  String get countOnlyOrder => 'Order (count only)';
+
+  @override
+  String get addOrderDetailed => 'Order with details';
+
+  @override
+  String get addOrderDetailedDesc =>
+      'A new order that opens right away — so you can start delivery and track the distance.';
 }

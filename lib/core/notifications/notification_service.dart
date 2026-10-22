@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
@@ -5,6 +6,21 @@ import 'package:timezone/timezone.dart' as tz;
 
 import '../date_time/week_calendar.dart';
 import '../database/models.dart';
+
+/// The Android schedule mode for a reminder: exact (fires on time,
+/// needs the exact-alarm permission) or inexact.
+AndroidScheduleMode androidScheduleModeFor(bool exact) => exact
+    ? AndroidScheduleMode.exactAllowWhileIdle
+    : AndroidScheduleMode.inexactAllowWhileIdle;
+
+/// v27.1: whether a failed schedule attempt should be retried once
+/// with the inexact mode. Only an exact-mode [PlatformException]
+/// qualifies — on Android 14+ the exact-alarm permission can be
+/// revoked (or misreported as granted) between the permission check
+/// and the schedule call, and the exact call then throws; degrading
+/// to inexact beats losing the reminder entirely.
+bool shouldRetryInexact({required bool usedExact, required Object error}) =>
+    usedExact && error is PlatformException;
 
 /// One shift-end reminder instant (local wall-clock).
 class ShiftEndReminderTime {
@@ -152,17 +168,13 @@ class NotificationService {
         importance: Importance.max,
       ),
     );
-    await _plugin.zonedSchedule(
-      _testScheduledId,
-      title,
-      body,
-      when,
-      details,
-      androidScheduleMode: exact
-          ? AndroidScheduleMode.exactAllowWhileIdle
-          : AndroidScheduleMode.inexactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
+    await _zonedScheduleWithFallback(
+      id: _testScheduledId,
+      title: title,
+      body: body,
+      when: when,
+      details: details,
+      exact: exact,
     );
   }
 
@@ -170,14 +182,61 @@ class NotificationService {
   /// When false, reminders fall back to inexact scheduling and can
   /// arrive late — the settings UI surfaces this state (v27). Query
   /// only: never opens any system screen.
+  ///
+  /// v27.1: report the REAL platform answer. A null reply or a thrown
+  /// error used to be treated as "granted" — an optimistic lie that
+  /// sent exact-mode schedule calls in without permission, where they
+  /// throw on Android 14+ and the reminder silently never lands.
   Future<bool> canScheduleExactNotifications() async {
     final android = _plugin.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
     if (android == null) return true;
     try {
-      return await android.canScheduleExactNotifications() ?? true;
+      return await android.canScheduleExactNotifications() ?? false;
     } catch (_) {
-      return true;
+      return false;
+    }
+  }
+
+  /// zonedSchedule with a one-shot safety net (v27.1): when the
+  /// exact-mode call throws a [PlatformException] (permission revoked
+  /// or misreported between check and call), retry ONCE inexactly
+  /// instead of losing the notification. Any other failure, and any
+  /// failure of the retry itself, propagates to the caller.
+  Future<void> _zonedScheduleWithFallback({
+    required int id,
+    required String title,
+    required String body,
+    required tz.TZDateTime when,
+    required NotificationDetails details,
+    required bool exact,
+    DateTimeComponents? matchDateTimeComponents,
+  }) async {
+    try {
+      await _plugin.zonedSchedule(
+        id,
+        title,
+        body,
+        when,
+        details,
+        androidScheduleMode: androidScheduleModeFor(exact),
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        matchDateTimeComponents: matchDateTimeComponents,
+      );
+    } catch (e) {
+      if (!shouldRetryInexact(usedExact: exact, error: e)) rethrow;
+      await _plugin.zonedSchedule(
+        id,
+        title,
+        body,
+        when,
+        details,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        matchDateTimeComponents: matchDateTimeComponents,
+      );
     }
   }
 
@@ -219,17 +278,13 @@ class NotificationService {
         importance: Importance.defaultImportance,
       ),
     );
-    await _plugin.zonedSchedule(
-      id,
-      title,
-      body,
-      when,
-      details,
-      androidScheduleMode: exact
-          ? AndroidScheduleMode.exactAllowWhileIdle
-          : AndroidScheduleMode.inexactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
+    await _zonedScheduleWithFallback(
+      id: id,
+      title: title,
+      body: body,
+      when: when,
+      details: details,
+      exact: exact,
       matchDateTimeComponents: DateTimeComponents.time,
     );
   }
@@ -284,12 +339,12 @@ class NotificationService {
           settings.followUpReminderMinute,
         );
         if (!when.isAfter(tz.TZDateTime.now(tz.local))) continue;
-        await _plugin.zonedSchedule(
-          _followUpBase + i,
-          strings.followUpTitle,
-          strings.followUpBody,
-          when,
-          const NotificationDetails(
+        await _zonedScheduleWithFallback(
+          id: _followUpBase + i,
+          title: strings.followUpTitle,
+          body: strings.followUpBody,
+          when: when,
+          details: const NotificationDetails(
             android: AndroidNotificationDetails(
               channelId,
               channelName,
@@ -297,11 +352,7 @@ class NotificationService {
               importance: Importance.defaultImportance,
             ),
           ),
-          androidScheduleMode: exact
-              ? AndroidScheduleMode.exactAllowWhileIdle
-              : AndroidScheduleMode.inexactAllowWhileIdle,
-          uiLocalNotificationDateInterpretation:
-              UILocalNotificationDateInterpretation.absoluteTime,
+          exact: exact,
         );
       }
     }
@@ -338,21 +389,19 @@ class NotificationService {
           final when = tz.TZDateTime(tz.local, t.when.year, t.when.month,
               t.when.day, t.when.hour, t.when.minute);
           if (!when.isAfter(tzNow)) continue;
-          await _plugin.zonedSchedule(
-            _shiftEndBase + i * 2 + j,
-            t.preMidnight ? strings.shiftPreMidnightTitle : strings.shiftEndTitle,
-            t.preMidnight
+          await _zonedScheduleWithFallback(
+            id: _shiftEndBase + i * 2 + j,
+            title: t.preMidnight
+                ? strings.shiftPreMidnightTitle
+                : strings.shiftEndTitle,
+            body: t.preMidnight
                 ? strings.shiftPreMidnightBody
                 : (overnight
                     ? strings.shiftOvernightEndBody
                     : strings.shiftEndBody),
-            when,
-            details,
-            androidScheduleMode: exact
-                ? AndroidScheduleMode.exactAllowWhileIdle
-                : AndroidScheduleMode.inexactAllowWhileIdle,
-            uiLocalNotificationDateInterpretation:
-                UILocalNotificationDateInterpretation.absoluteTime,
+            when: when,
+            details: details,
+            exact: exact,
           );
         }
       }
@@ -360,13 +409,13 @@ class NotificationService {
 
     // Saturday schedule reminder (weekday 6).
     if (settings.scheduleReminderEnabled) {
-      await _plugin.zonedSchedule(
-        _scheduleId,
-        strings.scheduleTitle,
-        strings.scheduleBody,
-        _nextWeekday(6, settings.scheduleReminderHour,
+      await _zonedScheduleWithFallback(
+        id: _scheduleId,
+        title: strings.scheduleTitle,
+        body: strings.scheduleBody,
+        when: _nextWeekday(6, settings.scheduleReminderHour,
             settings.scheduleReminderMinute),
-        const NotificationDetails(
+        details: const NotificationDetails(
           android: AndroidNotificationDetails(
             channelId,
             channelName,
@@ -374,24 +423,20 @@ class NotificationService {
             importance: Importance.defaultImportance,
           ),
         ),
-        androidScheduleMode: exact
-            ? AndroidScheduleMode.exactAllowWhileIdle
-            : AndroidScheduleMode.inexactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
+        exact: exact,
         matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
       );
     }
 
     // Saturday report reminder (weekday 6).
     if (settings.reportReminderEnabled) {
-      await _plugin.zonedSchedule(
-        _reportId,
-        strings.reportTitle,
-        strings.reportBody,
-        _nextWeekday(6, settings.reportReminderHour,
+      await _zonedScheduleWithFallback(
+        id: _reportId,
+        title: strings.reportTitle,
+        body: strings.reportBody,
+        when: _nextWeekday(6, settings.reportReminderHour,
             settings.reportReminderMinute),
-        const NotificationDetails(
+        details: const NotificationDetails(
           android: AndroidNotificationDetails(
             channelId,
             channelName,
@@ -399,11 +444,7 @@ class NotificationService {
             importance: Importance.defaultImportance,
           ),
         ),
-        androidScheduleMode: exact
-            ? AndroidScheduleMode.exactAllowWhileIdle
-            : AndroidScheduleMode.inexactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
+        exact: exact,
         matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
       );
     }

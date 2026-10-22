@@ -1050,10 +1050,22 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         icon: Icons.timer_rounded,
         label: l10n.testNotificationScheduled,
         onTap: () async {
-          await ref.read(notificationServiceProvider).showScheduledTest(
-                title: l10n.testNotificationTitle,
-                body: l10n.testScheduledBody,
-              );
+          // v27.1: a scheduling failure must be VISIBLE — before, a
+          // throw (e.g. an exact-alarm PlatformException) vanished
+          // silently and the user just waited for a notification that
+          // was never scheduled.
+          try {
+            await ref.read(notificationServiceProvider).showScheduledTest(
+                  title: l10n.testNotificationTitle,
+                  body: l10n.testScheduledBody,
+                );
+          } catch (_) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(l10n.testScheduledFailed)),
+            );
+            return;
+          }
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(

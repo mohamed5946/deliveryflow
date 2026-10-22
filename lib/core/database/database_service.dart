@@ -91,6 +91,22 @@ class DatabaseService {
           await _settings.put('user', existing);
         }
       }
+      if (stored != null && stored < 11) {
+        // v27.1 (schema 11): a bulk count used to live ONLY as the
+        // stored number, with no entries — the report's day summary
+        // (which reads entries) showed such days as 0/0, and the
+        // orders couldn't be listed or deleted individually. Convert
+        // each record's undetailed remainder into real count-only
+        // entries (born completed). Totals are NOT touched: every
+        // converted order is already inside `completedOrders`.
+        for (final record in _orders.values) {
+          final added = countOnlyEntriesForLegacyRemainder(record);
+          if (added.isNotEmpty) {
+            record.entries.addAll(added);
+            await record.save();
+          }
+        }
+      }
       // v1 is the first schema; future versions migrate here.
       await _meta.put('schemaVersion', kSchemaVersion);
     }
@@ -235,6 +251,50 @@ class DatabaseService {
     record.updatedAtMillis = now;
     await _orders.put(dateKey, record);
     return entry;
+  }
+
+  /// v27.1: adds [count] count-only entries to the day's record
+  /// (creating it if needed) — the "تسجيل العدد فقط" bulk log. Each
+  /// entry is born COMPLETED (status 3) and already counted, so the
+  /// day's total bumps by [count] here at creation and the v27
+  /// count-on-start transition increment never applies to them (they
+  /// never sit at status 0). They carry no km, destination or phone;
+  /// each renders as its own deletable row in the day's list.
+  Future<List<OrderEntry>> addCountOnlyEntries({
+    required String dateKey,
+    required int count,
+    int? timestampMillis,
+  }) async {
+    if (count < 0) {
+      throw ArgumentError('count cannot be negative');
+    }
+    final now = DateTime.now().millisecondsSinceEpoch;
+    var record = _orders.get(dateKey);
+    record ??= DailyOrderRecord(
+      id: 'ord_$dateKey',
+      dateKey: dateKey,
+      completedOrders: 0,
+      createdAtMillis: now,
+      updatedAtMillis: now,
+    );
+    if (count == 0) return const [];
+    final base = record.entries.length;
+    final created = <OrderEntry>[
+      for (var i = 0; i < count; i++)
+        OrderEntry(
+          id: 'oe_${now}_c${base + i}',
+          dateKey: dateKey,
+          timestampMillis: timestampMillis ?? now,
+          status: 3,
+          countOnly: true,
+        ),
+    ];
+    record.entries.addAll(created);
+    record.completedOrders = record.completedOrders + count;
+    record.isConfirmed = true;
+    record.updatedAtMillis = now;
+    await _orders.put(dateKey, record);
+    return created;
   }
 
   /// Updates one order entry's distance/notes/time.

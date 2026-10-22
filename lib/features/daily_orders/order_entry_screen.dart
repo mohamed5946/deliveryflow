@@ -226,9 +226,12 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
     if (mounted) _load();
   }
 
-  /// v26 bulk entry: record the day's TOTAL order count with no
-  /// per-order details. Stored on the same [DailyOrderRecord] count the
-  /// reports/dashboard already read, so totals and auto-hours see it too.
+  /// Bulk entry: set the day's TOTAL order count with no per-order
+  /// details. v27.1: the total is backed by real count-only entries
+  /// (born completed) instead of a bare number, so every bulk order
+  /// shows in the day's list and can be deleted individually; raising
+  /// the total adds entries, lowering it removes count-only entries
+  /// first (a small legacy bare remainder, if any, is adjusted last).
   Future<void> _logBulkCount() async {
     final l10n = AppLocalizations.of(context);
     final ctrl =
@@ -276,11 +279,47 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
     // (delivery started, v27) — a bulk log never erases tracked work.
     final total = value.clamp(_countedEntries, 9999);
     final db = ref.read(databaseServiceProvider);
-    await db.upsertOrderRecord(
-      dateKey: _dateKey,
-      completedOrders: total,
-      notes: _notes.text.trim(),
-    );
+    final delta = total - _count;
+    if (delta > 0) {
+      // More orders: materialize them as count-only entries (each is
+      // born counted, so the stored total lands exactly on target).
+      await db.addCountOnlyEntries(
+        dateKey: _dateKey,
+        count: delta,
+        timestampMillis: DateTime.now().millisecondsSinceEpoch,
+      );
+      // Keep the day's notes in sync, exactly like the old upsert did.
+      await db.upsertOrderRecord(
+        dateKey: _dateKey,
+        completedOrders: total,
+        notes: _notes.text.trim(),
+      );
+    } else if (delta < 0) {
+      // Fewer orders: remove count-only entries first, newest first,
+      // so a mistaken bulk log is undone entry by entry.
+      var remaining = -delta;
+      final removable = _entries.where((e) => e.countOnly).toList()
+        ..sort((a, b) => b.timestampMillis.compareTo(a.timestampMillis));
+      for (final e in removable) {
+        if (remaining <= 0) break;
+        await db.deleteOrderEntry(dateKey: _dateKey, entryId: e.id);
+        remaining--;
+      }
+      if (remaining > 0) {
+        // Only a legacy bare-number remainder can still be too high.
+        await db.upsertOrderRecord(
+          dateKey: _dateKey,
+          completedOrders: total,
+          notes: _notes.text.trim(),
+        );
+      }
+    } else {
+      await db.upsertOrderRecord(
+        dateKey: _dateKey,
+        completedOrders: total,
+        notes: _notes.text.trim(),
+      );
+    }
     _notesDirty = false;
     if (!mounted) return;
     bumpDataVersion(ref);
@@ -459,7 +498,9 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
               ),
             )
           else
-            ..._entries.map((e) => _entryCard(context, e)),
+            ..._entries.map((e) => e.countOnly
+                ? _countOnlyCard(context, e)
+                : _entryCard(context, e)),
           if (undetailed > 0) ...[
             const SizedBox(height: 4),
             Center(
@@ -520,6 +561,78 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
           ],
         ),
       ],
+    );
+  }
+
+  /// v27.1: a bulk-logged order (count-only) renders as a simple row —
+  /// label + time + delete. It is a finished order with no delivery to
+  /// track, so the row deliberately does NOT navigate to the order
+  /// detail / بدأ التوصيل lifecycle; deletion is its only action.
+  Widget _countOnlyCard(BuildContext context, OrderEntry entry) {
+    final l10n = AppLocalizations.of(context);
+    final text = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    final locale = ref.watch(settingsProvider.select((s) => s.languageCode));
+    final time = DateFormat.Hm(locale == 'ar' ? 'ar' : 'en')
+        .format(entry.timestamp);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: GlassCard(
+        padding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: scheme.primary.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(time,
+                  style: text.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: scheme.primary)),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.green.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(l10n.statusCompleted,
+                  style: text.bodySmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: Colors.green)),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Row(
+                children: [
+                  Icon(Icons.numbers_rounded,
+                      size: 18,
+                      color:
+                          scheme.onSurface.withValues(alpha: 0.55)),
+                  const SizedBox(width: 6),
+                  Text(l10n.countOnlyOrder,
+                      style: text.bodyMedium
+                          ?.copyWith(fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
+            IconButton(
+              icon: Icon(Icons.delete_outline_rounded,
+                  size: 20, color: scheme.error),
+              onPressed: () => _deleteEntry(entry),
+              tooltip: l10n.delete,
+              visualDensity: VisualDensity.compact,
+            ),
+          ],
+        ),
+      ),
     );
   }
 

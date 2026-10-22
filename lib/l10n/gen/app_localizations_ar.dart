@@ -117,29 +117,6 @@ class AppLocalizationsAr extends AppLocalizations {
   String get dailyReminderTime => 'تذكير الأوردرات اليومي';
 
   @override
-  String get exactAlarmOffTitle => 'المنبّه الدقيق مش مفعّل';
-  @override
-  String get exactAlarmOffDesc => 'من غير إذن المنبّه الدقيق، أندرويد ممكن يأخّر التذكيرات عن معادها. فعّل الإذن عشان توصلك في وقتها بالظبط.';
-  @override
-  String get batteryExemptTitle => 'استثناء من توفير البطارية';
-  @override
-  String get batteryExemptDesc => 'توفير البطارية ممكن يأخّر التذكيرات أو يمنعها خالص — خصوصًا على موبايلات Infinix. استثنِ التطبيق عشان التذكيرات توصلك في معادها.';
-  @override
-  String get enableAction => 'تفعيل';
-  @override
-  String get testNotificationNow => 'اختبار إشعار فوري';
-  @override
-  String get testNotificationScheduled => 'اختبار إشعار مجدول (بعد دقيقة)';
-  @override
-  String get testNotificationTitle => 'اختبار الإشعارات';
-  @override
-  String get testNotificationBody => 'الإشعار الفوري وصل ✅ لو شايف الرسالة دي، يبقى الإشعارات شغالة.';
-  @override
-  String get testScheduledBody => 'الإشعار المجدول وصل ✅ التذكيرات المجدولة شغالة تمام.';
-  @override
-  String get testScheduledInstructions => 'اتجدول إشعار بعد دقيقة. اقفل التطبيق دلوقتي واستناه — لو وصلك وانت قافل التطبيق، يبقى التذكيرات شغالة.';
-
-  @override
   String get dailySummary => 'ملخص اليوم';
 
   @override
@@ -719,11 +696,6 @@ class AppLocalizationsAr extends AppLocalizations {
   String get addOrder => 'أضف أوردر';
 
   @override
-  String get addOrderDetailed => 'أوردر بتفاصيل';
-  @override
-  String get addOrderDetailedDesc => 'أوردر جديد بيتفتح على طول — عشان تبدأ التوصيل وتتتبّع المسافة.';
-
-  @override
   String get logCountOnly => 'تسجيل العدد فقط';
 
   @override
@@ -1164,4 +1136,56 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get mapModeFollowCam => 'منظور المتابعة';
+
+  @override
+  String get exactAlarmOffTitle => 'المنبّه الدقيق مش مفعّل';
+
+  @override
+  String get exactAlarmOffDesc =>
+      'من غير إذن المنبّه الدقيق، أندرويد ممكن يأخّر التذكيرات عن معادها. فعّل الإذن عشان توصلك في وقتها بالظبط.';
+
+  @override
+  String get batteryExemptTitle => 'استثناء من توفير البطارية';
+
+  @override
+  String get batteryExemptDesc =>
+      'توفير البطارية ممكن يأخّر التذكيرات أو يمنعها خالص — خصوصًا على موبايلات Infinix. استثنِ التطبيق عشان التذكيرات توصلك في معادها.';
+
+  @override
+  String get enableAction => 'تفعيل';
+
+  @override
+  String get testNotificationNow => 'اختبار إشعار فوري';
+
+  @override
+  String get testNotificationScheduled => 'اختبار إشعار مجدول (بعد دقيقة)';
+
+  @override
+  String get testNotificationTitle => 'اختبار الإشعارات';
+
+  @override
+  String get testNotificationBody =>
+      'الإشعار الفوري وصل ✅ لو شايف الرسالة دي، يبقى الإشعارات شغالة.';
+
+  @override
+  String get testScheduledBody =>
+      'الإشعار المجدول وصل ✅ التذكيرات المجدولة شغالة تمام.';
+
+  @override
+  String get testScheduledInstructions =>
+      'اتجدول إشعار بعد دقيقة. اقفل التطبيق دلوقتي واستناه — لو وصلك وانت قافل التطبيق، يبقى التذكيرات شغالة.';
+
+  @override
+  String get testScheduledFailed =>
+      'معرفناش نجدول إشعار الاختبار — اتأكد إن الإشعارات مسموحة وحاول تاني.';
+
+  @override
+  String get countOnlyOrder => 'أوردر (عدد فقط)';
+
+  @override
+  String get addOrderDetailed => 'أوردر بتفاصيل';
+
+  @override
+  String get addOrderDetailedDesc =>
+      'أوردر جديد بيتفتح على طول — عشان تبدأ التوصيل وتتتبّع المسافة.';
 }

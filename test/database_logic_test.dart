@@ -793,6 +793,136 @@ void main() {
           DayStatus.dayOff);
     });
 
+    test('v27.1: bulk add materializes N born-completed count-only '
+        'entries; deleting one drops the total by one', () async {
+      const key = '2026-10-18';
+      final created = await db.addCountOnlyEntries(dateKey: key, count: 5);
+      expect(created.length, 5);
+      var rec = db.orderRecord(key)!;
+      expect(rec.completedOrders, 5);
+      expect(rec.entries.length, 5);
+      expect(
+          rec.entries
+              .every((e) => e.countOnly && e.status == 3 && e.kmTotal == 0),
+          isTrue);
+
+      // Reports see the 5 as real orders: totals + salary paid day.
+      final report = db.buildWeeklyReport(DateTime(2026, 10, 18));
+      expect(report.totalOrders, 5);
+      expect(report.paidDaysCount, 1);
+
+      // Editing a count-only entry must never double-count it.
+      await db.updateOrderEntry(
+          dateKey: key, entryId: created.first.id, notes: 'x');
+      expect(db.orderRecord(key)!.completedOrders, 5);
+
+      // Delete one -> N-1 everywhere.
+      await db.deleteOrderEntry(dateKey: key, entryId: created.first.id);
+      rec = db.orderRecord(key)!;
+      expect(rec.completedOrders, 4);
+      expect(rec.entries.length, 4);
+      expect(db.buildWeeklyReport(DateTime(2026, 10, 18)).totalOrders, 4);
+    });
+
+    test('v27.1: count-only entries compose with tracked entries',
+        () async {
+      const key = '2026-10-19';
+      await db.addCountOnlyEntries(dateKey: key, count: 3);
+      final e = await db.addOrderEntry(
+        dateKey: key,
+        timestampMillis: DateTime(2026, 10, 19, 9).millisecondsSinceEpoch,
+      );
+      // Pending tracked entry does not add on top of the bulk 3.
+      expect(db.orderRecord(key)!.completedOrders, 3);
+      await db.updateOrderEntry(dateKey: key, entryId: e.id, status: 1);
+      expect(db.orderRecord(key)!.completedOrders, 4);
+      await db.deleteOrderEntry(dateKey: key, entryId: e.id);
+      expect(db.orderRecord(key)!.completedOrders, 3);
+    });
+
+    test('v27.1: schema-11 migration converts a legacy bare bulk count '
+        'into deletable count-only entries, total unchanged', () async {
+      // Legacy v27 state: bulk 5 stored as a bare number, no entries.
+      await db.upsertOrderRecord(dateKey: '2026-10-20', completedOrders: 5);
+      // Mixed legacy record: total 7 with only 1 counted entry (1
+      // started + 1 pending) -> the undetailed remainder is 6.
+      final started = await db.addOrderEntry(
+        dateKey: '2026-10-21',
+        timestampMillis: DateTime(2026, 10, 21, 9).millisecondsSinceEpoch,
+      );
+      await db.addOrderEntry(
+        dateKey: '2026-10-21',
+        timestampMillis: DateTime(2026, 10, 21, 10).millisecondsSinceEpoch,
+      );
+      await db.updateOrderEntry(
+          dateKey: '2026-10-21', entryId: started.id, status: 1);
+      await db.upsertOrderRecord(dateKey: '2026-10-21', completedOrders: 7);
+      // Rewind the schema stamp to v27's and reopen: migration runs.
+      await Hive.box('meta').put('schemaVersion', 10);
+      await Hive.close();
+      final db2 = DatabaseService();
+      await db2.init(hivePath: tmp.path);
+
+      final bare = db2.orderRecord('2026-10-20')!;
+      expect(bare.completedOrders, 5);
+      expect(bare.entries.length, 5);
+      expect(bare.entries.every((e) => e.countOnly && e.status == 3),
+          isTrue);
+
+      final mixed = db2.orderRecord('2026-10-21')!;
+      expect(mixed.completedOrders, 7);
+      expect(mixed.entries.length, 8); // 2 originals + 6 converted
+      expect(mixed.entries.where((e) => e.countOnly).length, 6);
+      // Counted entries (started + converted) now back the whole total.
+      expect(mixed.entries.where((e) => e.status >= 1).length, 7);
+    });
+
+    test('v27.1: daySummaryTallies never shows a bulk-only day as 0/0',
+        () {
+      DailyOrderRecord rec(int total, List<int> statuses) =>
+          DailyOrderRecord(
+            id: 'x',
+            dateKey: '2026-10-12',
+            completedOrders: total,
+            createdAtMillis: 0,
+            updatedAtMillis: 0,
+            entries: [
+              for (var i = 0; i < statuses.length; i++)
+                OrderEntry(
+                  id: 'e$i',
+                  dateKey: '2026-10-12',
+                  timestampMillis: 0,
+                  status: statuses[i],
+                ),
+            ],
+          );
+      // The field bug: 5 bulk orders, zero entries -> was 0/0.
+      var t = daySummaryTallies(rec(5, []));
+      expect(t.completed, 5);
+      expect(t.total, 5);
+      expect(t.inProgress, 0);
+      expect(t.pending, 0);
+      // Pure-entry day is unchanged.
+      t = daySummaryTallies(rec(1, [3, 1, 0]));
+      expect(t.completed, 1);
+      expect(t.inProgress, 1);
+      expect(t.pending, 1);
+      expect(t.total, 3);
+      // Mixed: total 6 = 1 completed entry + 5 undetailed.
+      t = daySummaryTallies(rec(6, [3, 0]));
+      expect(t.completed, 6);
+      expect(t.pending, 1);
+      expect(t.total, 7);
+      // Nothing recorded.
+      t = daySummaryTallies(null);
+      expect(t.completed, 0);
+      expect(t.total, 0);
+      // Pure conversion helper: no remainder -> no entries.
+      expect(countOnlyEntriesForLegacyRemainder(rec(2, [3, 3])), isEmpty);
+      expect(
+          countOnlyEntriesForLegacyRemainder(rec(4, [3])).length, 3);
+    });
+
     test('upgrade migration: old in-app default switches to Google Maps '
         'once; a later manual choice persists', () async {
       // Simulate a pre-v27 install: settings carry the old default (0 =
