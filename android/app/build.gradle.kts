@@ -59,6 +59,13 @@ android {
 
     buildTypes {
         release {
+            // R8 runs by default in release builds on AGP 9. Keep the Gson /
+            // flutter_local_notifications rules so scheduled notifications
+            // survive obfuscation (see proguard-rules.pro for the full story).
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
             // Stable release key when android/key.properties exists (CI),
             // otherwise the debug key so `flutter run --release` keeps working.
             signingConfig = if (hasReleaseKey) {
