@@ -64,7 +64,7 @@ class UserSettings extends HiveObject {
   @HiveField(26)
   bool registered; // first-launch registration-code gate accepted
   @HiveField(27)
-  int autoNavMode; // 0=in-app navigation (default), 1=Google Maps middleman
+  int autoNavMode; // 0=in-app navigation, 1=Google Maps middleman (default since v27)
   @HiveField(28)
   bool shiftEndReminderEnabled; // v26: remind at shift end to log orders
 
@@ -96,7 +96,7 @@ class UserSettings extends HiveObject {
     List<String>? readNotificationIds,
     List<String>? dismissedNotificationIds,
     this.registered = false,
-    this.autoNavMode = 0,
+    this.autoNavMode = 1,
     this.shiftEndReminderEnabled = false,
   })  : readNotificationIds = readNotificationIds ?? [],
         dismissedNotificationIds = dismissedNotificationIds ?? [];
@@ -173,7 +173,7 @@ class UserSettings extends HiveObject {
         dismissedNotificationIds:
             (json['dismissedNotificationIds'] as List?)?.cast<String>() ?? [],
         registered: (json['registered'] as bool?) ?? false,
-        autoNavMode: (json['autoNavMode'] as num?)?.toInt() ?? 0,
+        autoNavMode: (json['autoNavMode'] as num?)?.toInt() ?? 1,
         shiftEndReminderEnabled:
             (json['shiftEndReminderEnabled'] as bool?) ?? false,
       );
@@ -218,7 +218,7 @@ class UserSettingsAdapter extends TypeAdapter<UserSettings> {
       dismissedNotificationIds:
           (fields[25] as List?)?.cast<String>() ?? [],
       registered: (fields[26] as bool?) ?? false,
-      autoNavMode: (fields[27] as int?) ?? 0,
+      autoNavMode: (fields[27] as int?) ?? 1,
       shiftEndReminderEnabled: (fields[28] as bool?) ?? false,
     );
   }

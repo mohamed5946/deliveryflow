@@ -377,15 +377,17 @@ void main() {
       expect(re.themePreset, 3);
     });
 
-    test('v25: autoNavMode defaults to in-app (0) and persists', () async {
-      expect(db.settings.autoNavMode, 0);
-      final s = db.settings;
-      s.autoNavMode = 1;
-      await db.saveSettings(s);
+    test('v25: autoNavMode persists; v27: default is Google Maps (1)',
+        () async {
+      // v27: new installs start in Google Maps (middleman) mode.
       expect(db.settings.autoNavMode, 1);
+      final s = db.settings;
+      s.autoNavMode = 0;
+      await db.saveSettings(s);
+      expect(db.settings.autoNavMode, 0);
       // JSON round-trip keeps the value.
       final rt = UserSettings.fromJson(db.settings.toJson());
-      expect(rt.autoNavMode, 1);
+      expect(rt.autoNavMode, 0);
     });
   });
 
@@ -789,6 +791,32 @@ void main() {
       await db.deleteOrderEntry(dateKey: key, entryId: e.id);
       expect(statusOf(db.buildWeeklyReport(DateTime(2026, 10, 14))),
           DayStatus.dayOff);
+    });
+
+    test('upgrade migration: old in-app default switches to Google Maps '
+        'once; a later manual choice persists', () async {
+      // Simulate a pre-v27 install: settings carry the old default (0 =
+      // in-app) and the schema stamp is still 9.
+      final s = db.settings;
+      s.autoNavMode = 0;
+      await db.saveSettings(s);
+      await Hive.box('meta').put('schemaVersion', 9);
+      await Hive.close();
+
+      // First v27 launch: migrated to Google Maps (1).
+      final db2 = DatabaseService();
+      await db2.init(hivePath: tmp.path);
+      expect(db2.settings.autoNavMode, 1);
+
+      // He then picks in-app manually — the migration must never
+      // re-run and override him.
+      final s2 = db2.settings;
+      s2.autoNavMode = 0;
+      await db2.saveSettings(s2);
+      await Hive.close();
+      final db3 = DatabaseService();
+      await db3.init(hivePath: tmp.path);
+      expect(db3.settings.autoNavMode, 0);
     });
   });
 }

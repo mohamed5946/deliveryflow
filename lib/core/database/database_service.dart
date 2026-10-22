@@ -80,6 +80,16 @@ class DatabaseService {
             await record.save();
           }
         }
+        // v27: Google Maps becomes the default automatic navigation
+        // ("خلي الخريطة التلقائية هي جوجل ماب"). Existing installs
+        // still carrying the old in-app default are switched once;
+        // any mode picked manually afterwards persists because this
+        // block never runs again (schema stamp).
+        final existing = _settings.get('user');
+        if (existing != null && existing.autoNavMode == 0) {
+          existing.autoNavMode = 1;
+          await _settings.put('user', existing);
+        }
       }
       // v1 is the first schema; future versions migrate here.
       await _meta.put('schemaVersion', kSchemaVersion);
