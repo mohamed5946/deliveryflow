@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import 'app/app.dart';
 import 'core/database/database_service.dart';
 import 'core/date_time/week_calendar.dart';
+import 'core/logging/app_log_service.dart';
 import 'core/notifications/notification_service.dart';
 import 'core/providers.dart';
 
@@ -27,14 +29,31 @@ Future<void> main() async {
     ),
   );
 
+  // v27.2: diagnostics log FIRST — the services below record into it
+  // (init outcomes, schema migrations, scheduling attempts). Best
+  // effort: if it can't open, the app runs with logging as a no-op.
+  final appLog = AppLogService();
+  try {
+    await appLog.init();
+  } catch (_) {}
+
   // Local-first storage.
-  final db = DatabaseService();
+  final db = DatabaseService(log: appLog);
   await db.init();
 
   // Local notifications (best effort — never crash startup).
-  final notif = NotificationService();
+  final notif = NotificationService(log: appLog);
   try {
     await notif.init();
+  } catch (_) {}
+
+  // Record the launch (with the running version) in the log.
+  try {
+    final info = await PackageInfo.fromPlatform();
+    appLog.info(
+      AppLogCategory.system,
+      'App start — DeliveryFlow ${info.version}+${info.buildNumber}',
+    );
   } catch (_) {}
 
   runApp(
@@ -42,6 +61,7 @@ Future<void> main() async {
       overrides: [
         databaseServiceProvider.overrideWithValue(db),
         notificationServiceProvider.overrideWithValue(notif),
+        appLogServiceProvider.overrideWithValue(appLog),
       ],
       child: const DeliveryFlowApp(),
     ),

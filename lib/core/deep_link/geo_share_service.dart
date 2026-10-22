@@ -12,6 +12,7 @@ import '../../l10n/gen/app_localizations.dart';
 import '../../theme/design_system.dart';
 import '../../theme/page_transitions.dart';
 import '../date_time/week_calendar.dart';
+import '../logging/app_log_service.dart';
 import '../providers.dart';
 import '../tracking/delivery_tracking_service.dart';
 
@@ -445,6 +446,7 @@ Future<void> handleSharedGeoUri(
   String raw,
 ) async {
   final l10n = AppLocalizations.of(context);
+  final appLog = ref.read(appLogServiceProvider);
 
   /// v24: failure dialog that SHOWS the exact received address/label
   /// text — never a dead-end message without it.
@@ -527,10 +529,21 @@ Future<void> handleSharedGeoUri(
   try {
     target = await parseShareInput(raw);
   } catch (e) {
+    appLog.error(
+      AppLogCategory.share,
+      'Share parse threw',
+      error: e,
+      detail: 'received: ${raw.trim()}',
+    );
     await failWithReceived(raw.trim(), 'parse: $e');
     return;
   }
   if (target == null) {
+    appLog.warn(
+      AppLogCategory.share,
+      'Share parse found no coords/address',
+      detail: 'received: ${raw.trim()}',
+    );
     await failWithReceived(raw.trim(), 'parse: no coords/address found');
     return;
   }
@@ -579,7 +592,13 @@ Future<void> handleSharedGeoUri(
       // v24: smart geocoding with Egypt/unit-detail fallbacks.
       geocoded = await geocodeAddressSmart(target.label);
       geoStages.advance(); // response received
-    } catch (_) {
+    } catch (e) {
+      appLog.warn(
+        AppLogCategory.share,
+        'Geocoding threw',
+        error: e,
+        detail: 'label: ${target.label}',
+      );
       geocoded = null;
     }
     if (context.mounted) {
@@ -589,6 +608,11 @@ Future<void> handleSharedGeoUri(
     geoStages.advance(); // done — exactly 1.0 as we move on
     geoStages.dispose();
     if (geocoded == null) {
+      appLog.warn(
+        AppLogCategory.share,
+        'Geocode: address not found',
+        detail: 'label: ${target.label}',
+      );
       await failWithReceived(target.label, 'geocode: address not found');
       return;
     }
@@ -602,6 +626,11 @@ Future<void> handleSharedGeoUri(
     dateKey: dateKey,
     timestampMillis: now.millisecondsSinceEpoch,
     notes: label,
+  );
+  appLog.info(
+    AppLogCategory.share,
+    'Share handled: order ${entry.id} created for $dateKey '
+    '(coords: ${target.hasCoords})',
   );
   bumpDataVersion(ref);
   if (!context.mounted) return;
@@ -667,6 +696,11 @@ Future<void> _startMiddlemanTrip(
   try {
     await svc.startOutgoing(dateKey: dateKey, entryId: entryId);
   } catch (e) {
+    ref.read(appLogServiceProvider).error(
+          AppLogCategory.share,
+          'Middleman trip start FAILED for shared order $entryId',
+          error: e,
+        );
     if (!context.mounted) return;
     await showDialog<void>(
       context: context,

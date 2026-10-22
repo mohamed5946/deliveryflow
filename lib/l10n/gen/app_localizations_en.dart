@@ -1182,6 +1182,71 @@ class AppLocalizationsEn extends AppLocalizations {
       'Couldn\'t schedule the test notification — make sure notifications are allowed, then try again.';
 
   @override
+  String get testScheduledFailedTitle => 'Scheduled test failed';
+
+  @override
+  String get technicalReason => 'Technical reason';
+
+  @override
+  String get diagnosticsLog => 'Diagnostics log';
+
+  @override
+  String get diagnosticsLogTitle => 'Diagnostics log';
+
+  @override
+  String get diagnosticsLogEmpty =>
+      'No log entries yet — app events and errors will appear here.';
+
+  @override
+  String get diagnosticsLogAll => 'All';
+
+  @override
+  String get diagnosticsLogCopied => 'Log copied';
+
+  @override
+  String get diagnosticsLogCopy => 'Copy all';
+
+  @override
+  String get diagnosticsLogShare => 'Share';
+
+  @override
+  String get diagnosticsLogClear => 'Clear log';
+
+  @override
+  String get diagnosticsLogClearConfirmTitle => 'Clear the diagnostics log?';
+
+  @override
+  String get diagnosticsLogClearConfirmBody =>
+      'All log entries will be permanently deleted.';
+
+  @override
+  String get logCategoryNotifications => 'Notifications';
+
+  @override
+  String get logCategoryTracking => 'Tracking';
+
+  @override
+  String get logCategoryOrders => 'Orders';
+
+  @override
+  String get logCategoryShare => 'Share';
+
+  @override
+  String get logCategorySystem => 'System';
+
+  @override
+  String get logCategorySettings => 'Settings';
+
+  @override
+  String get logLevelInfo => 'Info';
+
+  @override
+  String get logLevelWarn => 'Warning';
+
+  @override
+  String get logLevelError => 'Error';
+
+  @override
   String get countOnlyOrder => 'Order (count only)';
 
   @override

@@ -13,6 +13,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/database/models.dart';
+import '../../core/logging/app_log_service.dart';
 import '../../core/notifications/battery_optimization.dart';
 import '../../core/providers.dart';
 import '../../theme/app_theme.dart';
@@ -1054,16 +1055,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           // throw (e.g. an exact-alarm PlatformException) vanished
           // silently and the user just waited for a notification that
           // was never scheduled.
+          // v27.2: the failure now shows the TECHNICAL REASON in a
+          // dialog (same pattern as the v25 share-failure dialog), not
+          // just a generic snackbar — and the attempt is in the
+          // diagnostics log either way.
           try {
             await ref.read(notificationServiceProvider).showScheduledTest(
                   title: l10n.testNotificationTitle,
                   body: l10n.testScheduledBody,
                 );
-          } catch (_) {
+          } catch (e) {
             if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(l10n.testScheduledFailed)),
-            );
+            await _showScheduledTestFailed(e);
             return;
           }
           if (!mounted) return;
@@ -1077,7 +1080,78 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       ),
       // v27: reminder-delivery health (exact alarm + battery exemption).
       const _ReminderHealthRows(),
+      // v27.2: the diagnostics log — where every scheduling attempt,
+      // tracking outcome and share result is recorded with its reason.
+      const SizedBox(height: 4),
+      _actionRow(
+        icon: Icons.receipt_long_rounded,
+        label: l10n.diagnosticsLog,
+        onTap: () => context.push('/diagnostics-log'),
+      ),
     ];
+  }
+
+  /// v27.2: scheduled-test failure dialog — Arabic explanation plus
+  /// the raw technical reason in selectable text (mirrors the v25
+  /// share-failure dialog), so the exact device exception can be read
+  /// or screenshotted instead of guessed.
+  Future<void> _showScheduledTestFailed(Object error) async {
+    final l10n = AppLocalizations.of(context);
+    final reason = formatLogError(error);
+    await showDialog<void>(
+      context: context,
+      useRootNavigator: true,
+      builder: (ctx) {
+        final scheme = Theme.of(ctx).colorScheme;
+        final text = Theme.of(ctx).textTheme;
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.error_outline_rounded,
+                  color: scheme.error, size: 28),
+              const SizedBox(width: 10),
+              Expanded(child: Text(l10n.testScheduledFailedTitle)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(l10n.testScheduledFailed, style: text.bodyMedium),
+              const SizedBox(height: 12),
+              Text(
+                l10n.technicalReason,
+                style: text.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: scheme.onSurface.withValues(alpha: 0.7),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: scheme.surfaceContainerHighest
+                      .withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: SelectableText(
+                  reason,
+                  style: text.bodySmall?.copyWith(
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text(l10n.ok),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   // ── شبكة الـ 10 ثيمات ──────────────────────────────────────

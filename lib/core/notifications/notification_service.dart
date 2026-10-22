@@ -6,6 +6,7 @@ import 'package:timezone/timezone.dart' as tz;
 
 import '../date_time/week_calendar.dart';
 import '../database/models.dart';
+import '../logging/app_log_service.dart';
 
 /// The Android schedule mode for a reminder: exact (fires on time,
 /// needs the exact-alarm permission) or inexact.
@@ -62,6 +63,14 @@ List<ShiftEndReminderTime> shiftEndReminderTimes({
 ///   never duplicates.
 /// - Every [rescheduleAll] cancels first, then re-schedules: idempotent.
 class NotificationService {
+  /// v27.2: optional diagnostics log (constructor-injected from main;
+  /// null in tests — all logging then no-ops). Scheduling outcomes,
+  /// permission states and the EXACT exception of every failed attempt
+  /// land here, ending the blind-debugging era of this saga.
+  NotificationService({AppLogService? log}) : _log = log;
+
+  final AppLogService? _log;
+
   static const String channelId = 'deliveryflow_reminders';
   static const String channelName = 'Reminders';
   static const String channelDesc =
@@ -91,23 +100,41 @@ class NotificationService {
     try {
       final info = await FlutterTimezone.getLocalTimezone();
       tz.setLocalLocation(tz.getLocation(info.identifier));
-    } catch (_) {
+    } catch (e) {
       // Keep the UTC fallback — scheduling still works, just offset.
+      _log?.warn(
+        AppLogCategory.notifications,
+        'Timezone resolution failed — scheduling on the UTC fallback',
+        error: e,
+      );
     }
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
     const settings = InitializationSettings(android: android);
-    await _plugin.initialize(settings);
-    const channel = AndroidNotificationChannel(
-      channelId,
-      channelName,
-      description: channelDesc,
-      importance: Importance.defaultImportance,
-    );
-    await _plugin
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(channel);
+    try {
+      await _plugin.initialize(settings);
+      const channel = AndroidNotificationChannel(
+        channelId,
+        channelName,
+        description: channelDesc,
+        importance: Importance.defaultImportance,
+      );
+      await _plugin
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          ?.createNotificationChannel(channel);
+    } catch (e) {
+      _log?.error(
+        AppLogCategory.notifications,
+        'Notification plugin init failed',
+        error: e,
+      );
+      rethrow;
+    }
     _initialized = true;
+    _log?.info(
+      AppLogCategory.notifications,
+      'Notification service initialized (tz: ${tz.local.name})',
+    );
   }
 
   /// Requests POST_NOTIFICATIONS (Android 13+) and returns the result.
@@ -116,19 +143,35 @@ class NotificationService {
         AndroidFlutterLocalNotificationsPlugin>();
     if (android == null) return true;
     final granted = await android.requestNotificationsPermission();
+    _log?.log(
+      AppLogCategory.notifications,
+      (granted ?? false) ? AppLogLevel.info : AppLogLevel.warn,
+      'POST_NOTIFICATIONS permission: ${granted ?? false}',
+    );
     return granted ?? false;
   }
 
   /// Requests exact-alarm permission (Android 12+). Returns true when
   /// exact alarms can be used; otherwise scheduling falls back to inexact.
-  Future<bool> requestExactAlarmPermission() async {    final android = _plugin.resolvePlatformSpecificImplementation<
+  Future<bool> requestExactAlarmPermission() async {
+    final android = _plugin.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
     if (android == null) return true;
     try {
       await android.requestExactAlarmsPermission();
       final can = await android.canScheduleExactNotifications();
+      _log?.log(
+        AppLogCategory.notifications,
+        (can ?? false) ? AppLogLevel.info : AppLogLevel.warn,
+        'Exact-alarm permission after request: ${can ?? false}',
+      );
       return can ?? false;
-    } catch (_) {
+    } catch (e) {
+      _log?.error(
+        AppLogCategory.notifications,
+        'Exact-alarm permission request failed',
+        error: e,
+      );
       return false;
     }
   }
@@ -144,7 +187,20 @@ class NotificationService {
         importance: Importance.defaultImportance,
       ),
     );
-    await _plugin.show(_testId, title, body, details);
+    try {
+      await _plugin.show(_testId, title, body, details);
+      _log?.info(
+        AppLogCategory.notifications,
+        'Instant test notification shown (id $_testId)',
+      );
+    } catch (e) {
+      _log?.error(
+        AppLogCategory.notifications,
+        'Instant test notification FAILED',
+        error: e,
+      );
+      rethrow;
+    }
   }
 
   /// Schedules a one-off test notification ~60 seconds ahead through
@@ -168,14 +224,31 @@ class NotificationService {
         importance: Importance.max,
       ),
     );
-    await _zonedScheduleWithFallback(
-      id: _testScheduledId,
-      title: title,
-      body: body,
-      when: when,
-      details: details,
-      exact: exact,
+    _log?.info(
+      AppLogCategory.notifications,
+      'Scheduled test: target $when, exact=$exact (id $_testScheduledId)',
     );
+    try {
+      await _zonedScheduleWithFallback(
+        id: _testScheduledId,
+        title: title,
+        body: body,
+        when: when,
+        details: details,
+        exact: exact,
+      );
+      _log?.info(
+        AppLogCategory.notifications,
+        'Scheduled test scheduled OK for $when',
+      );
+    } catch (e) {
+      _log?.error(
+        AppLogCategory.notifications,
+        'Scheduled test FAILED to schedule for $when',
+        error: e,
+      );
+      rethrow;
+    }
   }
 
   /// Whether exact alarms may be scheduled right now (Android 12+).
@@ -212,6 +285,10 @@ class NotificationService {
     required bool exact,
     DateTimeComponents? matchDateTimeComponents,
   }) async {
+    // v27.2: EVERY attempt is recorded in the diagnostics log — id,
+    // target time, mode, success, and on failure the exact exception
+    // (both attempts). This is the line that ends the guessing.
+    final mode = exact ? 'exact' : 'inexact';
     try {
       await _plugin.zonedSchedule(
         id,
@@ -224,19 +301,48 @@ class NotificationService {
             UILocalNotificationDateInterpretation.absoluteTime,
         matchDateTimeComponents: matchDateTimeComponents,
       );
-    } catch (e) {
-      if (!shouldRetryInexact(usedExact: exact, error: e)) rethrow;
-      await _plugin.zonedSchedule(
-        id,
-        title,
-        body,
-        when,
-        details,
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
-        matchDateTimeComponents: matchDateTimeComponents,
+      _log?.info(
+        AppLogCategory.notifications,
+        'scheduled id=$id at $when mode=$mode',
       );
+    } catch (e) {
+      if (!shouldRetryInexact(usedExact: exact, error: e)) {
+        _log?.error(
+          AppLogCategory.notifications,
+          'schedule FAILED id=$id at $when mode=$mode (no retry)',
+          error: e,
+        );
+        rethrow;
+      }
+      _log?.warn(
+        AppLogCategory.notifications,
+        'schedule attempt failed id=$id mode=exact — retrying inexact',
+        error: e,
+      );
+      try {
+        await _plugin.zonedSchedule(
+          id,
+          title,
+          body,
+          when,
+          details,
+          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+          uiLocalNotificationDateInterpretation:
+              UILocalNotificationDateInterpretation.absoluteTime,
+          matchDateTimeComponents: matchDateTimeComponents,
+        );
+        _log?.info(
+          AppLogCategory.notifications,
+          'scheduled id=$id at $when mode=inexact (retry)',
+        );
+      } catch (e2) {
+        _log?.error(
+          AppLogCategory.notifications,
+          'schedule FAILED id=$id at $when mode=inexact (retry)',
+          error: e2,
+        );
+        rethrow;
+      }
     }
   }
 
@@ -304,10 +410,52 @@ class NotificationService {
     DailySchedule? Function(String dateKey)? scheduleForDate,
   }) async {
     await cancelAll();
-    if (!settings.notificationsEnabled) return;
+    if (!settings.notificationsEnabled) {
+      _log?.info(
+        AppLogCategory.notifications,
+        'rescheduleAll skipped: notifications disabled — 0 scheduled',
+      );
+      return;
+    }
 
     final strings = _LocalizedStrings(settings.languageCode);
     final exact = await requestExactAlarmPermission();
+    final int scheduled;
+    try {
+      scheduled = await _scheduleAllReminders(
+        settings: settings,
+        strings: strings,
+        exact: exact,
+        hasOrderRecord: hasOrderRecord,
+        isWorkingDay: isWorkingDay,
+        scheduleForDate: scheduleForDate,
+      );
+    } catch (e) {
+      _log?.error(
+        AppLogCategory.notifications,
+        'rescheduleAll FAILED (exact=$exact)',
+        error: e,
+      );
+      rethrow;
+    }
+    _log?.info(
+      AppLogCategory.notifications,
+      'rescheduleAll: $scheduled reminder(s) scheduled (exact=$exact)',
+    );
+  }
+
+  /// The scheduling work of [rescheduleAll]; returns how many
+  /// notifications were scheduled. Split out (v27.2) so the public
+  /// method owns only the outcome logging and the count.
+  Future<int> _scheduleAllReminders({
+    required UserSettings settings,
+    required _LocalizedStrings strings,
+    required bool exact,
+    required bool Function(String dateKey) hasOrderRecord,
+    required bool Function(String dateKey) isWorkingDay,
+    required DailySchedule? Function(String dateKey)? scheduleForDate,
+  }) async {
+    var scheduled = 0;
 
     // Daily order reminder (repeats daily at fixed time).
     if (settings.dailyReminderEnabled) {
@@ -319,6 +467,7 @@ class NotificationService {
         body: strings.dailyBody,
         exact: exact,
       );
+      scheduled++;
     }
 
     // Follow-up reminders for the next 14 days, skipped when a record
@@ -354,6 +503,7 @@ class NotificationService {
           ),
           exact: exact,
         );
+        scheduled++;
       }
     }
 
@@ -403,6 +553,7 @@ class NotificationService {
             details: details,
             exact: exact,
           );
+          scheduled++;
         }
       }
     }
@@ -426,6 +577,7 @@ class NotificationService {
         exact: exact,
         matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
       );
+      scheduled++;
     }
 
     // Saturday report reminder (weekday 6).
@@ -447,7 +599,9 @@ class NotificationService {
         exact: exact,
         matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
       );
+      scheduled++;
     }
+    return scheduled;
   }
 }
 

@@ -4,7 +4,9 @@ import 'package:hive/hive.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../date_time/week_calendar.dart';
+import '../logging/app_log_service.dart';
 import 'models.dart';
+import 'schema_migrations.dart';
 
 /// Local-first persistence layer built on Hive.
 ///
@@ -15,6 +17,12 @@ import 'models.dart';
 /// - `sessions`   : [WorkSession] with auto-increment int keys.
 /// - `meta`       : schema version + misc flags.
 class DatabaseService {
+  /// v27.2: optional diagnostics log (constructor-injected from main;
+  /// null in tests and headless use — all logging then no-ops).
+  DatabaseService({AppLogService? log}) : _log = log;
+
+  final AppLogService? _log;
+
   static const String _settingsBox = 'settings';
   static const String _schedulesBox = 'schedules';
   static const String _ordersBox = 'orders';
@@ -64,51 +72,17 @@ class DatabaseService {
     }
   }
 
+  /// Schema upgrades live in [SchemaMigrations] (v27.2 split — schema
+  /// evolution is its own responsibility); this only delegates and
+  /// records what ran in the diagnostics log.
   Future<void> _migrateIfNeeded() async {
-    final stored = _meta.get('schemaVersion') as int?;
-    if (stored == null || stored < kSchemaVersion) {
-      if (stored != null && stored < 10) {
-        // v27 (schema 10): orders count only once delivery starts.
-        // Records written by older versions counted every created
-        // entry immediately — recompute each stored total once,
-        // preserving its bulk (non-entry) base. Runs exactly once:
-        // the schema stamp below prevents any re-run.
-        for (final record in _orders.values) {
-          final recomputed = recomputedCountedOrders(record);
-          if (recomputed != record.completedOrders) {
-            record.completedOrders = recomputed;
-            await record.save();
-          }
-        }
-        // v27: Google Maps becomes the default automatic navigation
-        // ("خلي الخريطة التلقائية هي جوجل ماب"). Existing installs
-        // still carrying the old in-app default are switched once;
-        // any mode picked manually afterwards persists because this
-        // block never runs again (schema stamp).
-        final existing = _settings.get('user');
-        if (existing != null && existing.autoNavMode == 0) {
-          existing.autoNavMode = 1;
-          await _settings.put('user', existing);
-        }
-      }
-      if (stored != null && stored < 11) {
-        // v27.1 (schema 11): a bulk count used to live ONLY as the
-        // stored number, with no entries — the report's day summary
-        // (which reads entries) showed such days as 0/0, and the
-        // orders couldn't be listed or deleted individually. Convert
-        // each record's undetailed remainder into real count-only
-        // entries (born completed). Totals are NOT touched: every
-        // converted order is already inside `completedOrders`.
-        for (final record in _orders.values) {
-          final added = countOnlyEntriesForLegacyRemainder(record);
-          if (added.isNotEmpty) {
-            record.entries.addAll(added);
-            await record.save();
-          }
-        }
-      }
-      // v1 is the first schema; future versions migrate here.
-      await _meta.put('schemaVersion', kSchemaVersion);
+    final applied = await SchemaMigrations.applyIfNeeded(
+      orders: _orders,
+      settings: _settings,
+      meta: _meta,
+    );
+    for (final tag in applied) {
+      _log?.info(AppLogCategory.system, 'Schema migration applied: $tag');
     }
   }
 
@@ -294,6 +268,11 @@ class DatabaseService {
     record.isConfirmed = true;
     record.updatedAtMillis = now;
     await _orders.put(dateKey, record);
+    _log?.info(
+      AppLogCategory.orders,
+      'Bulk count-only: +$count on $dateKey '
+      '(day total now ${record.completedOrders})',
+    );
     return created;
   }
 
@@ -368,6 +347,11 @@ class DatabaseService {
     if (wasPending && !entry.isPending) {
       // Delivery just started (بدأ التوصيل): count this order now.
       record.completedOrders = record.completedOrders + 1;
+      _log?.info(
+        AppLogCategory.orders,
+        'Order counted on delivery start: entry $entryId on $dateKey '
+        '(day total now ${record.completedOrders})',
+      );
     }
     record.updatedAtMillis = DateTime.now().millisecondsSinceEpoch;
     await record.save();

@@ -8,6 +8,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../database/database_service.dart';
+import '../logging/app_log_service.dart';
 import '../providers.dart';
 import 'route_snap_service.dart';
 import 'tracking_task_handler.dart';
@@ -67,12 +68,15 @@ class LiveTripProgress {
 /// 2. [markDelivered] — courier pressed "وصلت للعميل".
 /// 3. [markArrivedAtMart] — courier pressed "وصلت للمارت".
 class DeliveryTrackingService {
-  DeliveryTrackingService(this._db) {
+  DeliveryTrackingService(this._db, {AppLogService? log}) : _log = log {
     // Listen for live updates from the background isolate.
     FlutterForegroundTask.addTaskDataCallback(_onBackgroundData);
   }
 
   final DatabaseService _db;
+
+  /// v27.2: optional diagnostics log (null in tests — no-ops).
+  final AppLogService? _log;
   final RouteSnapService _snap = RouteSnapService();
 
   final _snapshotController = StreamController<TrackingSnapshot>.broadcast();
@@ -326,19 +330,32 @@ class DeliveryTrackingService {
     required String dateKey,
     required String entryId,
   }) async {
-    final ok = await ensurePermissions();
-    if (!ok) throw StateError('Location permission not granted');
-    await _startBackgroundTracking(
-      orderId: entryId,
-      segment: TrackingSegment.outgoing,
-    );
-    final now = DateTime.now().millisecondsSinceEpoch;
-    await _db.updateOrderEntry(
-      dateKey: dateKey,
-      entryId: entryId,
-      status: 1,
-      pickupTimeMillis: now,
-    );
+    try {
+      final ok = await ensurePermissions();
+      if (!ok) throw StateError('Location permission not granted');
+      await _startBackgroundTracking(
+        orderId: entryId,
+        segment: TrackingSegment.outgoing,
+      );
+      final now = DateTime.now().millisecondsSinceEpoch;
+      await _db.updateOrderEntry(
+        dateKey: dateKey,
+        entryId: entryId,
+        status: 1,
+        pickupTimeMillis: now,
+      );
+      _log?.info(
+        AppLogCategory.tracking,
+        'Tracking started (outgoing) for entry $entryId on $dateKey',
+      );
+    } catch (e) {
+      _log?.error(
+        AppLogCategory.tracking,
+        'Tracking start FAILED (outgoing) for entry $entryId on $dateKey',
+        error: e,
+      );
+      rethrow;
+    }
   }
 
   /// Starts the outgoing leg in MANUAL mode (no background tracking).
@@ -358,6 +375,11 @@ class DeliveryTrackingService {
       status: 1,
       pickupTimeMillis: now,
       kmOut: kmOut,
+    );
+    _log?.info(
+      AppLogCategory.tracking,
+      'Manual outgoing started for entry $entryId on $dateKey '
+      '(kmOut $kmOut)',
     );
   }
 
@@ -413,6 +435,11 @@ class DeliveryTrackingService {
     // bad match could wildly inflate the distance.
     final snapped = await _snap.snapRoute(lat: outLat, lng: outLng);
     final finalKmOut = _saneFinalKm(gpsKm: kmOut, snappedKm: snapped?.distanceKm);
+    _log?.info(
+      AppLogCategory.tracking,
+      'Outgoing leg finalized for entry $entryId: gps=${kmOut}km, '
+      'osrm=${snapped?.distanceKm}km, chosen=${finalKmOut}km',
+    );
     final roadLat =
         snapped?.geometry.map((p) => p.latitude).toList() ??
             const <double>[];
@@ -436,7 +463,17 @@ class DeliveryTrackingService {
 
     // Start return leg (verified — throws loudly on failure so the UI
     // can offer a retry instead of silently losing the return trip).
-    await startReturnLeg(entryId: entryId);
+    try {
+      await startReturnLeg(entryId: entryId);
+    } catch (e) {
+      _log?.error(
+        AppLogCategory.tracking,
+        'Return-leg tracking start FAILED for entry $entryId '
+        '(outgoing leg was saved)',
+        error: e,
+      );
+      rethrow;
+    }
     return finalKmOut;
   }
 
@@ -467,6 +504,11 @@ class DeliveryTrackingService {
     final snapped = await _snap.snapRoute(lat: backLat, lng: backLng);
     final finalKmBack =
         _saneFinalKm(gpsKm: kmBack, snappedKm: snapped?.distanceKm);
+    _log?.info(
+      AppLogCategory.tracking,
+      'Return leg finalized for entry $entryId: gps=${kmBack}km, '
+      'osrm=${snapped?.distanceKm}km, chosen=${finalKmBack}km',
+    );
     final roadLat =
         snapped?.geometry.map((p) => p.latitude).toList() ??
             const <double>[];
@@ -523,7 +565,10 @@ class DeliveryTrackingService {
 final deliveryTrackingServiceProvider =
     Provider<DeliveryTrackingService>((ref) {
   final db = ref.watch(databaseServiceProvider);
-  final svc = DeliveryTrackingService(db);
+  final svc = DeliveryTrackingService(
+    db,
+    log: ref.watch(appLogServiceProvider),
+  );
   ref.onDispose(svc.dispose);
   return svc;
 });

@@ -1180,6 +1180,71 @@ class AppLocalizationsAr extends AppLocalizations {
       'معرفناش نجدول إشعار الاختبار — اتأكد إن الإشعارات مسموحة وحاول تاني.';
 
   @override
+  String get testScheduledFailedTitle => 'فشلت جدولة إشعار الاختبار';
+
+  @override
+  String get technicalReason => 'السبب التقني';
+
+  @override
+  String get diagnosticsLog => 'سجل التشخيص';
+
+  @override
+  String get diagnosticsLogTitle => 'سجل التشخيص';
+
+  @override
+  String get diagnosticsLogEmpty =>
+      'لا توجد سجلات بعد — هتظهر هنا أحداث التطبيق وأخطاؤه.';
+
+  @override
+  String get diagnosticsLogAll => 'الكل';
+
+  @override
+  String get diagnosticsLogCopied => 'تم نسخ السجل';
+
+  @override
+  String get diagnosticsLogCopy => 'نسخ الكل';
+
+  @override
+  String get diagnosticsLogShare => 'مشاركة';
+
+  @override
+  String get diagnosticsLogClear => 'مسح السجل';
+
+  @override
+  String get diagnosticsLogClearConfirmTitle => 'مسح سجل التشخيص؟';
+
+  @override
+  String get diagnosticsLogClearConfirmBody =>
+      'سيتم مسح كل إدخالات السجل نهائيًا.';
+
+  @override
+  String get logCategoryNotifications => 'الإشعارات';
+
+  @override
+  String get logCategoryTracking => 'التتبع';
+
+  @override
+  String get logCategoryOrders => 'الأوردرات';
+
+  @override
+  String get logCategoryShare => 'المشاركة';
+
+  @override
+  String get logCategorySystem => 'النظام';
+
+  @override
+  String get logCategorySettings => 'الإعدادات';
+
+  @override
+  String get logLevelInfo => 'معلومة';
+
+  @override
+  String get logLevelWarn => 'تحذير';
+
+  @override
+  String get logLevelError => 'خطأ';
+
+  @override
   String get countOnlyOrder => 'أوردر (عدد فقط)';
 
   @override

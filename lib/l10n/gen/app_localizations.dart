@@ -2318,6 +2318,132 @@ abstract class AppLocalizations {
   /// **'Couldn\'t schedule the test notification — make sure notifications are allowed, then try again.'**
   String get testScheduledFailed;
 
+  /// No description provided for @testScheduledFailedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Scheduled test failed'**
+  String get testScheduledFailedTitle;
+
+  /// No description provided for @technicalReason.
+  ///
+  /// In en, this message translates to:
+  /// **'Technical reason'**
+  String get technicalReason;
+
+  /// No description provided for @diagnosticsLog.
+  ///
+  /// In en, this message translates to:
+  /// **'Diagnostics log'**
+  String get diagnosticsLog;
+
+  /// No description provided for @diagnosticsLogTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Diagnostics log'**
+  String get diagnosticsLogTitle;
+
+  /// No description provided for @diagnosticsLogEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No log entries yet — app events and errors will appear here.'**
+  String get diagnosticsLogEmpty;
+
+  /// No description provided for @diagnosticsLogAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get diagnosticsLogAll;
+
+  /// No description provided for @diagnosticsLogCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Log copied'**
+  String get diagnosticsLogCopied;
+
+  /// No description provided for @diagnosticsLogCopy.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy all'**
+  String get diagnosticsLogCopy;
+
+  /// No description provided for @diagnosticsLogShare.
+  ///
+  /// In en, this message translates to:
+  /// **'Share'**
+  String get diagnosticsLogShare;
+
+  /// No description provided for @diagnosticsLogClear.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear log'**
+  String get diagnosticsLogClear;
+
+  /// No description provided for @diagnosticsLogClearConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear the diagnostics log?'**
+  String get diagnosticsLogClearConfirmTitle;
+
+  /// No description provided for @diagnosticsLogClearConfirmBody.
+  ///
+  /// In en, this message translates to:
+  /// **'All log entries will be permanently deleted.'**
+  String get diagnosticsLogClearConfirmBody;
+
+  /// No description provided for @logCategoryNotifications.
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications'**
+  String get logCategoryNotifications;
+
+  /// No description provided for @logCategoryTracking.
+  ///
+  /// In en, this message translates to:
+  /// **'Tracking'**
+  String get logCategoryTracking;
+
+  /// No description provided for @logCategoryOrders.
+  ///
+  /// In en, this message translates to:
+  /// **'Orders'**
+  String get logCategoryOrders;
+
+  /// No description provided for @logCategoryShare.
+  ///
+  /// In en, this message translates to:
+  /// **'Share'**
+  String get logCategoryShare;
+
+  /// No description provided for @logCategorySystem.
+  ///
+  /// In en, this message translates to:
+  /// **'System'**
+  String get logCategorySystem;
+
+  /// No description provided for @logCategorySettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings'**
+  String get logCategorySettings;
+
+  /// No description provided for @logLevelInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'Info'**
+  String get logLevelInfo;
+
+  /// No description provided for @logLevelWarn.
+  ///
+  /// In en, this message translates to:
+  /// **'Warning'**
+  String get logLevelWarn;
+
+  /// No description provided for @logLevelError.
+  ///
+  /// In en, this message translates to:
+  /// **'Error'**
+  String get logLevelError;
+
   /// No description provided for @countOnlyOrder.
   ///
   /// In en, this message translates to:

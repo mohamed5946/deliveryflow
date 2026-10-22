@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/database/database_service.dart';
 import '../core/database/models.dart';
 import '../core/date_time/week_calendar.dart';
+import '../core/logging/app_log_service.dart';
 import '../core/notifications/notification_service.dart';
 
 /// Overridden in main() after async init.
@@ -12,6 +13,12 @@ final databaseServiceProvider =
 final notificationServiceProvider =
     Provider<NotificationService>((ref) => throw UnimplementedError());
 
+/// v27.2: diagnostics log. Overridden in main() with the initialized
+/// instance; the default is an uninitialized service whose log calls
+/// are safe no-ops (keeps tests and previews working untouched).
+final appLogServiceProvider =
+    Provider<AppLogService>((ref) => AppLogService());
+
 /// Bumped whenever records change so report providers refresh.
 final dataVersionProvider = StateProvider<int>((ref) => 0);
 
@@ -19,11 +26,13 @@ void bumpDataVersion(WidgetRef ref) =>
     ref.read(dataVersionProvider.notifier).state++;
 
 class SettingsNotifier extends StateNotifier<UserSettings> {
-  SettingsNotifier(this._db, this._notif)
-      : super(_db.settings);
+  SettingsNotifier(this._db, this._notif, {AppLogService? log})
+      : _log = log,
+        super(_db.settings);
 
   final DatabaseService _db;
   final NotificationService _notif;
+  final AppLogService? _log;
 
   Future<void> update(UserSettings Function(UserSettings s) apply) async {
     final next = apply(state);
@@ -58,8 +67,14 @@ class SettingsNotifier extends StateNotifier<UserSettings> {
           return null;
         },
       );
-    } catch (_) {
-      // Notifications are best-effort; never break settings saves.
+    } catch (e) {
+      // Notifications are best-effort; never break settings saves —
+      // but since v27.2 the failure is at least recorded in the log.
+      _log?.error(
+        AppLogCategory.settings,
+        'Reminder reschedule after a settings change failed',
+        error: e,
+      );
     }
   }
 
@@ -72,6 +87,7 @@ final settingsProvider =
   return SettingsNotifier(
     ref.watch(databaseServiceProvider),
     ref.watch(notificationServiceProvider),
+    log: ref.watch(appLogServiceProvider),
   );
 });
 
