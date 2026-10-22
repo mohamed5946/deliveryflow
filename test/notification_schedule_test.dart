@@ -9,6 +9,16 @@ import 'package:flutter_test/flutter_test.dart';
 /// decides — a revoked/misreported exact-alarm permission must
 /// degrade to inexact instead of silently losing the reminder.
 void main() {
+  group('notification channel (v27.3 priority migration)', () {
+    // Reminders live on the fresh high-importance channel; the legacy
+    // id stays named so the launch cleanup can delete it.
+    test('user-facing channel is the _v2 high-importance one', () {
+      expect(NotificationService.channelId, 'deliveryflow_reminders_v2');
+      expect(
+          NotificationService.legacyChannelId, 'deliveryflow_reminders');
+    });
+  });
+
   group('androidScheduleModeFor', () {
     test('exact permitted -> exactAllowWhileIdle', () {
       expect(androidScheduleModeFor(true),

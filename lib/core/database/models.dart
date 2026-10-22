@@ -1104,6 +1104,40 @@ DayStatus dayStatusFor({
   return isWorkingDay ? DayStatus.none : DayStatus.dayOff;
 }
 
+/// Status chip for a day row on the weekly SCHEDULE screen (v27.3).
+enum ScheduleDayChip { completed, inProgress, dayOff, notStarted }
+
+/// Which chip the schedule screen shows for a day. Builds on
+/// [dayStatusFor] (the report's single source of truth) with one
+/// schedule-specific adjustment: today is not over yet, so a
+/// scheduled WORKING day with no counted orders so far is still
+/// "not started" — it only earns the day-off chip when the plan
+/// itself marks the day off. A past day that ended with no counted
+/// orders, and a plan-marked off day on any date, show day off.
+ScheduleDayChip scheduleDayChipFor({
+  required int countedOrders,
+  required bool isWorkingDay,
+  required bool workStartedToday,
+  required DateTime date,
+  required DateTime today,
+}) {
+  final status = dayStatusFor(
+    orders: countedOrders,
+    isWorkingDay: isWorkingDay,
+    date: date,
+    today: today,
+  );
+  if (status == DayStatus.workDay) return ScheduleDayChip.completed;
+  final d = DateTime(date.year, date.month, date.day);
+  final t = DateTime(today.year, today.month, today.day);
+  final isToday = d == t;
+  if (isToday && workStartedToday) return ScheduleDayChip.inProgress;
+  if (status == DayStatus.dayOff && !(isToday && isWorkingDay)) {
+    return ScheduleDayChip.dayOff;
+  }
+  return ScheduleDayChip.notStarted;
+}
+
 class DayBreakdown {
   final String dateKey;
   final int? orders; // null => unrecorded

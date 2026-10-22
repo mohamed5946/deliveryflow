@@ -71,7 +71,15 @@ class NotificationService {
 
   final AppLogService? _log;
 
-  static const String channelId = 'deliveryflow_reminders';
+  /// v27.3: reminders moved to a fresh channel. The original
+  /// 'deliveryflow_reminders' channel was created by an old build with
+  /// low importance, and Android freezes a channel's importance at
+  /// creation — notifications landed in the shade's silent section and
+  /// the app could never raise it in place. The _v2 channel is created
+  /// with Importance.high (heads-up + sound); the legacy channel is
+  /// deleted on launch once pending schedules point at the new one.
+  static const String channelId = 'deliveryflow_reminders_v2';
+  static const String legacyChannelId = 'deliveryflow_reminders';
   static const String channelName = 'Reminders';
   static const String channelDesc =
       'Schedule, daily order and weekly report reminders';
@@ -116,7 +124,7 @@ class NotificationService {
         channelId,
         channelName,
         description: channelDesc,
-        importance: Importance.defaultImportance,
+        importance: Importance.high,
       );
       await _plugin
           .resolvePlatformSpecificImplementation<
@@ -135,6 +143,31 @@ class NotificationService {
       AppLogCategory.notifications,
       'Notification service initialized (tz: ${tz.local.name})',
     );
+  }
+
+  /// v27.3: delete the pre-v27.3 reminders channel after the launch
+  /// reschedule has re-pointed every pending schedule at the new
+  /// high-importance channel. Harmless when the legacy channel does
+  /// not exist (fresh installs); failures are logged, never thrown —
+  /// a stale silent channel in system settings is cosmetic only.
+  Future<void> deleteLegacyChannel() async {
+    try {
+      await _plugin
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          ?.deleteNotificationChannel(legacyChannelId);
+      _log?.info(
+        AppLogCategory.notifications,
+        'Legacy notification channel deleted '
+        '(priority migration to $channelId)',
+      );
+    } catch (e) {
+      _log?.warn(
+        AppLogCategory.notifications,
+        'Legacy notification channel deletion failed',
+        error: e,
+      );
+    }
   }
 
   /// Requests POST_NOTIFICATIONS (Android 13+) and returns the result.

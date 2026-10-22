@@ -94,6 +94,9 @@ Future<void> main() async {
           return null;
         },
       );
+      // v27.3: every pending schedule now points at the new
+      // high-importance channel — the legacy channel can go.
+      await notif.deleteLegacyChannel();
     } catch (_) {}
   });
 }

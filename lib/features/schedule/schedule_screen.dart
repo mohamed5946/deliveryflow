@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:deliveryflow/l10n/gen/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/database/database_service.dart';
@@ -315,7 +316,9 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
 
   Widget _dayCard(BuildContext context, int i, AppLocalizations l10n) {
     // In view mode the card shows a chevron, so it must be tappable —
-    // tapping enters edit mode for this week.
+    // v27.3: tapping opens that day's ORDERS (Mohamed's request), not
+    // the editor. Schedule editing stays behind the "تعديل الجدول"
+    // button below, which switches the whole week into edit mode.
     final card = GlassCard(
       child: _dayCardBody(context, i, l10n),
     );
@@ -324,7 +327,8 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
       child: _editing
           ? card
           : Pressable(
-              onTap: () => setState(() => _editing = true),
+              onTap: () =>
+                  context.push('/orders?date=${_days[i].dateKey}'),
               child: card,
             ),
     );
@@ -419,9 +423,10 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
 
   /// Status badge + completed-orders count for a day (view mode).
   ///
-  /// Green "مكتمل" when the day has a completed order record, blue
-  /// in-progress when it is today and work has started, gray "لم يبدأ"
-  /// otherwise.
+  /// Green "مكتمل" when the day has counted orders, blue in-progress
+  /// when it is today and work has started, a day-off chip (v27.3,
+  /// derived by [scheduleDayChipFor]) for past no-order days and
+  /// plan-marked off days, gray "لم يبدأ" otherwise.
   Widget _dayStatus(
       BuildContext context, int i, AppLocalizations l10n) {
     final db = ref.read(databaseServiceProvider);
@@ -429,19 +434,31 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
     final record = db.orderRecord(d.dateKey);
     final count = record?.completedOrders ?? 0;
     final todayKey = WeekCalendar.dateKey(DateTime.now());
+    final chip = scheduleDayChipFor(
+      countedOrders: count,
+      isWorkingDay: d.isWorkingDay,
+      workStartedToday: d.dateKey == todayKey &&
+          _workStartedToday(db, d.dateKey, record),
+      date: WeekCalendar.parseDateKey(d.dateKey),
+      today: DateTime.now(),
+    );
 
     final String label;
     final Color color;
-    if (count > 0) {
-      label = l10n.statusCompleted;
-      color = LiquidPalette.success;
-    } else if (d.dateKey == todayKey && _workStartedToday(db, d.dateKey, record)) {
-      label = l10n.statusInProgress;
-      color = LiquidPalette.primaryBlue;
-    } else {
-      label = l10n.statusNotStarted;
-      final isDark = Theme.of(context).brightness == Brightness.dark;
-      color = isDark ? Colors.grey.shade400 : Colors.grey.shade600;
+    switch (chip) {
+      case ScheduleDayChip.completed:
+        label = l10n.statusCompleted;
+        color = LiquidPalette.success;
+      case ScheduleDayChip.inProgress:
+        label = l10n.statusInProgress;
+        color = LiquidPalette.primaryBlue;
+      case ScheduleDayChip.dayOff:
+        label = l10n.dayOff;
+        color = Theme.of(context).colorScheme.tertiary;
+      case ScheduleDayChip.notStarted:
+        label = l10n.statusNotStarted;
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        color = isDark ? Colors.grey.shade400 : Colors.grey.shade600;
     }
 
     final text = Theme.of(context).textTheme;

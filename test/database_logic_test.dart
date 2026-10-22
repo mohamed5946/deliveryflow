@@ -768,6 +768,59 @@ void main() {
           DayStatus.dayOff);
     });
 
+    test('scheduleDayChipFor derivation (v27.3)', () {
+      final today = DateTime(2026, 10, 22); // a Thursday
+      ScheduleDayChip chip({
+        required int orders,
+        required bool working,
+        bool started = false,
+        required DateTime date,
+      }) =>
+          scheduleDayChipFor(
+            countedOrders: orders,
+            isWorkingDay: working,
+            workStartedToday: started,
+            date: date,
+            today: today,
+          );
+
+      // Past day with orders -> completed, even on a planned day off.
+      expect(
+          chip(orders: 3, working: true, date: DateTime(2026, 10, 20)),
+          ScheduleDayChip.completed);
+      expect(
+          chip(orders: 1, working: false, date: DateTime(2026, 10, 20)),
+          ScheduleDayChip.completed);
+      // Past day with no orders -> day off (worked plan or not).
+      expect(
+          chip(orders: 0, working: true, date: DateTime(2026, 10, 20)),
+          ScheduleDayChip.dayOff);
+      expect(
+          chip(orders: 0, working: false, date: DateTime(2026, 10, 20)),
+          ScheduleDayChip.dayOff);
+      // Future: planned day off -> day off; planned work day -> not
+      // started.
+      expect(
+          chip(orders: 0, working: false, date: DateTime(2026, 10, 25)),
+          ScheduleDayChip.dayOff);
+      expect(
+          chip(orders: 0, working: true, date: DateTime(2026, 10, 25)),
+          ScheduleDayChip.notStarted);
+      // Today: the day is not over — a scheduled work day with no
+      // orders yet is "not started", NOT a day off; once work has
+      // started it is in progress; a plan-marked off day shows day off.
+      expect(chip(orders: 0, working: true, date: today),
+          ScheduleDayChip.notStarted);
+      expect(
+          chip(orders: 0, working: true, started: true, date: today),
+          ScheduleDayChip.inProgress);
+      expect(chip(orders: 0, working: false, date: today),
+          ScheduleDayChip.dayOff);
+      // Today with counted orders -> completed.
+      expect(chip(orders: 2, working: true, date: today),
+          ScheduleDayChip.completed);
+    });
+
     test('day label flips back to day-off when the last order is deleted',
         () async {
       const key = '2026-10-13';
