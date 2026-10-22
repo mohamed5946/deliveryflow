@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:deliveryflow/app/router.dart';
 import 'package:deliveryflow/core/database/database_service.dart';
 import 'package:deliveryflow/core/notifications/notification_service.dart';
 import 'package:deliveryflow/core/providers.dart';
@@ -152,6 +153,26 @@ void main() {
           findsOneWidget);
     });
 
+    // v27: the standalone bulk-count button is gone — «أضف أوردر» now
+    // opens a choice sheet, and «تسجيل العدد فقط» leads to the bulk
+    // dialog. (Only the choice + dialog opening are driven here; the
+    // detailed flow's async path is the skipped test below.)
+    testWidgets('add button opens the choice sheet; count option opens '
+        'the bulk dialog', (tester) async {
+      await pumpScreen(tester, const OrderEntryScreen(), db: db);
+      // No standalone count button anymore.
+      expect(find.text('تسجيل العدد فقط'), findsNothing);
+      await tester.tap(find.text('أضف أوردر'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.text('أوردر بتفاصيل'), findsOneWidget);
+      expect(find.text('تسجيل العدد فقط'), findsOneWidget);
+      await tester.tap(find.text('تسجيل العدد فقط'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.text('عدد أوردرات اليوم'), findsOneWidget);
+    });
+
     // v23: the old "add order sheet shows km fields" test is stale — the
     // add flow changed (create a pending order instantly, no km questions)
     // and driving the full async path (notification refresh + navigation)
@@ -209,5 +230,25 @@ void main() {
       expect(find.text('تفعيل الإشعارات'), findsOneWidget);
       expect(find.text('تذكير الأوردرات اليومي'), findsOneWidget);
     });
+  });
+
+  // v27 regression: the GoRouter used to be rebuilt on every settings
+  // change (buildRouter called inside build), resetting the app to the
+  // splash screen. The router must be one instance for the app's life.
+  test('router is created once and survives settings changes', () {
+    final container = ProviderContainer(
+      overrides: [
+        databaseServiceProvider.overrideWithValue(db),
+        notificationServiceProvider
+            .overrideWithValue(NotificationService()),
+      ],
+    );
+    addTearDown(container.dispose);
+    final first = container.read(routerProvider);
+    container
+        .read(settingsProvider.notifier)
+        .update((s) => s..themeMode = 2);
+    final second = container.read(routerProvider);
+    expect(identical(first, second), isTrue);
   });
 }

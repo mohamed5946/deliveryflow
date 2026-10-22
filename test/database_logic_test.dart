@@ -215,7 +215,9 @@ void main() {
         kmBack: 5.5,
       );
       var rec = db.orderRecord(key)!;
-      expect(rec.completedOrders, 2);
+      // v27 count-on-start: pending entries do not count yet — only
+      // the km aggregates include them.
+      expect(rec.completedOrders, 0);
       expect(rec.totalKmOut, 17.5);
       expect(rec.totalKmBack, 13.5);
       expect(rec.totalKm, 31.0);
@@ -227,10 +229,17 @@ void main() {
       );
       rec = db.orderRecord(key)!;
       expect(rec.totalKmOut, 15.0);
+      expect(rec.completedOrders, 0);
+
+      // Delivery starts for e1 (بدأ التوصيل) -> it counts now.
+      await db.updateOrderEntry(dateKey: key, entryId: e1.id, status: 1);
+      rec = db.orderRecord(key)!;
+      expect(rec.completedOrders, 1);
 
       await db.deleteOrderEntry(dateKey: key, entryId: e1.id);
       rec = db.orderRecord(key)!;
-      expect(rec.completedOrders, 1);
+      // The deleted entry was counted; the remaining one is pending.
+      expect(rec.completedOrders, 0);
       expect(rec.entries.length, 1);
       expect(rec.totalKm, 10.5);
 
@@ -437,13 +446,16 @@ void main() {
         kmOut: 10,
         kmBack: 9,
       );
-      await db.addOrderEntry(
+      final e2 = await db.addOrderEntry(
         dateKey: day2,
         timestampMillis:
             DateTime(2026, 10, 13, 19).millisecondsSinceEpoch,
         kmOut: 7,
         kmBack: 6,
       );
+      // v27: entries count only once delivery starts.
+      await db.updateOrderEntry(dateKey: day1, entryId: e1.id, status: 1);
+      await db.updateOrderEntry(dateKey: day2, entryId: e2.id, status: 1);
       var report = db.buildWeeklyReport(DateTime(2026, 10, 14));
       expect(report.totalOrders, 2);
 
@@ -608,6 +620,175 @@ void main() {
       final s = UserSettings()..shiftEndReminderEnabled = true;
       final back = UserSettings.fromJson(s.toJson());
       expect(back.shiftEndReminderEnabled, isTrue);
+    });
+  });
+
+  group('v27: count-on-start, paid days, day labels', () {
+    test('an order counts only when delivery starts (بدأ التوصيل)',
+        () async {
+      const key = '2026-10-16';
+      final e1 = await db.addOrderEntry(
+        dateKey: key,
+        timestampMillis: DateTime(2026, 10, 16, 10).millisecondsSinceEpoch,
+      );
+      // Created pending -> NOT counted.
+      expect(db.orderRecord(key)!.completedOrders, 0);
+
+      // Delivery starts -> counted exactly once.
+      await db.updateOrderEntry(
+          dateKey: key, entryId: e1.id, status: 1, pickupTimeMillis: 42);
+      expect(db.orderRecord(key)!.completedOrders, 1);
+
+      // Later lifecycle steps / re-entering start never double-count.
+      await db.updateOrderEntry(dateKey: key, entryId: e1.id, status: 1);
+      await db.updateOrderEntry(dateKey: key, entryId: e1.id, status: 2);
+      await db.updateOrderEntry(dateKey: key, entryId: e1.id, status: 3);
+      expect(db.orderRecord(key)!.completedOrders, 1);
+
+      // A second still-pending entry changes nothing.
+      final e2 = await db.addOrderEntry(
+        dateKey: key,
+        timestampMillis: DateTime(2026, 10, 16, 12).millisecondsSinceEpoch,
+      );
+      expect(db.orderRecord(key)!.completedOrders, 1);
+
+      // Deleting the pending entry: no change. Deleting the counted
+      // entry: -1.
+      await db.deleteOrderEntry(dateKey: key, entryId: e2.id);
+      expect(db.orderRecord(key)!.completedOrders, 1);
+      await db.deleteOrderEntry(dateKey: key, entryId: e1.id);
+      expect(db.orderRecord(key)!.completedOrders, 0);
+    });
+
+    test('bulk count stays immediate and composes with counted entries',
+        () async {
+      const key = '2026-10-17';
+      await db.upsertOrderRecord(dateKey: key, completedOrders: 15);
+      final e = await db.addOrderEntry(
+        dateKey: key,
+        timestampMillis: DateTime(2026, 10, 17, 9).millisecondsSinceEpoch,
+      );
+      // Pending detail entry must not inflate the bulk total.
+      expect(db.orderRecord(key)!.completedOrders, 15);
+      await db.updateOrderEntry(dateKey: key, entryId: e.id, status: 1);
+      expect(db.orderRecord(key)!.completedOrders, 16);
+      await db.deleteOrderEntry(dateKey: key, entryId: e.id);
+      expect(db.orderRecord(key)!.completedOrders, 15);
+    });
+
+    test('migration formula: recomputedCountedOrders preserves bulk base',
+        () {
+      DailyOrderRecord rec(int total, List<int> statuses) =>
+          DailyOrderRecord(
+            id: 'x',
+            dateKey: '2026-10-12',
+            completedOrders: total,
+            createdAtMillis: 0,
+            updatedAtMillis: 0,
+            entries: [
+              for (var i = 0; i < statuses.length; i++)
+                OrderEntry(
+                  id: 'e$i',
+                  dateKey: '2026-10-12',
+                  timestampMillis: 0,
+                  status: statuses[i],
+                ),
+            ],
+          );
+      // Old total counted all 3 entries; bulk base 12 survives, only
+      // the 2 started entries count.
+      expect(recomputedCountedOrders(rec(15, [0, 1, 3])), 14);
+      // Nothing started -> only the (zero) bulk base remains.
+      expect(recomputedCountedOrders(rec(2, [0, 0])), 0);
+      // Inconsistent legacy data (total < entries): base clamps to 0.
+      expect(recomputedCountedOrders(rec(1, [1, 2, 3])), 3);
+      // Pure bulk record (no entries) is untouched.
+      expect(recomputedCountedOrders(rec(7, [])), 7);
+      expect(recomputedCountedOrders(rec(0, [0])), 0);
+    });
+
+    test('salary paid days: only days with >= 1 counted order', () async {
+      // Week of Sun 2026-10-11.
+      await db.upsertOrderRecord(dateKey: '2026-10-12', completedOrders: 0);
+      await db.upsertOrderRecord(dateKey: '2026-10-13', completedOrders: 4);
+      await db.saveManualSession(
+        dateKey: '2026-10-14',
+        startMinutes: 9 * 60,
+        endMinutes: 17 * 60,
+        breakMinutes: 0,
+      );
+      final report = db.buildWeeklyReport(DateTime(2026, 10, 14));
+      // recordedDaysCount semantics unchanged: all three days have data.
+      expect(report.recordedDaysCount, 3);
+      // Only the 4-order day earns the daily fixed pay: the 0-order
+      // record does not, and the session-only day does not.
+      expect(report.paidDaysCount, 1);
+      expect(report.totalOrders, 4);
+    });
+
+    test('dayStatusFor derivation', () {
+      final today = DateTime(2026, 10, 22);
+      // Orders worked -> work day, whatever the schedule says.
+      expect(
+          dayStatusFor(
+              orders: 2,
+              isWorkingDay: false,
+              date: today,
+              today: today),
+          DayStatus.workDay);
+      // No orders today / in the past -> day off.
+      expect(
+          dayStatusFor(
+              orders: 0, isWorkingDay: true, date: today, today: today),
+          DayStatus.dayOff);
+      expect(
+          dayStatusFor(
+              orders: null,
+              isWorkingDay: true,
+              date: DateTime(2026, 10, 20),
+              today: today),
+          DayStatus.dayOff);
+      // Future: scheduled working day gets no label yet; scheduled off
+      // shows day off.
+      expect(
+          dayStatusFor(
+              orders: null,
+              isWorkingDay: true,
+              date: DateTime(2026, 10, 25),
+              today: today),
+          DayStatus.none);
+      expect(
+          dayStatusFor(
+              orders: null,
+              isWorkingDay: false,
+              date: DateTime(2026, 10, 25),
+              today: today),
+          DayStatus.dayOff);
+    });
+
+    test('day label flips back to day-off when the last order is deleted',
+        () async {
+      const key = '2026-10-13';
+      final e = await db.addOrderEntry(
+        dateKey: key,
+        timestampMillis: DateTime(2026, 10, 13, 11).millisecondsSinceEpoch,
+      );
+      await db.updateOrderEntry(dateKey: key, entryId: e.id, status: 1);
+      DayStatus statusOf(WeeklyReport r) {
+        final d = r.days.firstWhere((x) => x.dateKey == key);
+        return dayStatusFor(
+          orders: d.orders,
+          isWorkingDay: d.isWorkingDay,
+          date: DateTime(2026, 10, 13),
+          today: DateTime(2026, 10, 14),
+        );
+      }
+
+      expect(statusOf(db.buildWeeklyReport(DateTime(2026, 10, 14))),
+          DayStatus.workDay);
+      await db.deleteOrderEntry(dateKey: key, entryId: e.id);
+      expect(statusOf(db.buildWeeklyReport(DateTime(2026, 10, 14))),
+          DayStatus.dayOff);
     });
   });
 }

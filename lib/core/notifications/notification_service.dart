@@ -63,6 +63,7 @@ class NotificationService {
   static const int _reportId = 3002;
   static const int _shiftEndBase = 4000; // + dayOffset*2 + slot
   static const int _testId = 9999;
+  static const int _testScheduledId = 9998;
 
   Future<void> init() async {
     if (_initialized) return;
@@ -104,8 +105,7 @@ class NotificationService {
 
   /// Requests exact-alarm permission (Android 12+). Returns true when
   /// exact alarms can be used; otherwise scheduling falls back to inexact.
-  Future<bool> requestExactAlarmPermission() async {
-    final android = _plugin.resolvePlatformSpecificImplementation<
+  Future<bool> requestExactAlarmPermission() async {    final android = _plugin.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
     if (android == null) return true;
     try {
@@ -129,6 +129,56 @@ class NotificationService {
       ),
     );
     await _plugin.show(_testId, title, body, details);
+  }
+
+  /// Schedules a one-off test notification ~60 seconds ahead through
+  /// the SAME zonedSchedule path as the real reminders (same channel,
+  /// exact mode when permitted, inexact otherwise), so the user can
+  /// prove scheduled delivery end-to-end with the app closed
+  /// (v27 diagnostics). One-off: no matchDateTimeComponents, unlike the
+  /// recurring reminders.
+  Future<void> showScheduledTest({
+    required String title,
+    required String body,
+  }) async {
+    final exact = await canScheduleExactNotifications();
+    final when =
+        tz.TZDateTime.now(tz.local).add(const Duration(seconds: 60));
+    const details = NotificationDetails(
+      android: AndroidNotificationDetails(
+        channelId,
+        channelName,
+        channelDescription: channelDesc,
+        importance: Importance.max,
+      ),
+    );
+    await _plugin.zonedSchedule(
+      _testScheduledId,
+      title,
+      body,
+      when,
+      details,
+      androidScheduleMode: exact
+          ? AndroidScheduleMode.exactAllowWhileIdle
+          : AndroidScheduleMode.inexactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+    );
+  }
+
+  /// Whether exact alarms may be scheduled right now (Android 12+).
+  /// When false, reminders fall back to inexact scheduling and can
+  /// arrive late — the settings UI surfaces this state (v27). Query
+  /// only: never opens any system screen.
+  Future<bool> canScheduleExactNotifications() async {
+    final android = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    if (android == null) return true;
+    try {
+      return await android.canScheduleExactNotifications() ?? true;
+    } catch (_) {
+      return true;
+    }
   }
 
   tz.TZDateTime _nextDaily(int hour, int minute) {

@@ -96,6 +96,109 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
     _notesDirty = false;
   }
 
+  /// v27: the «أضف أوردر» button first asks HOW to log — the
+  /// standalone bulk-count button was too easy to miss. «أوردر
+  /// بتفاصيل» runs the existing detailed add flow; «تسجيل العدد فقط»
+  /// opens the existing bulk-count dialog.
+  Future<void> _showAddOrderChoice() async {
+    final l10n = AppLocalizations.of(context);
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: GlassCard(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(l10n.addOrder,
+                    style: Theme.of(sheetContext)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w800)),
+                const SizedBox(height: 8),
+                _addChoiceRow(
+                  sheetContext,
+                  icon: Icons.receipt_long_rounded,
+                  title: l10n.addOrderDetailed,
+                  subtitle: l10n.addOrderDetailedDesc,
+                  onTap: () => Navigator.of(sheetContext).pop('detailed'),
+                ),
+                const Divider(height: 8),
+                _addChoiceRow(
+                  sheetContext,
+                  icon: Icons.numbers_rounded,
+                  title: l10n.logCountOnly,
+                  subtitle: l10n.bulkCountHint,
+                  onTap: () => Navigator.of(sheetContext).pop('count'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (!mounted) return;
+    if (choice == 'detailed') {
+      await _addEntry();
+    } else if (choice == 'count') {
+      await _logBulkCount();
+    }
+  }
+
+  Widget _addChoiceRow(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Pressable(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(GlassTokens.radiusS),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: scheme.primary.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 20, color: scheme.primary),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: theme.textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w700)),
+                  Text(subtitle,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                          color:
+                              scheme.onSurface.withValues(alpha: 0.65))),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded,
+                size: 20,
+                color: scheme.onSurface.withValues(alpha: 0.35)),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _addEntry() async {
     // New flow: create a pending order instantly — no km questions.
     // Distances are filled automatically by GPS tracking from the
@@ -150,7 +253,7 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
             ),
             if (_entries.isNotEmpty) ...[
               const SizedBox(height: 8),
-              Text(l10n.bulkCountIncludesDetails(_entries.length),
+              Text(l10n.bulkCountIncludesDetails(_countedEntries),
                   style: Theme.of(ctx).textTheme.bodySmall),
             ],
           ],
@@ -169,8 +272,9 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
       ),
     );
     if (value == null || !mounted) return;
-    // The total can never drop below the detailed entries already logged.
-    final total = value.clamp(_entries.length, 9999);
+    // The total can never drop below the entries already counted
+    // (delivery started, v27) — a bulk log never erases tracked work.
+    final total = value.clamp(_countedEntries, 9999);
     final db = ref.read(databaseServiceProvider);
     await db.upsertOrderRecord(
       dateKey: _dateKey,
@@ -246,6 +350,10 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
         .showSnackBar(SnackBar(content: Text(l10n.orderDeleted)));
   }
 
+  /// How many of this day's entries are already counted toward the
+  /// day total — only entries whose delivery started count (v27).
+  int get _countedEntries => _entries.where((e) => e.status >= 1).length;
+
   double get _kmOut =>
       _entries.fold<double>(0, (s, e) => s + e.effectiveKmOut);
   double get _kmBack =>
@@ -264,7 +372,7 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
       return const GlassScaffold(body: GlassLoading());
     }
 
-    final undetailed = _count - _entries.length;
+    final undetailed = _count - _countedEntries;
 
     return GlassScaffold(
       appBar: AppBar(
@@ -328,17 +436,7 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
             child: GlassButton(
               label: l10n.addOrder,
               icon: Icons.add_rounded,
-              onPressed: _addEntry,
-            ),
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: GlassButton(
-              label: l10n.logCountOnly,
-              icon: Icons.numbers_rounded,
-              primary: false,
-              onPressed: _logBulkCount,
+              onPressed: _showAddOrderChoice,
             ),
           ),
           const SizedBox(height: 12),

@@ -9,7 +9,6 @@ import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/tracking/route_snap_service.dart';
-import '../../core/offline_maps/offline_map_service.dart';
 import '../../theme/design_system.dart';
 import '../../theme/pressable.dart';
 import '../daily_orders/phone_sheet.dart';
@@ -839,11 +838,12 @@ class _NavigationScreenState extends State<NavigationScreen>
                   mapController: _mapController,
                   options: _mapOptions,
                   children: [
-                    // Base tiles: FMTC browse cache (instant when cached),
-                    // network fallback. Region overlays (downloaded offline
-                    // areas) draw above and serve instantly even offline.
-                    OfflineMapService.instance.baseTileLayer(),
-                    const OfflineRegionLayers(),
+                    // Base tiles: plain network tiles (online).
+                    TileLayer(
+                      urlTemplate:
+                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName: 'com.valor.deliveryflow',
+                    ),
                     // Route alternatives: non-selected in grey underneath,
                     // selected in brand blue on top.
                     if (_routePoints.length > 1)

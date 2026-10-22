@@ -15,7 +15,7 @@ class DeliveryFlowApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(settingsProvider);
-    final router = buildRouter(ref);
+    final router = ref.watch(routerProvider);
 
     final locale = Locale(settings.languageCode);
     // Keep intl in sync for date/number formatting.

@@ -15,8 +15,6 @@ import '../features/registration/registration_screen.dart';
 import '../features/schedule/schedule_screen.dart';
 import '../features/weekly_reports/report_screen.dart';
 import '../features/work_sessions/session_screen.dart';
-import '../features/offline_maps/offline_maps_screen.dart';
-import '../features/offline_maps/region_picker_screen.dart';
 
 const _paths = ['/home', '/schedule', '/reports', '/history', '/profile'];
 
@@ -112,9 +110,29 @@ class _TabTransitionState extends State<_TabTransition>
   }
 }
 
-GoRouter buildRouter(WidgetRef ref) {
-  return GoRouter(
+/// The app router — created exactly ONCE for the app's lifetime.
+///
+/// v27 fix: this used to be built by a `buildRouter(ref)` call inside
+/// `DeliveryFlowApp.build` while watching settingsProvider, so EVERY
+/// settings change (theme, language, any toggle) constructed a brand-new
+/// GoRouter whose initialLocation is /splash — the app appeared to close
+/// and reopen from scratch on every toggle. The router is now stable;
+/// theme/locale are MaterialApp concerns and apply live around it.
+///
+/// The redirect gate depends only on `registered` / `onboardingDone`,
+/// so it re-evaluates through [GoRouter.refreshListenable] whenever one
+/// of those two flips — without recreating the router or resetting the
+/// current location.
+final routerProvider = Provider<GoRouter>((ref) {
+  final gateRefresh = ValueNotifier<int>(0);
+  ref.listen(
+    settingsProvider.select((s) => (s.registered, s.onboardingDone)),
+    (_, __) => gateRefresh.value++,
+  );
+  ref.onDispose(gateRefresh.dispose);
+  final router = GoRouter(
     initialLocation: '/splash',
+    refreshListenable: gateRefresh,
     redirect: (context, state) {
       final settings = ref.read(settingsProvider);
       final registered = settings.registered;
@@ -153,6 +171,13 @@ GoRouter buildRouter(WidgetRef ref) {
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
           final l10n = AppLocalizations.of(context);
+          // v27: keep the floating bar clear of the system gesture /
+          // 3-button navigation area. The app is edge-to-edge with
+          // transparent system bars, so without this offset the system
+          // bar overlaps the app bar on gesture-nav phones. When there
+          // is no system inset (hidden bars), the offset is 0 and the
+          // bar rests at the very bottom edge, exactly as before.
+          final bottomInset = MediaQuery.of(context).viewPadding.bottom;
           return Scaffold(
             backgroundColor: Colors.transparent,
             // True floating bar: the nav bar is an overlay above the
@@ -172,7 +197,7 @@ GoRouter buildRouter(WidgetRef ref) {
                 Padding(
                   padding: EdgeInsets.only(
                     top: MediaQuery.of(context).padding.top + 20,
-                    bottom: 96,
+                    bottom: 96 + bottomInset,
                   ),
                   child: _TabTransition(
                     index: navigationShell.currentIndex,
@@ -182,7 +207,7 @@ GoRouter buildRouter(WidgetRef ref) {
                 Positioned(
                   left: 0,
                   right: 0,
-                  bottom: 0,
+                  bottom: bottomInset,
                   child: GlassNavBar(
                     selectedIndex: navigationShell.currentIndex,
                     onDestinationSelected: (i) =>
@@ -247,14 +272,8 @@ GoRouter buildRouter(WidgetRef ref) {
           return SessionScreen(dateKey: dateKey);
         },
       ),
-      GoRoute(
-        path: '/offline-maps',
-        builder: (context, state) => const OfflineMapsScreen(),
-      ),
-      GoRoute(
-        path: '/offline-maps/pick',
-        builder: (context, state) => const RegionPickerScreen(),
-      ),
     ],
   );
-}
+  ref.onDispose(router.dispose);
+  return router;
+});

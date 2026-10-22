@@ -13,6 +13,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/database/models.dart';
+import '../../core/notifications/battery_optimization.dart';
 import '../../core/providers.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/design_system.dart';
@@ -483,12 +484,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       icon: Icons.notifications_none_rounded,
                       label: l10n.notificationsSection,
                       onTap: () => _showNotificationsSheet(settings),
-                    ),
-                    const SizedBox(height: 4),
-                    _menuRow(
-                      icon: Icons.map_rounded,
-                      label: l10n.offlineMaps,
-                      onTap: () => context.go('/offline-maps'),
                     ),
                     const SizedBox(height: 4),
                     _menuRow(
@@ -1041,6 +1036,35 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ..dailyReminderMinute = t.minute),
         ),
       ),
+      // v27: on-device notification diagnostics — prove delivery works.
+      const SizedBox(height: 4),
+      _actionRow(
+        icon: Icons.notifications_active_rounded,
+        label: l10n.testNotificationNow,
+        onTap: () => ref.read(notificationServiceProvider).showTest(
+              title: l10n.testNotificationTitle,
+              body: l10n.testNotificationBody,
+            ),
+      ),
+      _actionRow(
+        icon: Icons.timer_rounded,
+        label: l10n.testNotificationScheduled,
+        onTap: () async {
+          await ref.read(notificationServiceProvider).showScheduledTest(
+                title: l10n.testNotificationTitle,
+                body: l10n.testScheduledBody,
+              );
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(l10n.testScheduledInstructions),
+              duration: const Duration(seconds: 6),
+            ),
+          );
+        },
+      ),
+      // v27: reminder-delivery health (exact alarm + battery exemption).
+      const _ReminderHealthRows(),
     ];
   }
 
@@ -1495,6 +1519,153 @@ class _SheetShell extends StatelessWidget {
           ),
           child: SingleChildScrollView(child: child),
         ),
+      ),
+    );
+  }
+}
+
+/// v27: reminder-delivery health rows, shown inside the notifications
+/// settings. Two silent killers of scheduled reminders are surfaced
+/// ONLY when they need action:
+///
+/// - Exact-alarm permission denied (Android 12+): reminders fall back
+///   to inexact scheduling and can drift late.
+/// - Battery optimization not exempt: aggressive OEM battery managers
+///   (Infinix XOS etc.) defer or kill reminder alarms outright.
+///
+/// State is re-checked whenever the app resumes, so returning from the
+/// system permission screens refreshes the rows immediately.
+class _ReminderHealthRows extends ConsumerStatefulWidget {
+  const _ReminderHealthRows();
+
+  @override
+  ConsumerState<_ReminderHealthRows> createState() =>
+      _ReminderHealthRowsState();
+}
+
+class _ReminderHealthRowsState extends ConsumerState<_ReminderHealthRows>
+    with WidgetsBindingObserver {
+  bool? _exactOk;
+  bool? _batteryOk;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _check();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _check();
+  }
+
+  Future<void> _check() async {
+    final svc = ref.read(notificationServiceProvider);
+    final exact = await svc.canScheduleExactNotifications();
+    final battery = await BatteryOptimization.isIgnoring();
+    if (!mounted) return;
+    setState(() {
+      _exactOk = exact;
+      _batteryOk = battery;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final issues = <Widget>[];
+    if (_exactOk == false) {
+      issues.add(_issueCard(
+        icon: Icons.alarm_off_rounded,
+        title: l10n.exactAlarmOffTitle,
+        desc: l10n.exactAlarmOffDesc,
+        actionLabel: l10n.enableAction,
+        onAction: () async {
+          await ref
+              .read(notificationServiceProvider)
+              .requestExactAlarmPermission();
+          await _check();
+        },
+      ));
+    }
+    if (_batteryOk == false) {
+      issues.add(_issueCard(
+        icon: Icons.battery_saver_rounded,
+        title: l10n.batteryExemptTitle,
+        desc: l10n.batteryExemptDesc,
+        actionLabel: l10n.enableAction,
+        onAction: () async {
+          await BatteryOptimization.requestIgnore();
+          await _check();
+        },
+      ));
+    }
+    if (issues.isEmpty) return const SizedBox.shrink();
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const SizedBox(height: 8),
+        for (var i = 0; i < issues.length; i++) ...[
+          if (i > 0) const SizedBox(height: 8),
+          issues[i],
+        ],
+      ],
+    );
+  }
+
+  Widget _issueCard({
+    required IconData icon,
+    required String title,
+    required String desc,
+    required String actionLabel,
+    required VoidCallback onAction,
+  }) {
+    final text = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    const warn = Color(0xFFD97706);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+      decoration: BoxDecoration(
+        color: warn.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(GlassTokens.radiusS),
+        border: Border.all(color: warn.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded,
+                  size: 20, color: warn),
+              const SizedBox(width: 8),
+              Icon(icon, size: 18, color: warn),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(title,
+                    style: text.titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w700)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(desc,
+              style: text.bodySmall?.copyWith(
+                  color: scheme.onSurface.withValues(alpha: 0.7))),
+          Align(
+            alignment: AlignmentDirectional.centerEnd,
+            child: TextButton(
+              onPressed: onAction,
+              child: Text(actionLabel),
+            ),
+          ),
+        ],
       ),
     );
   }

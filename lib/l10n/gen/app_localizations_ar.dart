@@ -117,6 +117,29 @@ class AppLocalizationsAr extends AppLocalizations {
   String get dailyReminderTime => 'تذكير الأوردرات اليومي';
 
   @override
+  String get exactAlarmOffTitle => 'المنبّه الدقيق مش مفعّل';
+  @override
+  String get exactAlarmOffDesc => 'من غير إذن المنبّه الدقيق، أندرويد ممكن يأخّر التذكيرات عن معادها. فعّل الإذن عشان توصلك في وقتها بالظبط.';
+  @override
+  String get batteryExemptTitle => 'استثناء من توفير البطارية';
+  @override
+  String get batteryExemptDesc => 'توفير البطارية ممكن يأخّر التذكيرات أو يمنعها خالص — خصوصًا على موبايلات Infinix. استثنِ التطبيق عشان التذكيرات توصلك في معادها.';
+  @override
+  String get enableAction => 'تفعيل';
+  @override
+  String get testNotificationNow => 'اختبار إشعار فوري';
+  @override
+  String get testNotificationScheduled => 'اختبار إشعار مجدول (بعد دقيقة)';
+  @override
+  String get testNotificationTitle => 'اختبار الإشعارات';
+  @override
+  String get testNotificationBody => 'الإشعار الفوري وصل ✅ لو شايف الرسالة دي، يبقى الإشعارات شغالة.';
+  @override
+  String get testScheduledBody => 'الإشعار المجدول وصل ✅ التذكيرات المجدولة شغالة تمام.';
+  @override
+  String get testScheduledInstructions => 'اتجدول إشعار بعد دقيقة. اقفل التطبيق دلوقتي واستناه — لو وصلك وانت قافل التطبيق، يبقى التذكيرات شغالة.';
+
+  @override
   String get dailySummary => 'ملخص اليوم';
 
   @override
@@ -696,6 +719,11 @@ class AppLocalizationsAr extends AppLocalizations {
   String get addOrder => 'أضف أوردر';
 
   @override
+  String get addOrderDetailed => 'أوردر بتفاصيل';
+  @override
+  String get addOrderDetailedDesc => 'أوردر جديد بيتفتح على طول — عشان تبدأ التوصيل وتتتبّع المسافة.';
+
+  @override
   String get logCountOnly => 'تسجيل العدد فقط';
 
   @override
@@ -1136,108 +1164,4 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get mapModeFollowCam => 'منظور المتابعة';
-
-  @override
-  String get offlineMaps => 'الخرائط دون اتصال';
-
-  @override
-  String get offlineMapsHint =>
-      'الخريطة هتشتغل من غير نت، لكن حساب الطريق محتاج نت';
-
-  @override
-  String get downloadNewRegion => 'تحميل منطقة جديدة';
-
-  @override
-  String get noOfflineRegions =>
-      'مفيش مناطق محملة — حمّل منطقتك عشان الخريطة تفتح بسرعة حتى لو النت ضعيف';
-
-  @override
-  String get deleteRegion => 'مسح المنطقة';
-
-  @override
-  String get deleteRegionConfirm => 'همسح المنطقة دي والبلاطات بتاعتها؟';
-
-  @override
-  String get clearAllRegions => 'مسح الكل';
-
-  @override
-  String get clearAllRegionsConfirm => 'همسح كل المناطق المحملة؟';
-
-  @override
-  String get pickRegionTitle => 'تحديد المنطقة';
-
-  @override
-  String get pickRegionHint =>
-      'حرّك الخريطة وكبّر/صغّر عشان تحدد المربع اللي عايز تحمله';
-
-  @override
-  String get useThisArea => 'تحميل المنطقة دي';
-
-  @override
-  String get zoomFrom => 'من زوم';
-
-  @override
-  String get zoomTo => 'إلى زوم';
-
-  @override
-  String get estimatingRegion => 'جاري حساب الحجم…';
-
-  @override
-  String regionEstimate(Object mb, Object tiles) {
-    return '$tiles بلاطة • حوالي $mb م.ب';
-  }
-
-  @override
-  String get startDownload => 'ابدأ التحميل';
-
-  @override
-  String get downloadingRegion => 'جاري التحميل…';
-
-  @override
-  String downloadProgress(Object done, Object mb, Object total) {
-    return '$done / $total بلاطة • $mb م.ب';
-  }
-
-  @override
-  String get downloadComplete => 'تم التحميل ✅';
-
-  @override
-  String get downloadFailed => 'فشل التحميل';
-
-  @override
-  String get downloadFailedMsg =>
-      'حصلت مشكلة أثناء التحميل. اتأكد من المساحة والنت وحاول تاني.';
-
-  @override
-  String get downloadCancelled => 'اتلغى التحميل';
-
-  @override
-  String get mobileDataWarnTitle => 'تنبيه بيانات';
-
-  @override
-  String get mobileDataWarnMsg =>
-      'التحميل هيستهلك بيانات الموبايل — يُفضل تستخدم الواي فاي لو متاح.';
-
-  @override
-  String get continueDownload => 'متابعة';
-
-  @override
-  String get largeRegionTitle => 'الحجم كبير';
-
-  @override
-  String largeRegionMsg(Object mb) {
-    return 'المنطقة دي حجمها حوالي $mb م.ب — متأكد إنك عايز تحملها؟';
-  }
-
-  @override
-  String regionLabel(Object date) {
-    return 'منطقة $date';
-  }
-
-  @override
-  String get offlineStorageError => 'مشكلة في التخزين';
-
-  @override
-  String get offlineStorageErrorMsg =>
-      'مقدرناش نحفظ البلاطات — اتأكد إن في مساحة فاضية وحاول تاني.';
 }

@@ -9,7 +9,6 @@ import 'package:latlong2/latlong.dart';
 
 import '../../core/database/models.dart';
 import '../../core/providers.dart';
-import '../../core/offline_maps/offline_map_service.dart';
 import '../../core/tracking/delivery_tracking_service.dart';
 import '../../theme/design_system.dart';
 import '../../theme/page_transitions.dart';
@@ -1603,8 +1602,10 @@ class _DeliveryHeroMapState extends ConsumerState<_DeliveryHeroMap> {
         ),
       ),
       children: [
-        OfflineMapService.instance.baseTileLayer(),
-        const OfflineRegionLayers(),
+        TileLayer(
+          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          userAgentPackageName: 'com.valor.deliveryflow',
+        ),
         PolylineLayer(
           polylines: [
             if (points.length > 1)
@@ -1673,8 +1674,10 @@ class _DeliveryHeroMapState extends ConsumerState<_DeliveryHeroMap> {
         ),
       ),
       children: [
-        OfflineMapService.instance.baseTileLayer(),
-        const OfflineRegionLayers(),
+        TileLayer(
+          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          userAgentPackageName: 'com.valor.deliveryflow',
+        ),
         PolylineLayer(
           polylines: [
             if (out.length > 1)

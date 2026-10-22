@@ -67,6 +67,20 @@ class DatabaseService {
   Future<void> _migrateIfNeeded() async {
     final stored = _meta.get('schemaVersion') as int?;
     if (stored == null || stored < kSchemaVersion) {
+      if (stored != null && stored < 10) {
+        // v27 (schema 10): orders count only once delivery starts.
+        // Records written by older versions counted every created
+        // entry immediately — recompute each stored total once,
+        // preserving its bulk (non-entry) base. Runs exactly once:
+        // the schema stamp below prevents any re-run.
+        for (final record in _orders.values) {
+          final recomputed = recomputedCountedOrders(record);
+          if (recomputed != record.completedOrders) {
+            record.completedOrders = recomputed;
+            await record.save();
+          }
+        }
+      }
       // v1 is the first schema; future versions migrate here.
       await _meta.put('schemaVersion', kSchemaVersion);
     }
@@ -204,7 +218,9 @@ class DatabaseService {
       notes: notes,
     );
     record.entries.add(entry);
-    record.completedOrders = record.completedOrders + 1;
+    // v27: creating an entry does NOT count it. The day total only
+    // increments when delivery actually starts (status 0 -> >=1 in
+    // updateOrderEntry) — a pending order is not a completed order.
     record.isConfirmed = true;
     record.updatedAtMillis = now;
     await _orders.put(dateKey, record);
@@ -242,6 +258,10 @@ class DatabaseService {
     final idx = record.entries.indexWhere((e) => e.id == entryId);
     if (idx < 0) return;
     final entry = record.entries[idx];
+    // v27 count-on-start: remember whether this entry was still pending
+    // BEFORE the update, so the 0 -> >=1 transition can count it exactly
+    // once (re-entering startOutgoing / resume never double-counts).
+    final wasPending = entry.isPending;
     if (timestampMillis != null) entry.timestampMillis = timestampMillis;
     if (kmOut != null) {
       if (kmOut < 0) throw ArgumentError('Distance cannot be negative');
@@ -275,25 +295,33 @@ class DatabaseService {
     if (roadOutLng != null) entry.roadOutLng = roadOutLng;
     if (roadBackLat != null) entry.roadBackLat = roadBackLat;
     if (roadBackLng != null) entry.roadBackLng = roadBackLng;
+    if (wasPending && !entry.isPending) {
+      // Delivery just started (بدأ التوصيل): count this order now.
+      record.completedOrders = record.completedOrders + 1;
+    }
     record.updatedAtMillis = DateTime.now().millisecondsSinceEpoch;
     await record.save();
   }
 
-  /// Deletes one order entry and decrements the day's order count.
+  /// Deletes one order entry. The day's counted total only drops when
+  /// the deleted entry had been counted (delivery had started, v27);
+  /// deleting a still-pending entry never changes the total.
   Future<void> deleteOrderEntry({
     required String dateKey,
     required String entryId,
   }) async {
     final record = _orders.get(dateKey);
     if (record == null) return;
-    final before = record.entries.length;
-    record.entries.removeWhere((e) => e.id == entryId);
-    if (record.entries.length < before) {
+    final idx = record.entries.indexWhere((e) => e.id == entryId);
+    if (idx < 0) return;
+    final wasCounted = record.entries[idx].status >= 1;
+    record.entries.removeAt(idx);
+    if (wasCounted) {
       record.completedOrders =
           (record.completedOrders - 1).clamp(0, 1 << 30);
-      record.updatedAtMillis = DateTime.now().millisecondsSinceEpoch;
-      await record.save();
     }
+    record.updatedAtMillis = DateTime.now().millisecondsSinceEpoch;
+    await record.save();
   }
 
   /// Permanently deletes a whole week's data: the daily order records
@@ -652,6 +680,7 @@ class DatabaseService {
     var totalOrders = 0;
     var totalMinutes = 0;
     var recordedDays = 0;
+    var paidDays = 0;
     var workingDaysWithData = 0;
     var workingMinutesSum = 0;
     var totalKmOut = 0.0;
@@ -674,6 +703,10 @@ class DatabaseService {
       if (hasData) recordedDays++;
 
       final orders = order?.completedOrders;
+      // v27: the salary's daily fixed pay counts ONLY days with at
+      // least one counted order — a stored 0 or a session-only day
+      // earns nothing.
+      if (orders != null && orders >= 1) paidDays++;
       if (orders != null) {
         totalOrders += orders;
         if (orders > bestOrders) {
@@ -742,6 +775,7 @@ class DatabaseService {
       bestDayKey: bestDay,
       missingRecordDates: missing,
       recordedDaysCount: recordedDays,
+      paidDaysCount: paidDays,
       totalKmOut: totalKmOut,
       totalKmBack: totalKmBack,
     );

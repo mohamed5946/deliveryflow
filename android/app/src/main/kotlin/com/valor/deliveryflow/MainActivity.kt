@@ -1,7 +1,11 @@
 package com.valor.deliveryflow
 
+import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -67,6 +71,41 @@ class MainActivity : FlutterActivity() {
                 result.success(uri)
             } else {
                 result.notImplemented()
+            }
+        }
+        // v27: battery-optimization exemption. Aggressive OEM battery
+        // managers (e.g. Infinix XOS) defer/kill scheduled reminder
+        // alarms for non-exempt apps; Dart queries the state and offers
+        // the system exemption dialog from notification settings.
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "com.valor.deliveryflow/battery",
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "isIgnoring" -> {
+                    val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+                    result.success(pm.isIgnoringBatteryOptimizations(packageName))
+                }
+                "requestIgnore" -> {
+                    try {
+                        val intent =
+                            Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                data = Uri.parse("package:$packageName")
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                        startActivity(intent)
+                    } catch (e: Exception) {
+                        try {
+                            startActivity(
+                                Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            )
+                        } catch (_: Exception) {
+                        }
+                    }
+                    result.success(null)
+                }
+                else -> result.notImplemented()
             }
         }
     }

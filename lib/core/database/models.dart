@@ -1,7 +1,7 @@
 import 'package:hive/hive.dart';
 
 /// Schema version for migrations. Bump when a model changes shape.
-const int kSchemaVersion = 9;
+const int kSchemaVersion = 10;
 
 // ---------------------------------------------------------------------------
 // UserSettings (typeId 0)
@@ -1007,6 +1007,41 @@ int effectiveWorkMinutes({
   return schedule.netPlannedMinutes;
 }
 
+/// v27 migration helper: a record's counted total under the
+/// count-on-start rule. Before v27 every created entry incremented the
+/// stored total immediately, so the total's non-entry part (bulk-count
+/// base) is `storedTotal - entries.length`; under the new rule only
+/// entries whose delivery started (status >= 1) count.
+int recomputedCountedOrders(DailyOrderRecord record) {
+  final bulkBase = record.completedOrders - record.entries.length;
+  final started = record.entries.where((e) => e.status >= 1).length;
+  return (bulkBase < 0 ? 0 : bulkBase) + started;
+}
+
+/// Derived day status for report rows (v27) — computed live from the
+/// day's data, never stored, so it flips automatically when orders are
+/// added or deleted:
+///
+/// - At least one counted order -> a work day, whatever the schedule
+///   says (even a scheduled day off that got worked).
+/// - No counted orders, today or in the past -> a day off.
+/// - No counted orders, in the future -> a day off only when the
+///   schedule says so; a scheduled future work day gets no label yet.
+enum DayStatus { workDay, dayOff, none }
+
+DayStatus dayStatusFor({
+  required int? orders,
+  required bool isWorkingDay,
+  required DateTime date,
+  required DateTime today,
+}) {
+  if (orders != null && orders >= 1) return DayStatus.workDay;
+  final d = DateTime(date.year, date.month, date.day);
+  final t = DateTime(today.year, today.month, today.day);
+  if (!d.isAfter(t)) return DayStatus.dayOff;
+  return isWorkingDay ? DayStatus.none : DayStatus.dayOff;
+}
+
 class DayBreakdown {
   final String dateKey;
   final int? orders; // null => unrecorded
@@ -1042,6 +1077,11 @@ class WeeklyReport {
   final String? bestDayKey;
   final List<String> missingRecordDates;
   final int recordedDaysCount;
+
+  /// v27: days that earn the salary's daily fixed pay — days with at
+  /// least one counted order (completedOrders >= 1). A record holding
+  /// 0 orders, or a session-only day, does NOT earn the daily fixed pay.
+  final int paidDaysCount;
   final double totalKmOut;
   final double totalKmBack;
 
@@ -1058,6 +1098,7 @@ class WeeklyReport {
     required this.bestDayKey,
     required this.missingRecordDates,
     required this.recordedDaysCount,
+    this.paidDaysCount = 0,
     this.totalKmOut = 0,
     this.totalKmBack = 0,
   });

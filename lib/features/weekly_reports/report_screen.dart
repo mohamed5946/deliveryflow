@@ -554,7 +554,8 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
       );
     }
 
-    final daysPay = r.recordedDaysCount * dailyFixed;
+    // v27: daily fixed pay counts only days with >= 1 counted order.
+    final daysPay = r.paidDaysCount * dailyFixed;
     final ordersPay = r.totalOrders * orderPrice;
     final total = daysPay + ordersPay;
 
@@ -583,7 +584,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
           _salaryRow(
               text,
               scheme,
-              '${l10n.attendanceDays} (${r.recordedDaysCount} × ${_fmtMoney(dailyFixed)})',
+              '${l10n.attendanceDays} (${r.paidDaysCount} × ${_fmtMoney(dailyFixed)})',
               '${_fmtMoney(daysPay)} ${l10n.egpUnit}'),
           const SizedBox(height: 6),
           _salaryRow(
@@ -693,6 +694,48 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
     );
   }
 
+  /// v27: derived work/off status chip for a report day row. The
+  /// status is computed live from the day's counted orders, so it
+  /// flips by itself when orders are added or deleted.
+  Widget _dayStatusChip(
+      BuildContext context, DayBreakdown d, AppLocalizations l10n) {
+    final status = dayStatusFor(
+      orders: d.orders,
+      isWorkingDay: d.isWorkingDay,
+      date: WeekCalendar.parseDateKey(d.dateKey),
+      today: DateTime.now(),
+    );
+    if (status == DayStatus.none) return const SizedBox.shrink();
+    final scheme = Theme.of(context).colorScheme;
+    final isWork = status == DayStatus.workDay;
+    final color = isWork ? scheme.primary : scheme.tertiary;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isWork ? Icons.work_rounded : Icons.beach_access_rounded,
+            size: 12,
+            color: color,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            isWork ? l10n.workingDay : l10n.dayOff,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _dayRow(BuildContext context, DayBreakdown d,
       AppLocalizations l10n, String loc) {
     final text = Theme.of(context).textTheme;
@@ -710,9 +753,18 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(name,
-                      style: text.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w700)),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(name,
+                            overflow: TextOverflow.ellipsis,
+                            style: text.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.w700)),
+                      ),
+                      const SizedBox(width: 8),
+                      _dayStatusChip(context, d, l10n),
+                    ],
+                  ),
                   Text(
                     d.orders == null
                         ? l10n.unrecorded
