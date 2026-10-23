@@ -1384,6 +1384,33 @@ class AppLocalizationsAr extends AppLocalizations {
   String get flatOrdersBonusLabel => 'بونص ثابت للأوردرات';
 
   @override
+  String get martLocationLabel => 'موقع المارت';
+
+  @override
+  String get martNotSaved => 'لم يُحفظ بعد — بيتعلم تلقائيًا من رحلاتك';
+
+  @override
+  String martObservations(int count) {
+    return 'اتعلم من $count مشاهدة';
+  }
+
+  @override
+  String get martClear => 'مسح الموقع';
+
+  @override
+  String get arrivalAtCustomerTitle => 'هل وصلت إلى العميل؟';
+
+  @override
+  String get arrivalAtMartTitle => 'هل وصلت للمارت؟';
+
+  @override
+  String get arrivalAutoConfirmBody =>
+      'هيتم تأكيد الوصول تلقائيًا خلال ١٠ ثوانٍ لو ما دوستش «لا»';
+
+  @override
+  String get arrivalNo => 'لا';
+
+  @override
   String get invalidAmount => 'اكتب مبلغ صحيح';
 
   @override

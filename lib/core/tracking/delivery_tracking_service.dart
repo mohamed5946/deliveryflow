@@ -8,8 +8,10 @@ import 'package:geolocator/geolocator.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../database/database_service.dart';
+import '../database/models.dart';
 import '../logging/app_log_service.dart';
 import '../providers.dart';
+import 'mart_learner.dart';
 import 'route_snap_service.dart';
 import 'tracking_task_handler.dart';
 
@@ -68,7 +70,15 @@ class LiveTripProgress {
 /// 2. [markDelivered] — courier pressed "وصلت للعميل".
 /// 3. [markArrivedAtMart] — courier pressed "وصلت للمارت".
 class DeliveryTrackingService {
-  DeliveryTrackingService(this._db, {AppLogService? log}) : _log = log {
+  DeliveryTrackingService(
+    this._db, {
+    AppLogService? log,
+    UserSettings Function()? readSettings,
+    Future<void> Function(UserSettings Function(UserSettings) apply)?
+        updateSettings,
+  })  : _log = log,
+        _readSettings = readSettings,
+        _updateSettings = updateSettings {
     // Listen for live updates from the background isolate.
     FlutterForegroundTask.addTaskDataCallback(_onBackgroundData);
   }
@@ -77,15 +87,34 @@ class DeliveryTrackingService {
 
   /// v27.2: optional diagnostics log (null in tests — no-ops).
   final AppLogService? _log;
+
+  /// v27.8: settings access for the learned mart location. Reads go
+  /// through the SettingsNotifier's live state and writes through its
+  /// update() so a concurrent profile edit can never clobber the
+  /// learned mart (or vice versa). Null in tests — the service then
+  /// talks to the database directly.
+  final UserSettings Function()? _readSettings;
+  final Future<void> Function(UserSettings Function(UserSettings) apply)?
+      _updateSettings;
+
   final RouteSnapService _snap = RouteSnapService();
 
   final _snapshotController = StreamController<TrackingSnapshot>.broadcast();
   Stream<TrackingSnapshot> get snapshots => _snapshotController.stream;
 
   String? _trackingOrderId;
+  String? _trackingDateKey;
   TrackingSegment? _segment;
   DateTime? _segmentStart;
   Timer? _uiTimer;
+
+  /// v27.8: guards re-entrant auto-arrival application (the live-data
+  /// callback and the 5s file tick can both notice a frozen leg).
+  bool _processingAuto = false;
+
+  /// Arrival events from the progress file already mirrored into the
+  /// diagnostics log by this service instance ('type|leg|at' keys).
+  final Set<String> _mirroredArrivalEvents = {};
 
   bool get isTracking => _trackingOrderId != null;
 
@@ -96,8 +125,17 @@ class DeliveryTrackingService {
   void _onBackgroundData(Object data) {
     if (data is! Map) return;
     final orderId = data['orderId'] as String?;
-    final km = (data['km'] as num?)?.toDouble() ?? 0;
     if (orderId == null || orderId != _trackingOrderId) return;
+    // v27.8: the background isolate auto-confirmed an arrival — apply
+    // the frozen leg now (the app is alive, so this is immediate).
+    if (data['autoArrival'] is String) {
+      final dateKey = _trackingDateKey;
+      if (dateKey != null) {
+        unawaited(processAutoArrivals(dateKey: dateKey, entryId: orderId));
+      }
+      return;
+    }
+    final km = (data['km'] as num?)?.toDouble() ?? 0;
     final segment = _segment;
     final start = _segmentStart;
     if (segment == null || start == null) return;
@@ -156,10 +194,16 @@ class DeliveryTrackingService {
   Future<void> _startBackgroundTracking({
     required String orderId,
     required TrackingSegment segment,
+    double? destLat,
+    double? destLng,
   }) async {
     // Guard: never start on top of a leaked/stale service (e.g. after a
     // crash) — the plugin throws ServiceAlreadyStartedException.
     await _stopBackgroundTracking();
+
+    // v27.8: the learned mart (the return leg's arrival target) rides
+    // along in the init data, next to the destination when known.
+    final settings = _readSettings?.call() ?? _db.settings;
 
     // Save init data for the background isolate.
     await FlutterForegroundTask.saveData(
@@ -169,6 +213,10 @@ class DeliveryTrackingService {
         'segment': segment == TrackingSegment.outgoing
             ? 'outgoing'
             : 'returning',
+        'destLat': destLat,
+        'destLng': destLng,
+        'martLat': settings.martLat,
+        'martLng': settings.martLng,
       }),
     );
 
@@ -244,6 +292,62 @@ class DeliveryTrackingService {
       elapsed: DateTime.now().difference(start),
       startedAt: start,
     ));
+    // v27.8: keep the diagnostics log current with the isolate's
+    // arrival events, and apply a frozen leg even if the live-data
+    // message was missed (e.g. main isolate was briefly dead).
+    if (progress != null) {
+      _mirrorArrivalEvents(progress);
+      final frozen = progress['finalizedLegs'];
+      final dateKey = _trackingDateKey;
+      if (frozen is Map && frozen.isNotEmpty && dateKey != null) {
+        unawaited(processAutoArrivals(dateKey: dateKey, entryId: orderId));
+      }
+    }
+  }
+
+  /// Mirrors the background isolate's arrival events (prompt shown,
+  /// declined, auto-confirmed, geofence armed…) into the diagnostics
+  /// log — each event exactly once per service instance.
+  void _mirrorArrivalEvents(Map<String, dynamic> progress) {
+    final events = progress['events'];
+    if (events is! List) return;
+    final orderId = progress['orderId'];
+    for (final e in events) {
+      if (e is! Map) continue;
+      final type = e['type']?.toString() ?? '';
+      final leg = e['leg']?.toString() ?? '';
+      final at = e['at'];
+      if (!_mirroredArrivalEvents.add('$type|$leg|$at')) continue;
+      switch (type) {
+        case 'prompt_shown':
+          _log?.info(
+            AppLogCategory.notifications,
+            'Arrival prompt shown ($leg) for entry $orderId',
+          );
+        case 'declined':
+          _log?.info(
+            AppLogCategory.notifications,
+            'Arrival prompt declined ($leg) for entry $orderId — '
+            'auto-confirm suppressed until the area is re-entered',
+          );
+        case 'auto_confirmed':
+          _log?.info(
+            AppLogCategory.tracking,
+            'Arrival auto-confirmed ($leg) for entry $orderId',
+          );
+        case 'geofence_armed':
+          _log?.info(
+            AppLogCategory.tracking,
+            'Arrival geofence armed ($leg) for entry $orderId',
+          );
+        case 'prompt_cancelled':
+          _log?.info(
+            AppLogCategory.tracking,
+            'Arrival prompt cancelled ($leg) for entry $orderId — '
+            'left the arrival area before confirming',
+          );
+      }
+    }
   }
 
   Future<void> _stopBackgroundTracking() async {
@@ -329,13 +433,18 @@ class DeliveryTrackingService {
   Future<void> startOutgoing({
     required String dateKey,
     required String entryId,
+    double? destLat,
+    double? destLng,
   }) async {
+    _trackingDateKey = dateKey;
     try {
       final ok = await ensurePermissions();
       if (!ok) throw StateError('Location permission not granted');
       await _startBackgroundTracking(
         orderId: entryId,
         segment: TrackingSegment.outgoing,
+        destLat: destLat,
+        destLng: destLng,
       );
       final now = DateTime.now().millisecondsSinceEpoch;
       await _db.updateOrderEntry(
@@ -367,6 +476,7 @@ class DeliveryTrackingService {
     required String entryId,
     double kmOut = 0,
   }) async {
+    _trackingDateKey = dateKey;
     if (kmOut < 0) throw ArgumentError('Distance cannot be negative');
     final now = DateTime.now().millisecondsSinceEpoch;
     await _db.updateOrderEntry(
@@ -410,6 +520,7 @@ class DeliveryTrackingService {
     required String dateKey,
     required String entryId,
   }) async {
+    _trackingDateKey = dateKey;
     final progress = await _readProgress(entryId);
     final kmOut = (progress?['km'] as num?)?.toDouble() ?? 0;
     final startedAt =
@@ -461,6 +572,12 @@ class DeliveryTrackingService {
       roadOutLng: roadLng,
     );
 
+    // v27.8: the trip's start point is a mart observation (trips
+    // start at the mart) — feed the mart learner.
+    if (outLat.isNotEmpty && outLng.isNotEmpty) {
+      await _applyMartObservation(outLat.first, outLng.first);
+    }
+
     // Start return leg (verified — throws loudly on failure so the UI
     // can offer a retry instead of silently losing the return trip).
     try {
@@ -482,6 +599,7 @@ class DeliveryTrackingService {
     required String dateKey,
     required String entryId,
   }) async {
+    _trackingDateKey = dateKey;
     final progress = await _readProgress(entryId);
     final kmBack = (progress?['km'] as num?)?.toDouble() ?? 0;
     final startedAt =
@@ -530,6 +648,266 @@ class DeliveryTrackingService {
       roadBackLat: roadLat,
       roadBackLng: roadLng,
     );
+
+    // v27.8: a confirmed return endpoint is a mart observation.
+    if (backLat.isNotEmpty && backLng.isNotEmpty) {
+      await _applyMartObservation(backLat.last, backLng.last);
+    }
+  }
+
+  // --------------------------------------------------- v27.8 arrivals --
+
+  OrderEntry? _entryFor(String dateKey, String entryId) {
+    final record = _db.orderRecord(dateKey);
+    if (record == null) return null;
+    for (final e in record.entries) {
+      if (e.id == entryId) return e;
+    }
+    return null;
+  }
+
+  /// Applies any legs the background isolate auto-confirmed (frozen
+  /// in the progress file) through the SAME finalization transitions
+  /// as the manual «وصلت للعميل» / «وصلت للمارت» buttons — OSRM snap,
+  /// sanity guard, Hive update, mart observation. Runs when the live
+  /// isolate reports an auto-arrival, on the 5s progress tick, and
+  /// when the order screen recovers a session. Idempotent: a leg is
+  /// applied only while the entry's status still precedes it.
+  /// Returns true when at least one leg was applied.
+  Future<bool> processAutoArrivals({
+    required String dateKey,
+    required String entryId,
+  }) async {
+    if (_processingAuto) return false;
+    final progress = await _readProgress(entryId);
+    if (progress == null) return false;
+    _mirrorArrivalEvents(progress);
+    final frozen = progress['finalizedLegs'];
+    if (frozen is! Map || frozen.isEmpty) return false;
+    _processingAuto = true;
+    try {
+      var applied = false;
+      var entry = _entryFor(dateKey, entryId);
+      if (entry == null) return false;
+
+      final outFrozen = frozen['outgoing'];
+      if (outFrozen is Map && entry.status == 1) {
+        await _applyAutoDelivered(
+          dateKey: dateKey,
+          entryId: entryId,
+          frozen: Map<String, dynamic>.from(outFrozen),
+          progress: progress,
+        );
+        applied = true;
+        entry = _entryFor(dateKey, entryId);
+      }
+
+      final backFrozen = frozen['returning'];
+      if (backFrozen is Map && entry != null && entry.status == 2) {
+        await _applyAutoArrivedAtMart(
+          dateKey: dateKey,
+          entryId: entryId,
+          frozen: Map<String, dynamic>.from(backFrozen),
+        );
+        applied = true;
+      }
+      return applied;
+    } finally {
+      _processingAuto = false;
+    }
+  }
+
+  /// The auto-confirmed outgoing leg, finalized exactly like
+  /// [markDelivered] — except the background service KEEPS RUNNING
+  /// (the isolate already rolled into the return leg), so nothing is
+  /// stopped, deleted or restarted here.
+  Future<void> _applyAutoDelivered({
+    required String dateKey,
+    required String entryId,
+    required Map<String, dynamic> frozen,
+    required Map<String, dynamic> progress,
+  }) async {
+    final kmOut = (frozen['km'] as num?)?.toDouble() ?? 0;
+    final startedAt = (frozen['startedAt'] as num?)?.toInt() ??
+        DateTime.now().millisecondsSinceEpoch;
+    final endedAt = (frozen['endedAt'] as num?)?.toInt() ??
+        DateTime.now().millisecondsSinceEpoch;
+    final durationSec =
+        ((endedAt - startedAt) / 1000).round().clamp(0, 1 << 31);
+    final outLat = ((frozen['lat'] as List?) ?? [])
+        .map((e) => (e as num).toDouble())
+        .toList();
+    final outLng = ((frozen['lng'] as List?) ?? [])
+        .map((e) => (e as num).toDouble())
+        .toList();
+
+    final snapped = await _snap.snapRoute(lat: outLat, lng: outLng);
+    final finalKmOut =
+        _saneFinalKm(gpsKm: kmOut, snappedKm: snapped?.distanceKm);
+    _log?.info(
+      AppLogCategory.tracking,
+      'Outgoing leg finalized for entry $entryId: gps=${kmOut}km, '
+      'osrm=${snapped?.distanceKm}km, chosen=${finalKmOut}km '
+      '(auto-arrival)',
+    );
+    final roadLat =
+        snapped?.geometry.map((p) => p.latitude).toList() ??
+            const <double>[];
+    final roadLng =
+        snapped?.geometry.map((p) => p.longitude).toList() ??
+            const <double>[];
+
+    await _db.updateOrderEntry(
+      dateKey: dateKey,
+      entryId: entryId,
+      status: 2,
+      deliveredTimeMillis: endedAt,
+      gpsKmOut: _round2(finalKmOut),
+      outgoingDurationSec: durationSec,
+      routeOutLat: outLat,
+      routeOutLng: outLng,
+      roadOutLat: roadLat,
+      roadOutLng: roadLng,
+    );
+
+    if (outLat.isNotEmpty && outLng.isNotEmpty) {
+      await _applyMartObservation(outLat.first, outLng.first);
+    }
+
+    // The isolate is already tracking the return leg — adopt it so
+    // live snapshots keep flowing with the right segment/start.
+    _trackingOrderId = entryId;
+    _trackingDateKey = dateKey;
+    _segment = TrackingSegment.returning;
+    _segmentStart = DateTime.fromMillisecondsSinceEpoch(
+      (progress['startedAt'] as num?)?.toInt() ?? endedAt,
+    );
+    _uiTimer?.cancel();
+    _uiTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      _emitSnapshotFromFile();
+    });
+  }
+
+  /// The auto-confirmed return leg, finalized exactly like
+  /// [markArrivedAtMart]. The isolate already stopped the service
+  /// after freezing the leg; stopping again here is a guarded no-op.
+  Future<void> _applyAutoArrivedAtMart({
+    required String dateKey,
+    required String entryId,
+    required Map<String, dynamic> frozen,
+  }) async {
+    final kmBack = (frozen['km'] as num?)?.toDouble() ?? 0;
+    final startedAt = (frozen['startedAt'] as num?)?.toInt() ??
+        DateTime.now().millisecondsSinceEpoch;
+    final endedAt = (frozen['endedAt'] as num?)?.toInt() ??
+        DateTime.now().millisecondsSinceEpoch;
+    final durationSec =
+        ((endedAt - startedAt) / 1000).round().clamp(0, 1 << 31);
+    final backLat = ((frozen['lat'] as List?) ?? [])
+        .map((e) => (e as num).toDouble())
+        .toList();
+    final backLng = ((frozen['lng'] as List?) ?? [])
+        .map((e) => (e as num).toDouble())
+        .toList();
+
+    await _stopBackgroundTracking();
+    await _deleteProgress(entryId);
+
+    final snapped = await _snap.snapRoute(lat: backLat, lng: backLng);
+    final finalKmBack =
+        _saneFinalKm(gpsKm: kmBack, snappedKm: snapped?.distanceKm);
+    _log?.info(
+      AppLogCategory.tracking,
+      'Return leg finalized for entry $entryId: gps=${kmBack}km, '
+      'osrm=${snapped?.distanceKm}km, chosen=${finalKmBack}km '
+      '(auto-arrival)',
+    );
+    final roadLat =
+        snapped?.geometry.map((p) => p.latitude).toList() ??
+            const <double>[];
+    final roadLng =
+        snapped?.geometry.map((p) => p.longitude).toList() ??
+            const <double>[];
+
+    await _db.updateOrderEntry(
+      dateKey: dateKey,
+      entryId: entryId,
+      status: 3,
+      martArrivedTimeMillis: endedAt,
+      gpsKmBack: _round2(finalKmBack),
+      returnDurationSec: durationSec,
+      timestampMillis: endedAt,
+      routeBackLat: backLat,
+      routeBackLng: backLng,
+      roadBackLat: roadLat,
+      roadBackLng: roadLng,
+    );
+
+    if (backLat.isNotEmpty && backLng.isNotEmpty) {
+      await _applyMartObservation(backLat.last, backLng.last);
+    }
+  }
+
+  /// Feeds one mart observation (a trip start point or a confirmed
+  /// return endpoint) into the mart learner and persists the result
+  /// through the settings pipeline. Never throws — a learning hiccup
+  /// must not break order finalization.
+  Future<void> _applyMartObservation(double lat, double lng) async {
+    try {
+      final current = _readSettings?.call() ?? _db.settings;
+      final outcome = MartLearner.observe(
+        MartLearnerState(
+          martLat: current.martLat,
+          martLng: current.martLng,
+          martCount: current.martObservationCount,
+          candidateLat: current.martCandidateLat,
+          candidateLng: current.martCandidateLng,
+          candidateCount: current.martCandidateCount,
+        ),
+        lat,
+        lng,
+      );
+      if (!outcome.changed) return;
+      final st = outcome.state;
+      UserSettings apply(UserSettings s) => s
+        ..martLat = st.martLat
+        ..martLng = st.martLng
+        ..martObservationCount = st.martCount
+        ..martCandidateLat = st.candidateLat
+        ..martCandidateLng = st.candidateLng
+        ..martCandidateCount = st.candidateCount;
+      if (_updateSettings != null) {
+        await _updateSettings(apply);
+      } else {
+        final s = _db.settings;
+        apply(s);
+        await _db.saveSettings(s);
+      }
+      if (outcome.learned) {
+        _log?.info(
+          AppLogCategory.settings,
+          'Mart location learned: ${st.martLat}, ${st.martLng} '
+          '(${st.martCount} observations)',
+        );
+      } else if (outcome.replaced) {
+        _log?.info(
+          AppLogCategory.settings,
+          'Mart location replaced by a new cluster: '
+          '${st.martLat}, ${st.martLng} (${st.martCount} observations)',
+        );
+      } else if (outcome.refined) {
+        _log?.info(
+          AppLogCategory.settings,
+          'Mart location refined (${st.martCount} observations)',
+        );
+      }
+    } catch (e) {
+      _log?.warn(
+        AppLogCategory.settings,
+        'Mart observation could not be recorded',
+        error: e,
+      );
+    }
   }
 
   /// Cancels tracking without saving (e.g. order deleted mid-trip).
@@ -568,6 +946,11 @@ final deliveryTrackingServiceProvider =
   final svc = DeliveryTrackingService(
     db,
     log: ref.watch(appLogServiceProvider),
+    // v27.8: mart learning reads/writes through the settings
+    // notifier's live state so it can never fight a profile edit.
+    readSettings: () => ref.read(settingsProvider),
+    updateSettings: (apply) =>
+        ref.read(settingsProvider.notifier).update(apply),
   );
   ref.onDispose(svc.dispose);
   return svc;

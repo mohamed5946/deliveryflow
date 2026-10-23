@@ -2714,6 +2714,54 @@ abstract class AppLocalizations {
   /// **'Flat order bonuses'**
   String get flatOrdersBonusLabel;
 
+  /// No description provided for @martLocationLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Mart location'**
+  String get martLocationLabel;
+
+  /// No description provided for @martNotSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Not saved yet — it is learned automatically from your trips'**
+  String get martNotSaved;
+
+  /// No description provided for @martObservations.
+  ///
+  /// In en, this message translates to:
+  /// **'Learned from {count} observations'**
+  String martObservations(int count);
+
+  /// No description provided for @martClear.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear location'**
+  String get martClear;
+
+  /// No description provided for @arrivalAtCustomerTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Have you arrived at the customer?'**
+  String get arrivalAtCustomerTitle;
+
+  /// No description provided for @arrivalAtMartTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Have you arrived at the mart?'**
+  String get arrivalAtMartTitle;
+
+  /// No description provided for @arrivalAutoConfirmBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Arrival is confirmed automatically in 10 seconds unless you tap No'**
+  String get arrivalAutoConfirmBody;
+
+  /// No description provided for @arrivalNo.
+  ///
+  /// In en, this message translates to:
+  /// **'No'**
+  String get arrivalNo;
+
   /// No description provided for @invalidAmount.
   ///
   /// In en, this message translates to:

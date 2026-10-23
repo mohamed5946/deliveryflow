@@ -726,7 +726,14 @@ Future<void> _startMiddlemanTrip(
 }) async {
   final svc = ref.read(deliveryTrackingServiceProvider);
   try {
-    await svc.startOutgoing(dateKey: dateKey, entryId: entryId);
+    // v27.8: pass the destination so the background isolate can run
+    // the arrival geofence for this leg.
+    await svc.startOutgoing(
+      dateKey: dateKey,
+      entryId: entryId,
+      destLat: dest.latitude,
+      destLng: dest.longitude,
+    );
   } catch (e) {
     ref.read(appLogServiceProvider).error(
           AppLogCategory.share,

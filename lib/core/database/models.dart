@@ -90,6 +90,22 @@ class UserSettings extends HiveObject {
   // --- Flat per-order bonus (v27.6) ---
   @HiveField(38)
   double flatOrderBonusEgp; // EGP added to EVERY counted order (0 = off)
+  // --- Learned mart location (v27.8) ---
+  @HiveField(39)
+  double? martLat; // saved mart geofence target (return-leg arrival)
+  @HiveField(40)
+  double? martLng;
+  @HiveField(41)
+  int martObservationCount; // observations folded into the saved mart
+  @HiveField(42)
+  double? martCandidateLat; // pending cluster centre (not yet a mart)
+  @HiveField(43)
+  double? martCandidateLng;
+  @HiveField(44)
+  int martCandidateCount; // observations in the pending cluster
+
+  /// True once a mart location has been learned and saved.
+  bool get hasMart => martLat != null && martLng != null;
 
   /// The editable tiers in display order (tier 1, 2, 3). The pure
   /// resolver is order-agnostic, so edited thresholds never need
@@ -148,6 +164,12 @@ class UserSettings extends HiveObject {
     this.distanceBonusTier3Egp = 17,
     Map<String, bool>? distanceBonusWeekOverrides,
     this.flatOrderBonusEgp = 0,
+    this.martLat,
+    this.martLng,
+    this.martObservationCount = 0,
+    this.martCandidateLat,
+    this.martCandidateLng,
+    this.martCandidateCount = 0,
   })  : readNotificationIds = readNotificationIds ?? [],
         dismissedNotificationIds = dismissedNotificationIds ?? [],
         distanceBonusWeekOverrides = distanceBonusWeekOverrides ?? {};
@@ -192,6 +214,12 @@ class UserSettings extends HiveObject {
         'distanceBonusTier3Egp': distanceBonusTier3Egp,
         'distanceBonusWeekOverrides': distanceBonusWeekOverrides,
         'flatOrderBonusEgp': flatOrderBonusEgp,
+        'martLat': martLat,
+        'martLng': martLng,
+        'martObservationCount': martObservationCount,
+        'martCandidateLat': martCandidateLat,
+        'martCandidateLng': martCandidateLng,
+        'martCandidateCount': martCandidateCount,
         'schemaVersion': kSchemaVersion,
       };
 
@@ -259,6 +287,14 @@ class UserSettings extends HiveObject {
                 {},
         flatOrderBonusEgp:
             (json['flatOrderBonusEgp'] as num?)?.toDouble() ?? 0,
+        martLat: (json['martLat'] as num?)?.toDouble(),
+        martLng: (json['martLng'] as num?)?.toDouble(),
+        martObservationCount:
+            (json['martObservationCount'] as num?)?.toInt() ?? 0,
+        martCandidateLat: (json['martCandidateLat'] as num?)?.toDouble(),
+        martCandidateLng: (json['martCandidateLng'] as num?)?.toDouble(),
+        martCandidateCount:
+            (json['martCandidateCount'] as num?)?.toInt() ?? 0,
       );
 }
 
@@ -314,13 +350,19 @@ class UserSettingsAdapter extends TypeAdapter<UserSettings> {
       distanceBonusWeekOverrides:
           (fields[37] as Map?)?.cast<String, bool>() ?? {},
       flatOrderBonusEgp: (fields[38] as num?)?.toDouble() ?? 0,
+      martLat: (fields[39] as num?)?.toDouble(),
+      martLng: (fields[40] as num?)?.toDouble(),
+      martObservationCount: (fields[41] as int?) ?? 0,
+      martCandidateLat: (fields[42] as num?)?.toDouble(),
+      martCandidateLng: (fields[43] as num?)?.toDouble(),
+      martCandidateCount: (fields[44] as int?) ?? 0,
     );
   }
 
   @override
   void write(BinaryWriter writer, UserSettings obj) {
     writer
-      ..writeByte(39)
+      ..writeByte(45)
       ..writeByte(0)
       ..write(obj.displayName)
       ..writeByte(1)
@@ -398,7 +440,19 @@ class UserSettingsAdapter extends TypeAdapter<UserSettings> {
       ..writeByte(37)
       ..write(obj.distanceBonusWeekOverrides)
       ..writeByte(38)
-      ..write(obj.flatOrderBonusEgp);
+      ..write(obj.flatOrderBonusEgp)
+      ..writeByte(39)
+      ..write(obj.martLat)
+      ..writeByte(40)
+      ..write(obj.martLng)
+      ..writeByte(41)
+      ..write(obj.martObservationCount)
+      ..writeByte(42)
+      ..write(obj.martCandidateLat)
+      ..writeByte(43)
+      ..write(obj.martCandidateLng)
+      ..writeByte(44)
+      ..write(obj.martCandidateCount);
   }
 }
 

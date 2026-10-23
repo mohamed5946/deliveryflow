@@ -123,7 +123,19 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
   Future<void> _recoverTracking() async {
     final svc = ref.read(deliveryTrackingServiceProvider);
     final recovered = await svc.recoverTracking(widget.entryId);
-    if (!mounted || recovered) return;
+    // v27.8: apply any legs the background isolate auto-confirmed
+    // while the app was away (frozen in the progress file).
+    final applied = await svc.processAutoArrivals(
+      dateKey: widget.dateKey,
+      entryId: widget.entryId,
+    );
+    if (!mounted) return;
+    if (applied) {
+      bumpDataVersion(ref);
+      _load();
+      return;
+    }
+    if (recovered) return;
     final entry = _entry;
     if (entry == null || !entry.isTracking) return;
     final progress = await svc.readLiveProgress(widget.entryId);
@@ -699,6 +711,9 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
         dateKey: widget.dateKey,
         entryId: widget.entryId,
       );
+      // v27.8: a manual arrival supersedes any pending auto-confirm
+      // prompt for this order.
+      await ref.read(notificationServiceProvider).cancelArrivalPrompts();
       bumpDataVersion(ref);
       _load();
     } catch (e) {
@@ -834,6 +849,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
         dateKey: widget.dateKey,
         entryId: widget.entryId,
       );
+      await ref.read(notificationServiceProvider).cancelArrivalPrompts();
       bumpDataVersion(ref);
       _load();
       if (!mounted) return;

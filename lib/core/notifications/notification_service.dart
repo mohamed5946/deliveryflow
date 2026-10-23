@@ -7,6 +7,7 @@ import 'package:timezone/timezone.dart' as tz;
 import '../date_time/week_calendar.dart';
 import '../database/models.dart';
 import '../logging/app_log_service.dart';
+import '../tracking/arrival_notifications.dart';
 
 /// The Android schedule mode for a reminder: exact (fires on time,
 /// needs the exact-alarm permission) or inexact.
@@ -142,7 +143,17 @@ class NotificationService {
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
     const settings = InitializationSettings(android: android);
     try {
-      await _plugin.initialize(settings);
+      // v27.8: arrival-prompt «لا» taps are recorded into the shared
+      // response file the tracking isolate polls — in the foreground
+      // via this handler, in the background via the entry-point one.
+      await _plugin.initialize(
+        settings,
+        onDidReceiveNotificationResponse: (response) {
+          handleArrivalNotificationResponse(response);
+        },
+        onDidReceiveBackgroundNotificationResponse:
+            arrivalNotificationResponseBackground,
+      );
       // v27.4: create the v3 channel EXPLICITLY at Importance.max
       // with sound + vibration — the strongest posting Android allows,
       // so reminders land at the very top of the shade, never silent.
@@ -158,6 +169,21 @@ class NotificationService {
           .resolvePlatformSpecificImplementation<
               AndroidFlutterLocalNotificationsPlugin>()
           ?.createNotificationChannel(channel);
+      // v27.8: the arrival-detection channel, also at Importance.max
+      // (the tracking isolate creates it too before first use —
+      // channel creation is idempotent).
+      const arrivalsChannel = AndroidNotificationChannel(
+        ArrivalNotifications.channelId,
+        ArrivalNotifications.channelName,
+        description: ArrivalNotifications.channelDescription,
+        importance: Importance.max,
+        playSound: true,
+        enableVibration: true,
+      );
+      await _plugin
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          ?.createNotificationChannel(arrivalsChannel);
     } catch (e) {
       _log?.error(
         AppLogCategory.notifications,
@@ -199,6 +225,16 @@ class NotificationService {
       'Legacy notification channels deleted '
       '(max-priority migration to $channelId)',
     );
+  }
+
+  /// v27.8: dismiss any arrival prompt still on screen (e.g. the
+  /// courier pressed «وصلت للعميل» in the app while the 10-second
+  /// auto-confirm countdown was running). Best effort.
+  Future<void> cancelArrivalPrompts() async {
+    try {
+      await _plugin.cancel(ArrivalNotifications.outgoingNotificationId);
+      await _plugin.cancel(ArrivalNotifications.returningNotificationId);
+    } catch (_) {}
   }
 
   /// Requests POST_NOTIFICATIONS (Android 13+) and returns the result.

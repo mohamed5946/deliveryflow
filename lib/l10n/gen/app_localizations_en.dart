@@ -1386,6 +1386,34 @@ class AppLocalizationsEn extends AppLocalizations {
   String get flatOrdersBonusLabel => 'Flat order bonuses';
 
   @override
+  String get martLocationLabel => 'Mart location';
+
+  @override
+  String get martNotSaved =>
+      'Not saved yet — it is learned automatically from your trips';
+
+  @override
+  String martObservations(int count) {
+    return 'Learned from $count observations';
+  }
+
+  @override
+  String get martClear => 'Clear location';
+
+  @override
+  String get arrivalAtCustomerTitle => 'Have you arrived at the customer?';
+
+  @override
+  String get arrivalAtMartTitle => 'Have you arrived at the mart?';
+
+  @override
+  String get arrivalAutoConfirmBody =>
+      'Arrival is confirmed automatically in 10 seconds unless you tap No';
+
+  @override
+  String get arrivalNo => 'No';
+
+  @override
   String get invalidAmount => 'Enter a valid amount';
 
   @override

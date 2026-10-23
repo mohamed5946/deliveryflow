@@ -518,6 +518,21 @@
   "extraBonusNone": "None",
   "flatOrderBonusLabel": "Flat bonus per order",
   "flatOrdersBonusLabel": "Flat order bonuses",
+  "martLocationLabel": "Mart location",
+  "martNotSaved": "Not saved yet — it is learned automatically from your trips",
+  "martObservations": "Learned from {count} observations",
+  "@martObservations": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "martClear": "Clear location",
+  "arrivalAtCustomerTitle": "Have you arrived at the customer?",
+  "arrivalAtMartTitle": "Have you arrived at the mart?",
+  "arrivalAutoConfirmBody": "Arrival is confirmed automatically in 10 seconds unless you tap No",
+  "arrivalNo": "No",
   "invalidAmount": "Enter a valid amount",
   "logCategoryReports": "Reports",
   "emailLabel": "Email"
