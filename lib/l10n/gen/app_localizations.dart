@@ -2816,6 +2816,12 @@ abstract class AppLocalizations {
   /// **'Reports'**
   String get logCategoryReports;
 
+  /// No description provided for @logCategorySchedule.
+  ///
+  /// In en, this message translates to:
+  /// **'Schedule'**
+  String get logCategorySchedule;
+
   /// No description provided for @emailLabel.
   ///
   /// In en, this message translates to:

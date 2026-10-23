@@ -487,5 +487,6 @@
   "arrivalNo": "لا",
   "invalidAmount": "اكتب مبلغ صحيح",
   "logCategoryReports": "التقارير",
+  "logCategorySchedule": "الجدول",
   "emailLabel": "البريد الإلكتروني"
 }

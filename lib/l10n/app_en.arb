@@ -542,5 +542,6 @@
   "arrivalNo": "No",
   "invalidAmount": "Enter a valid amount",
   "logCategoryReports": "Reports",
+  "logCategorySchedule": "Schedule",
   "emailLabel": "Email"
 }

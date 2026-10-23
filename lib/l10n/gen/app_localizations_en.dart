@@ -1442,5 +1442,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get logCategoryReports => 'Reports';
 
   @override
+  String get logCategorySchedule => 'Schedule';
+
+  @override
   String get emailLabel => 'Email';
 }

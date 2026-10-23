@@ -54,6 +54,7 @@ class _DiagnosticsLogScreenState
         AppLogCategory.system => l10n.logCategorySystem,
         AppLogCategory.settings => l10n.logCategorySettings,
         AppLogCategory.reports => l10n.logCategoryReports,
+        AppLogCategory.schedule => l10n.logCategorySchedule,
       };
 
   String _levelLabel(AppLocalizations l10n, AppLogLevel level) =>

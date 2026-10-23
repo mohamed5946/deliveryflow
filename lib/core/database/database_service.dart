@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:hive/hive.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../date_time/schedule_normalizer.dart';
 import '../date_time/week_calendar.dart';
 import '../logging/app_log_service.dart';
 import 'models.dart';
@@ -70,6 +71,44 @@ class DatabaseService {
     if (!_settings.containsKey('user')) {
       await _settings.put('user', UserSettings());
     }
+    await _repairNonCanonicalSchedules();
+  }
+
+  /// v27.10 one-time self-heal: rewrite any stored week whose days are
+  /// not exactly its 7 canonical dates, using [ScheduleNormalizer]
+  /// (values preserved — see its docs). Touches ONLY the schedules box.
+  /// Idempotent: canonical weeks are left untouched and unlogged.
+  Future<void> _repairNonCanonicalSchedules() async {
+    final defaultBreak = settings.defaultBreakDurationMinutes;
+    final repairs = <WorkSchedule>[];
+    final repairDetails = <String, String>{};
+    for (final stored in _schedules.values) {
+      final result = ScheduleNormalizer.normalizeWeek(
+        weekStartKey: stored.weekStartKey,
+        stored: stored.dailySchedules,
+        defaultBreakMinutes: defaultBreak,
+      );
+      if (!result.changed) continue;
+      repairs.add(WorkSchedule(
+        id: stored.id,
+        weekStartKey: stored.weekStartKey,
+        weekEndKey: stored.weekEndKey,
+        dailySchedules: result.days,
+        createdAtMillis: stored.createdAtMillis,
+        updatedAtMillis: DateTime.now().millisecondsSinceEpoch,
+      ));
+      repairDetails[stored.weekStartKey] =
+          '${stored.dailySchedules.length} stored days -> '
+          '${result.days.length} canonical days (${result.detail})';
+    }
+    for (final repaired in repairs) {
+      await _schedules.put(repaired.weekStartKey, repaired);
+      _log?.warn(
+        AppLogCategory.schedule,
+        'Repaired non-canonical schedule week ${repaired.weekStartKey}',
+        detail: repairDetails[repaired.weekStartKey],
+      );
+    }
   }
 
   /// Schema upgrades live in [SchemaMigrations] (v27.2 split — schema
@@ -93,11 +132,71 @@ class DatabaseService {
 
   // ------------------------------------------------------------ schedules --
   /// Saves a schedule; one schedule per week-start (updates in place).
-  Future<void> saveSchedule(WorkSchedule schedule) =>
-      _schedules.put(schedule.weekStartKey, schedule);
+  ///
+  /// v27.10 write chokepoint: this is the single write seam for
+  /// schedules, so the incoming days are normalized BEFORE persisting
+  /// — after this, no caller can ever store a non-canonical week.
+  /// (restoreFromJson writes the box directly by design; restored data
+  /// is covered by the startup self-heal + normalize-on-read.)
+  Future<void> saveSchedule(WorkSchedule schedule) async {
+    final result = ScheduleNormalizer.normalizeWeek(
+      weekStartKey: schedule.weekStartKey,
+      stored: schedule.dailySchedules,
+      defaultBreakMinutes: settings.defaultBreakDurationMinutes,
+    );
+    if (!result.changed) {
+      await _schedules.put(schedule.weekStartKey, schedule);
+      return;
+    }
+    _log?.warn(
+      AppLogCategory.schedule,
+      'Normalized non-canonical schedule week ${schedule.weekStartKey} on save',
+      detail: '${schedule.dailySchedules.length} stored days -> '
+          '${result.days.length} canonical days (${result.detail})',
+    );
+    await _schedules.put(
+      schedule.weekStartKey,
+      WorkSchedule(
+        id: schedule.id,
+        weekStartKey: schedule.weekStartKey,
+        weekEndKey: schedule.weekEndKey,
+        dailySchedules: result.days,
+        createdAtMillis: schedule.createdAtMillis,
+        updatedAtMillis: schedule.updatedAtMillis,
+      ),
+    );
+  }
 
-  WorkSchedule? scheduleForWeek(DateTime anyDayInWeek) =>
-      _schedules.get(WeekCalendar.dateKey(WeekCalendar.weekStart(anyDayInWeek)));
+  WorkSchedule? scheduleForWeek(DateTime anyDayInWeek) {
+    final stored = _schedules
+        .get(WeekCalendar.dateKey(WeekCalendar.weekStart(anyDayInWeek)));
+    if (stored == null) return null;
+    // v27.10: never hand out a non-canonical week. A stored list whose
+    // dateKeys drifted from its week (e.g. a duplicated Thursday hiding
+    // Saturday) is normalized into a COPY with the same metadata — the
+    // stored Hive object is not mutated here; the startup repair pass
+    // is what heals the box itself.
+    final result = ScheduleNormalizer.normalizeWeek(
+      weekStartKey: stored.weekStartKey,
+      stored: stored.dailySchedules,
+      defaultBreakMinutes: settings.defaultBreakDurationMinutes,
+    );
+    if (!result.changed) return stored;
+    _log?.warn(
+      AppLogCategory.schedule,
+      'Normalized non-canonical schedule week ${stored.weekStartKey} on read',
+      detail: '${stored.dailySchedules.length} stored days -> '
+          '${result.days.length} canonical days (${result.detail})',
+    );
+    return WorkSchedule(
+      id: stored.id,
+      weekStartKey: stored.weekStartKey,
+      weekEndKey: stored.weekEndKey,
+      dailySchedules: result.days,
+      createdAtMillis: stored.createdAtMillis,
+      updatedAtMillis: stored.updatedAtMillis,
+    );
+  }
 
   bool hasScheduleForWeek(DateTime anyDayInWeek) =>
       scheduleForWeek(anyDayInWeek) != null;

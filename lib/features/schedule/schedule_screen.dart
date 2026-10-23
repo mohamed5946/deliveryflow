@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../../core/database/database_service.dart';
 import '../../core/database/models.dart';
 import '../../core/date_time/day_rollover.dart';
+import '../../core/date_time/schedule_normalizer.dart';
 import '../../core/date_time/week_calendar.dart';
 import '../../core/providers.dart';
 import '../../theme/design_system.dart';
@@ -65,16 +66,16 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
     final start = WeekCalendar.weekStart(_weekAnchor);
     final existing = db.scheduleForWeek(_weekAnchor);
     if (existing != null) {
-      _days = existing.dailySchedules
-          .map((d) => DailySchedule(
-                dateKey: d.dateKey,
-                isWorkingDay: d.isWorkingDay,
-                startMinutes: d.startMinutes,
-                endMinutes: d.endMinutes,
-                breakDurationMinutes: d.breakDurationMinutes,
-                notes: d.notes,
-              ))
-          .toList();
+      // v27.10: work on the canonical week, never the raw stored list.
+      // scheduleForWeek already normalizes (and logs) on read; running
+      // the normalizer here too keeps the editor safe even if a future
+      // caller hands it an unvalidated list. Its output days are fresh
+      // copies, safe to edit in place.
+      _days = ScheduleNormalizer.normalizeWeek(
+        weekStartKey: existing.weekStartKey,
+        stored: existing.dailySchedules,
+        defaultBreakMinutes: db.settings.defaultBreakDurationMinutes,
+      ).days;
       _editing = false;
     } else {
       final settings = db.settings;
@@ -287,7 +288,7 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
                   style: TextStyle(
                       color: Theme.of(context).colorScheme.error)),
             ),
-          for (var i = 0; i < 7; i++) _dayCard(context, i, l10n),
+          for (var i = 0; i < _days.length; i++) _dayCard(context, i, l10n),
           const SizedBox(height: 16),
           if (_editing)
             SizedBox(

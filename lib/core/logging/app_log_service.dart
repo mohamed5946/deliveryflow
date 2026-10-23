@@ -28,6 +28,7 @@ enum AppLogCategory {
   system,
   settings,
   reports, // v27.4: PDF report generation outcomes
+  schedule, // v27.10: stored-week normalization / startup repair
 }
 
 enum AppLogLevel { info, warn, error }

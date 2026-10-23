@@ -1438,5 +1438,8 @@ class AppLocalizationsAr extends AppLocalizations {
   String get logCategoryReports => 'التقارير';
 
   @override
+  String get logCategorySchedule => 'الجدول';
+
+  @override
   String get emailLabel => 'البريد الإلكتروني';
 }
