@@ -729,8 +729,9 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
   }
 
   /// Weekly salary = (attended days × daily fixed) + (orders × order
-  /// price) + distance bonuses + manual bonuses (v27.5: the shared
-  /// [WeeklyReport.salaryTotal]).
+  /// price) + distance bonuses + manual bonuses + flat per-order
+  /// bonuses (v27.5: the shared [WeeklyReport.salaryTotal]; v27.6
+  /// added the flat bonus to it).
   Widget _salaryCard(BuildContext context, WidgetRef ref, AppLocalizations l10n,
       WeeklyReport r, TextTheme text, ColorScheme scheme) {
     final settings = ref.watch(settingsProvider);
@@ -756,7 +757,8 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
 
     // v27: daily fixed pay counts only days with >= 1 counted order.
     // v27.5: the total is the ONE shared salary formula (orders +
-    // fixed + distance bonuses + manual bonuses).
+    // fixed + distance bonuses + manual bonuses; v27.6: + flat
+    // per-order bonuses).
     final daysPay = r.paidDaysCount * dailyFixed;
     final ordersPay = r.totalOrders * orderPrice;
     final total =
@@ -799,6 +801,12 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
           const SizedBox(height: 6),
           _salaryRow(text, scheme, l10n.manualBonusLabel,
               '${_fmtMoney(r.totalManualBonus)} ${l10n.egpUnit}'),
+          // v27.6: flat per-order bonus line, only when it pays.
+          if (r.totalFlatBonus > 0) ...[
+            const SizedBox(height: 6),
+            _salaryRow(text, scheme, l10n.flatOrdersBonusLabel,
+                '${_fmtMoney(r.totalFlatBonus)} ${l10n.egpUnit}'),
+          ],
         ],
       ),
     );

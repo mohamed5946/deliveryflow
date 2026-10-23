@@ -535,9 +535,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   /// salary model for the current week, live from the same report the
   /// dashboard already watches. v27.5: computed through the ONE
   /// shared formula ([WeeklyReport.salaryTotal] — orders, fixed pay,
-  /// distance bonuses, manual bonuses). Tapping opens the weekly
-  /// report. Before salary values are configured it shows the setup
-  /// hint and taps through to the profile instead (zero dead buttons).
+  /// distance bonuses, manual bonuses; v27.6: + flat per-order
+  /// bonuses). Tapping opens the weekly report. Before salary values
+  /// are configured it shows the setup hint and taps through to the
+  /// profile instead (zero dead buttons).
   Widget _earningsCard(BuildContext context, AppLocalizations l10n,
       WeeklyReport report, UserSettings settings) {
     final text = Theme.of(context).textTheme;

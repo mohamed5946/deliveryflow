@@ -2702,6 +2702,18 @@ abstract class AppLocalizations {
   /// **'None'**
   String get extraBonusNone;
 
+  /// No description provided for @flatOrderBonusLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Flat bonus per order'**
+  String get flatOrderBonusLabel;
+
+  /// No description provided for @flatOrdersBonusLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Flat order bonuses'**
+  String get flatOrdersBonusLabel;
+
   /// No description provided for @invalidAmount.
   ///
   /// In en, this message translates to:

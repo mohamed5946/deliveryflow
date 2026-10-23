@@ -516,6 +516,8 @@
   "manualBonusLabel": "Manual bonus",
   "extraBonusLabel": "Extra bonus",
   "extraBonusNone": "None",
+  "flatOrderBonusLabel": "Flat bonus per order",
+  "flatOrdersBonusLabel": "Flat order bonuses",
   "invalidAmount": "Enter a valid amount",
   "logCategoryReports": "Reports",
   "emailLabel": "Email"

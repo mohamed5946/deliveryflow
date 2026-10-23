@@ -14,9 +14,10 @@ import '../../core/date_time/week_calendar.dart';
 /// PDF builder only has to draw. Salary math REUSES the weekly
 /// report's model — a week's earnings are exactly
 /// [WeeklyReport.salaryTotal] (orders × price + paid days × fixed +
-/// distance bonuses + manual bonuses), and a day's earnings are its
-/// orders' pay plus the fixed pay when the day was paid (≥ 1 counted
-/// order) plus that day's bonuses — never re-derived differently.
+/// distance bonuses + manual bonuses + flat per-order bonuses), and
+/// a day's earnings are its orders' pay plus the fixed pay when the
+/// day was paid (≥ 1 counted order) plus that day's bonuses — never
+/// re-derived differently.
 
 class PdfDayRow {
   final String weekdayLabel;
@@ -53,6 +54,10 @@ class PdfWeekSection {
   /// line in the week table (it is already inside [totalEarnings]).
   final double manualBonusTotal;
 
+  /// v27.6: the week's Σ flat per-order bonuses — drawn as its own
+  /// line in the week table (it is already inside [totalEarnings]).
+  final double flatBonusTotal;
+
   const PdfWeekSection({
     required this.weekStartKey,
     required this.rangeLabel,
@@ -62,6 +67,7 @@ class PdfWeekSection {
     required this.totalHours,
     required this.totalEarnings,
     this.manualBonusTotal = 0,
+    this.flatBonusTotal = 0,
   });
 }
 
@@ -181,6 +187,7 @@ class PastWeeksReportBuilder {
         totalHours: report.totalRecordedHours,
         totalEarnings: weekEarnings,
         manualBonusTotal: report.totalManualBonus,
+        flatBonusTotal: report.totalFlatBonus,
       ));
       grandOrders += report.totalOrders;
       grandKm += report.totalKm;
@@ -222,9 +229,13 @@ class PastWeeksReportBuilder {
       km: d.kmTotal,
       hours: d.workMinutes / 60.0,
       // v27.5: day earnings carry the day's distance + manual bonuses,
-      // matching the in-app salary model exactly.
-      earnings:
-          orders * orderPrice + (paid ? dailyFixedPay : 0) + d.distanceBonus + d.manualBonus,
+      // matching the in-app salary model exactly. v27.6 adds the
+      // day's flat per-order bonuses the same way.
+      earnings: orders * orderPrice +
+          (paid ? dailyFixedPay : 0) +
+          d.distanceBonus +
+          d.manualBonus +
+          d.flatBonus,
     );
   }
 }

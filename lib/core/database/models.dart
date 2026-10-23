@@ -87,6 +87,9 @@ class UserSettings extends HiveObject {
   @HiveField(37)
   Map<String, bool>
       distanceBonusWeekOverrides; // weekStartKey -> on/off for that week only
+  // --- Flat per-order bonus (v27.6) ---
+  @HiveField(38)
+  double flatOrderBonusEgp; // EGP added to EVERY counted order (0 = off)
 
   /// The editable tiers in display order (tier 1, 2, 3). The pure
   /// resolver is order-agnostic, so edited thresholds never need
@@ -144,6 +147,7 @@ class UserSettings extends HiveObject {
     this.distanceBonusTier3Km = 20,
     this.distanceBonusTier3Egp = 17,
     Map<String, bool>? distanceBonusWeekOverrides,
+    this.flatOrderBonusEgp = 0,
   })  : readNotificationIds = readNotificationIds ?? [],
         dismissedNotificationIds = dismissedNotificationIds ?? [],
         distanceBonusWeekOverrides = distanceBonusWeekOverrides ?? {};
@@ -187,6 +191,7 @@ class UserSettings extends HiveObject {
         'distanceBonusTier3Km': distanceBonusTier3Km,
         'distanceBonusTier3Egp': distanceBonusTier3Egp,
         'distanceBonusWeekOverrides': distanceBonusWeekOverrides,
+        'flatOrderBonusEgp': flatOrderBonusEgp,
         'schemaVersion': kSchemaVersion,
       };
 
@@ -252,6 +257,8 @@ class UserSettings extends HiveObject {
             (json['distanceBonusWeekOverrides'] as Map?)
                     ?.map((k, v) => MapEntry(k.toString(), v as bool)) ??
                 {},
+        flatOrderBonusEgp:
+            (json['flatOrderBonusEgp'] as num?)?.toDouble() ?? 0,
       );
 }
 
@@ -306,13 +313,14 @@ class UserSettingsAdapter extends TypeAdapter<UserSettings> {
       distanceBonusTier3Egp: (fields[36] as num?)?.toDouble() ?? 17,
       distanceBonusWeekOverrides:
           (fields[37] as Map?)?.cast<String, bool>() ?? {},
+      flatOrderBonusEgp: (fields[38] as num?)?.toDouble() ?? 0,
     );
   }
 
   @override
   void write(BinaryWriter writer, UserSettings obj) {
     writer
-      ..writeByte(38)
+      ..writeByte(39)
       ..writeByte(0)
       ..write(obj.displayName)
       ..writeByte(1)
@@ -388,7 +396,9 @@ class UserSettingsAdapter extends TypeAdapter<UserSettings> {
       ..writeByte(36)
       ..write(obj.distanceBonusTier3Egp)
       ..writeByte(37)
-      ..write(obj.distanceBonusWeekOverrides);
+      ..write(obj.distanceBonusWeekOverrides)
+      ..writeByte(38)
+      ..write(obj.flatOrderBonusEgp);
   }
 }
 
@@ -1302,6 +1312,10 @@ class DayBreakdown {
   /// independent of the distance-bonus toggles.
   final double manualBonus;
 
+  /// v27.6: Σ flat per-order bonuses of the day — counted orders ×
+  /// the settings' flat amount (0 when the flat bonus is off).
+  final double flatBonus;
+
   const DayBreakdown({
     required this.dateKey,
     required this.orders,
@@ -1312,6 +1326,7 @@ class DayBreakdown {
     this.kmBack = 0,
     this.distanceBonus = 0,
     this.manualBonus = 0,
+    this.flatBonus = 0,
   });
 
   double get kmTotal => kmOut + kmBack;
@@ -1350,6 +1365,10 @@ class WeeklyReport {
   /// so displays never disagree with the totals.
   final bool distanceBonusEnabled;
 
+  /// v27.6: the flat bonus paid per counted order (EGP), resolved
+  /// from the settings when the report was built (0 = off).
+  final double flatOrderBonusEgp;
+
   const WeeklyReport({
     required this.weekStartKey,
     required this.weekEndKey,
@@ -1369,14 +1388,20 @@ class WeeklyReport {
     this.totalDistanceBonus = 0,
     this.totalManualBonus = 0,
     this.distanceBonusEnabled = true,
+    this.flatOrderBonusEgp = 0,
   });
 
   double get totalKm => totalKmOut + totalKmBack;
 
-  /// THE salary formula (v27.5) — the single computation every
-  /// earnings surface uses (weekly report card, Home card, PDF
-  /// export): counted orders × order price + paid days × daily fixed
-  /// pay + distance bonuses + manual bonuses.
+  /// v27.6: Σ flat per-order bonuses — every counted order (detailed
+  /// completed AND count-only) earns the flat amount.
+  double get totalFlatBonus => totalOrders * flatOrderBonusEgp;
+
+  /// THE salary formula (v27.5, extended v27.6) — the single
+  /// computation every earnings surface uses (weekly report card,
+  /// Home card, PDF export): counted orders × order price + paid
+  /// days × daily fixed pay + distance bonuses + manual bonuses +
+  /// flat per-order bonuses.
   double salaryTotal({
     required double orderPrice,
     required double dailyFixedPay,
@@ -1384,5 +1409,6 @@ class WeeklyReport {
       totalOrders * orderPrice +
       paidDaysCount * dailyFixedPay +
       totalDistanceBonus +
-      totalManualBonus;
+      totalManualBonus +
+      totalFlatBonus;
 }

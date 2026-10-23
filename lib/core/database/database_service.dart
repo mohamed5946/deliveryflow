@@ -746,6 +746,9 @@ class DatabaseService {
     final weekKey = WeekCalendar.dateKey(start);
     final distanceBonusOn = settings.distanceBonusEnabledForWeek(weekKey);
     final bonusTiers = settings.distanceBonusTiers;
+    // v27.6: flat bonus paid on every counted order (0 = off),
+    // resolved from the current settings like the other bonuses.
+    final flatPerOrder = settings.flatOrderBonusEgp;
 
     var totalOrders = 0;
     var totalMinutes = 0;
@@ -830,6 +833,8 @@ class DatabaseService {
         kmBack: kmBack,
         distanceBonus: dayDistanceBonus,
         manualBonus: dayManualBonus,
+        // v27.6: the day's counted orders each earn the flat amount.
+        flatBonus: (orders ?? 0) * flatPerOrder,
       ));
     }
 
@@ -873,6 +878,7 @@ class DatabaseService {
       totalDistanceBonus: totalDistanceBonus,
       totalManualBonus: totalManualBonus,
       distanceBonusEnabled: distanceBonusOn,
+      flatOrderBonusEgp: flatPerOrder,
     );
   }
 

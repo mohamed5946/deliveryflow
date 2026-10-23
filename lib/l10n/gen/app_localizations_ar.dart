@@ -1378,6 +1378,12 @@ class AppLocalizationsAr extends AppLocalizations {
   String get extraBonusNone => 'لا يوجد';
 
   @override
+  String get flatOrderBonusLabel => 'بونص ثابت لكل أوردر';
+
+  @override
+  String get flatOrdersBonusLabel => 'بونص ثابت للأوردرات';
+
+  @override
   String get invalidAmount => 'اكتب مبلغ صحيح';
 
   @override

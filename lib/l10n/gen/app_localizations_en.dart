@@ -1380,6 +1380,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get extraBonusNone => 'None';
 
   @override
+  String get flatOrderBonusLabel => 'Flat bonus per order';
+
+  @override
+  String get flatOrdersBonusLabel => 'Flat order bonuses';
+
+  @override
   String get invalidAmount => 'Enter a valid amount';
 
   @override

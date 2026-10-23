@@ -400,6 +400,17 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
         TextEditingController(text: entry.kmOut.toString());
     final kmBackCtrl =
         TextEditingController(text: entry.kmBack.toString());
+    // v27.6: the manual bonus is editable here too — the same field
+    // the breakdown-card row edits, so all order edits live in one
+    // sheet. Prefilled like that editor (whole amounts without the
+    // trailing .0); empty means no bonus.
+    final bonusCtrl = TextEditingController(
+      text: entry.manualBonusEgp > 0
+          ? (entry.manualBonusEgp.truncateToDouble() == entry.manualBonusEgp
+              ? entry.manualBonusEgp.toInt().toString()
+              : entry.manualBonusEgp.toString())
+          : '',
+    );
 
     final saved = await showModalBottomSheet<bool>(
       context: context,
@@ -407,6 +418,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
       backgroundColor: Colors.transparent,
       builder: (ctx) {
         var error = '';
+        var bonusError = '';
         return StatefulBuilder(
           builder: (ctx, setSheetState) {
             double? parseKm(String raw) {
@@ -415,11 +427,24 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
               return (v == null || v < 0) ? null : v;
             }
 
+            // Empty clears the bonus; unparseable or negative is
+            // rejected with the sheet's error pattern.
+            double? parseBonus(String raw) {
+              final t = raw.trim().replaceAll(',', '.');
+              if (t.isEmpty) return 0;
+              final v = double.tryParse(t);
+              return (v == null || v < 0) ? null : v;
+            }
+
             Future<void> trySave() async {
               final kmOut = parseKm(kmOutCtrl.text);
               final kmBack = parseKm(kmBackCtrl.text);
               if (kmOut == null || kmBack == null) {
                 setSheetState(() => error = l10n.invalidKm);
+                return;
+              }
+              if (parseBonus(bonusCtrl.text) == null) {
+                setSheetState(() => bonusError = l10n.invalidAmount);
                 return;
               }
               final confirmed = await showDialog<bool>(
@@ -519,6 +544,20 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                     ),
                     const SizedBox(height: 12),
                     TextField(
+                      controller: bonusCtrl,
+                      keyboardType: const TextInputType
+                          .numberWithOptions(decimal: true),
+                      decoration: InputDecoration(
+                        labelText: l10n.extraBonusLabel,
+                        prefixIcon:
+                            const Icon(Icons.card_giftcard_rounded),
+                        suffixText: l10n.egpUnit,
+                        errorText:
+                            bonusError.isEmpty ? null : bonusError,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
                       controller: phoneCtrl,
                       keyboardType: TextInputType.phone,
                       decoration: InputDecoration(
@@ -568,15 +607,21 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
         kmOutCtrl.text.trim().replaceAll(',', '.'));
     final newKmBack = double.tryParse(
         kmBackCtrl.text.trim().replaceAll(',', '.'));
+    final newBonusText = bonusCtrl.text.trim().replaceAll(',', '.');
+    final newBonus =
+        newBonusText.isEmpty ? 0.0 : double.tryParse(newBonusText);
     final newNotes = notesCtrl.text.trim();
     final newPhone = phoneCtrl.text.trim();
     notesCtrl.dispose();
     phoneCtrl.dispose();
     kmOutCtrl.dispose();
     kmBackCtrl.dispose();
+    bonusCtrl.dispose();
     if (saved != true ||
         newKmOut == null ||
         newKmBack == null ||
+        newBonus == null ||
+        newBonus < 0 ||
         !mounted) {
       return;
     }
@@ -594,7 +639,15 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
       gpsKmBack: kmChanged ? 0 : null,
       notes: newNotes,
       phone: newPhone,
+      manualBonusEgp: newBonus,
     );
+    if (newBonus != entry.manualBonusEgp) {
+      ref.read(appLogServiceProvider).info(
+            AppLogCategory.orders,
+            'Manual bonus for order ${entry.id} (${widget.dateKey}) set to '
+            '$newBonus EGP',
+          );
+    }
     bumpDataVersion(ref);
     _load();
     if (context.mounted) {
@@ -885,9 +938,13 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
         actions: [
           // Edit a completed order's notes / phone / km. Edited km is
           // saved as manual (يدوي badge) since it's no longer pure GPS.
+          // v27.6 BUG FIX: this Pressable must NOT be scaleOnly — with
+          // scaleOnly:true the onTap is never invoked (animation-only
+          // mode meant for nesting inside another handler), which left
+          // this button visibly pressable but dead. There is no outer
+          // handler here; Pressable owns the tap.
           if (entry.isCompleted)
             Pressable(
-              scaleOnly: true,
               onTap: () => _showEditOrderSheet(context, entry),
               child: Container(
                 margin: const EdgeInsets.all(8),

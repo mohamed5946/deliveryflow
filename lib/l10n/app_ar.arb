@@ -468,6 +468,8 @@
   "manualBonusLabel": "بونص يدوي",
   "extraBonusLabel": "بونص إضافي",
   "extraBonusNone": "لا يوجد",
+  "flatOrderBonusLabel": "بونص ثابت لكل أوردر",
+  "flatOrdersBonusLabel": "بونص ثابت للأوردرات",
   "invalidAmount": "اكتب مبلغ صحيح",
   "logCategoryReports": "التقارير",
   "emailLabel": "البريد الإلكتروني"

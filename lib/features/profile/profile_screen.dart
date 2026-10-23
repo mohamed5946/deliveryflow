@@ -775,6 +775,35 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           onTap: () => _editDistanceBonusTier(i),
                         ),
                       ],
+                    const SizedBox(height: 4),
+                    // v27.6: flat bonus on every counted order — a
+                    // plain amount (0 / empty = off), independent of
+                    // the distance-bonus tiers and toggles.
+                    _valueRow(
+                      icon: Icons.paid_rounded,
+                      label: l10n.flatOrderBonusLabel,
+                      value: settings.flatOrderBonusEgp > 0
+                          ? '${formatMoney(settings.flatOrderBonusEgp)} ${l10n.egpUnit}'
+                          : l10n.extraBonusNone,
+                      onTap: () => _askNumber(
+                        title: l10n.flatOrderBonusLabel,
+                        initial: settings.flatOrderBonusEgp > 0
+                            ? _fmtNum(settings.flatOrderBonusEgp)
+                            : '',
+                        decimal: true,
+                        onDone: (v) async {
+                          final amount =
+                              (v == null || v < 0) ? 0.0 : v;
+                          await notifier.update(
+                              (s) => s..flatOrderBonusEgp = amount);
+                          ref.read(appLogServiceProvider).info(
+                                AppLogCategory.settings,
+                                'Flat order bonus -> $amount EGP per '
+                                'counted order',
+                              );
+                        },
+                      ),
+                    ),
                   ],
                 ),
               ),

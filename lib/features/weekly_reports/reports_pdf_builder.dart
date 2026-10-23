@@ -144,6 +144,19 @@ class ReportsPdfBuilder {
                   _cell(formatMoney(week.manualBonusTotal), bold: true),
                 ],
               ),
+            // v27.6: the week's flat per-order bonuses as their own
+            // line (already inside the week totals above).
+            if (week.flatBonusTotal > 0)
+              pw.TableRow(
+                children: [
+                  _cell(l10n.flatOrdersBonusLabel, bold: true),
+                  _cell(''),
+                  _cell(''),
+                  _cell(''),
+                  _cell(''),
+                  _cell(formatMoney(week.flatBonusTotal), bold: true),
+                ],
+              ),
           ],
         ),
       ],
