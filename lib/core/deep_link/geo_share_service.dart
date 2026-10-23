@@ -309,7 +309,9 @@ Future<GeoShareTarget?> parseShareInput(String raw) async {
   var candidate = (urlMatch?.group(0) ?? text).trim();
   // Strip trailing punctuation the share text may have glued on.
   candidate = candidate.replaceAll(RegExp(r'[.,;)\]]+$'), '');
-  if (candidate.startsWith('geo:')) return parseGeoUri(candidate);
+  if (candidate.startsWith('geo:')) {
+    return _rescueEmbeddedCoords(parseGeoUri(candidate));
+  }
   if (_looksLikeMapsUrl(candidate)) {
     var finalUrl = candidate;
     final lower = candidate.toLowerCase();
@@ -322,13 +324,32 @@ Future<GeoShareTarget?> parseShareInput(String raw) async {
       }
     }
     final parsed = _parseGoogleMapsUrl(finalUrl);
-    if (parsed != null) return parsed;
+    if (parsed != null) return _rescueEmbeddedCoords(parsed);
   }
   // v24.1: Flex-style free text: "customer address @ lat,lng".
   // The coordinates are the EXACT location (source of truth); the
   // customer's written address is only a label for the notes — it is
   // never geocoded or treated as the location when coords exist.
   return _extractCoordsFromText(text);
+}
+
+/// v27.7: some shares carry the exact coordinates INSIDE what the
+/// structured parsers above see as a plain address label — Amazon Flex
+/// sends `geo:0,0?q=<address @ lat,lng>`, where (0,0) means "no
+/// coordinates" so the target comes back label-only and would be
+/// geocoded as one raw string (which Nominatim can't resolve). Before
+/// such a target falls through to geocoding, rescue an embedded
+/// "lat,lng" pair from its label: the coordinates win (they are the
+/// exact location), and the extractor's cleaned label — the address
+/// with the "@ coords" residue stripped — is kept. Targets that
+/// already have coordinates, and labels with no embedded pair, pass
+/// through unchanged: a true address-only share still geocodes exactly
+/// as before.
+GeoShareTarget? _rescueEmbeddedCoords(GeoShareTarget? target) {
+  if (target == null || target.hasCoords || target.label.isEmpty) {
+    return target;
+  }
+  return _extractCoordsFromText(target.label) ?? target;
 }
 
 /// v24.1: extracts a "lat,lng" pair embedded in free text, e.g.
@@ -447,6 +468,17 @@ Future<void> handleSharedGeoUri(
 ) async {
   final l10n = AppLocalizations.of(context);
   final appLog = ref.read(appLogServiceProvider);
+
+  // v27.7: log the raw payload exactly as received (trimmed, capped)
+  // so any future share variant is diagnosable from the in-app log.
+  final rawReceived = raw.trim();
+  appLog.info(
+    AppLogCategory.share,
+    'Share received',
+    detail: rawReceived.length > 500
+        ? '${rawReceived.substring(0, 500)}…'
+        : rawReceived,
+  );
 
   /// v24: failure dialog that SHOWS the exact received address/label
   /// text — never a dead-end message without it.
