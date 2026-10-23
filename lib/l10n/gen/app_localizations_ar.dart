@@ -1346,6 +1346,41 @@ class AppLocalizationsAr extends AppLocalizations {
   String get pdfFailedTitle => 'فشل إنشاء ملف PDF';
 
   @override
+  String get pdfExportScopeTitle => 'تصدير PDF';
+
+  @override
+  String get pdfAllWeeksOption => 'كل الأسابيع';
+
+  @override
+  String get distanceBonusLabel => 'بونص المسافة';
+
+  @override
+  String get distanceBonusWeekLabel => 'بونص المسافة لهذا الأسبوع';
+
+  @override
+  String distanceBonusTier(int tier) {
+    return 'شريحة البونص $tier';
+  }
+
+  @override
+  String get distanceBonusFromKmTitle => 'تبدأ الشريحة من (كم)';
+
+  @override
+  String get distanceBonusAmountTitle => 'قيمة البونص (ج.م.)';
+
+  @override
+  String get manualBonusLabel => 'بونص يدوي';
+
+  @override
+  String get extraBonusLabel => 'بونص إضافي';
+
+  @override
+  String get extraBonusNone => 'لا يوجد';
+
+  @override
+  String get invalidAmount => 'اكتب مبلغ صحيح';
+
+  @override
   String get logCategoryReports => 'التقارير';
 
   @override

@@ -69,6 +69,41 @@ class UserSettings extends HiveObject {
   bool shiftEndReminderEnabled; // v26: remind at shift end to log orders
   @HiveField(29)
   bool developerModeUnlocked; // v27.4: diagnostics tools gate (asked once)
+  // --- Distance bonus (v27.5) ---
+  @HiveField(30)
+  bool distanceBonusEnabled; // global default; a week may override it
+  @HiveField(31)
+  double distanceBonusTier1Km;
+  @HiveField(32)
+  double distanceBonusTier1Egp;
+  @HiveField(33)
+  double distanceBonusTier2Km;
+  @HiveField(34)
+  double distanceBonusTier2Egp;
+  @HiveField(35)
+  double distanceBonusTier3Km;
+  @HiveField(36)
+  double distanceBonusTier3Egp;
+  @HiveField(37)
+  Map<String, bool>
+      distanceBonusWeekOverrides; // weekStartKey -> on/off for that week only
+
+  /// The editable tiers in display order (tier 1, 2, 3). The pure
+  /// resolver is order-agnostic, so edited thresholds never need
+  /// re-sorting here.
+  List<DistanceBonusTier> get distanceBonusTiers => [
+        DistanceBonusTier(
+            fromKm: distanceBonusTier1Km, bonusEgp: distanceBonusTier1Egp),
+        DistanceBonusTier(
+            fromKm: distanceBonusTier2Km, bonusEgp: distanceBonusTier2Egp),
+        DistanceBonusTier(
+            fromKm: distanceBonusTier3Km, bonusEgp: distanceBonusTier3Egp),
+      ];
+
+  /// Effective distance-bonus flag for a week: the week's own override
+  /// when one is stored, else the global default.
+  bool distanceBonusEnabledForWeek(String weekStartKey) =>
+      distanceBonusWeekOverrides[weekStartKey] ?? distanceBonusEnabled;
 
   UserSettings({
     this.displayName = '',
@@ -101,8 +136,17 @@ class UserSettings extends HiveObject {
     this.autoNavMode = 1,
     this.shiftEndReminderEnabled = false,
     this.developerModeUnlocked = false,
+    this.distanceBonusEnabled = true,
+    this.distanceBonusTier1Km = 12,
+    this.distanceBonusTier1Egp = 5,
+    this.distanceBonusTier2Km = 15,
+    this.distanceBonusTier2Egp = 10,
+    this.distanceBonusTier3Km = 20,
+    this.distanceBonusTier3Egp = 17,
+    Map<String, bool>? distanceBonusWeekOverrides,
   })  : readNotificationIds = readNotificationIds ?? [],
-        dismissedNotificationIds = dismissedNotificationIds ?? [];
+        dismissedNotificationIds = dismissedNotificationIds ?? [],
+        distanceBonusWeekOverrides = distanceBonusWeekOverrides ?? {};
 
   Map<String, dynamic> toJson() => {
         'displayName': displayName,
@@ -135,6 +179,14 @@ class UserSettings extends HiveObject {
         'autoNavMode': autoNavMode,
         'shiftEndReminderEnabled': shiftEndReminderEnabled,
         'developerModeUnlocked': developerModeUnlocked,
+        'distanceBonusEnabled': distanceBonusEnabled,
+        'distanceBonusTier1Km': distanceBonusTier1Km,
+        'distanceBonusTier1Egp': distanceBonusTier1Egp,
+        'distanceBonusTier2Km': distanceBonusTier2Km,
+        'distanceBonusTier2Egp': distanceBonusTier2Egp,
+        'distanceBonusTier3Km': distanceBonusTier3Km,
+        'distanceBonusTier3Egp': distanceBonusTier3Egp,
+        'distanceBonusWeekOverrides': distanceBonusWeekOverrides,
         'schemaVersion': kSchemaVersion,
       };
 
@@ -182,6 +234,24 @@ class UserSettings extends HiveObject {
             (json['shiftEndReminderEnabled'] as bool?) ?? false,
         developerModeUnlocked:
             (json['developerModeUnlocked'] as bool?) ?? false,
+        distanceBonusEnabled:
+            (json['distanceBonusEnabled'] as bool?) ?? true,
+        distanceBonusTier1Km:
+            (json['distanceBonusTier1Km'] as num?)?.toDouble() ?? 12,
+        distanceBonusTier1Egp:
+            (json['distanceBonusTier1Egp'] as num?)?.toDouble() ?? 5,
+        distanceBonusTier2Km:
+            (json['distanceBonusTier2Km'] as num?)?.toDouble() ?? 15,
+        distanceBonusTier2Egp:
+            (json['distanceBonusTier2Egp'] as num?)?.toDouble() ?? 10,
+        distanceBonusTier3Km:
+            (json['distanceBonusTier3Km'] as num?)?.toDouble() ?? 20,
+        distanceBonusTier3Egp:
+            (json['distanceBonusTier3Egp'] as num?)?.toDouble() ?? 17,
+        distanceBonusWeekOverrides:
+            (json['distanceBonusWeekOverrides'] as Map?)
+                    ?.map((k, v) => MapEntry(k.toString(), v as bool)) ??
+                {},
       );
 }
 
@@ -227,13 +297,22 @@ class UserSettingsAdapter extends TypeAdapter<UserSettings> {
       autoNavMode: (fields[27] as int?) ?? 1,
       shiftEndReminderEnabled: (fields[28] as bool?) ?? false,
       developerModeUnlocked: (fields[29] as bool?) ?? false,
+      distanceBonusEnabled: (fields[30] as bool?) ?? true,
+      distanceBonusTier1Km: (fields[31] as num?)?.toDouble() ?? 12,
+      distanceBonusTier1Egp: (fields[32] as num?)?.toDouble() ?? 5,
+      distanceBonusTier2Km: (fields[33] as num?)?.toDouble() ?? 15,
+      distanceBonusTier2Egp: (fields[34] as num?)?.toDouble() ?? 10,
+      distanceBonusTier3Km: (fields[35] as num?)?.toDouble() ?? 20,
+      distanceBonusTier3Egp: (fields[36] as num?)?.toDouble() ?? 17,
+      distanceBonusWeekOverrides:
+          (fields[37] as Map?)?.cast<String, bool>() ?? {},
     );
   }
 
   @override
   void write(BinaryWriter writer, UserSettings obj) {
     writer
-      ..writeByte(30)
+      ..writeByte(38)
       ..writeByte(0)
       ..write(obj.displayName)
       ..writeByte(1)
@@ -293,7 +372,23 @@ class UserSettingsAdapter extends TypeAdapter<UserSettings> {
       ..writeByte(28)
       ..write(obj.shiftEndReminderEnabled)
       ..writeByte(29)
-      ..write(obj.developerModeUnlocked);
+      ..write(obj.developerModeUnlocked)
+      ..writeByte(30)
+      ..write(obj.distanceBonusEnabled)
+      ..writeByte(31)
+      ..write(obj.distanceBonusTier1Km)
+      ..writeByte(32)
+      ..write(obj.distanceBonusTier1Egp)
+      ..writeByte(33)
+      ..write(obj.distanceBonusTier2Km)
+      ..writeByte(34)
+      ..write(obj.distanceBonusTier2Egp)
+      ..writeByte(35)
+      ..write(obj.distanceBonusTier3Km)
+      ..writeByte(36)
+      ..write(obj.distanceBonusTier3Egp)
+      ..writeByte(37)
+      ..write(obj.distanceBonusWeekOverrides);
   }
 }
 
@@ -601,6 +696,9 @@ class OrderEntry extends HiveObject {
   // --- Count-only bulk entry (v27.1) ---
   @HiveField(23)
   bool countOnly;
+  // --- Manual per-order bonus (v27.5) ---
+  @HiveField(24)
+  double manualBonusEgp; // plain EGP bonus on this order; 0 = none
 
   OrderEntry({
     required this.id,
@@ -627,6 +725,7 @@ class OrderEntry extends HiveObject {
     this.roadBackLng = const [],
     this.phone = '',
     this.countOnly = false,
+    this.manualBonusEgp = 0,
   })  : assert(kmOut >= 0, 'kmOut cannot be negative'),
         assert(kmBack >= 0, 'kmBack cannot be negative');
 
@@ -695,6 +794,7 @@ class OrderEntry extends HiveObject {
         'roadBackLng': roadBackLng,
         'phone': phone,
         'countOnly': countOnly,
+        'manualBonusEgp': manualBonusEgp,
       };
 
   static OrderEntry fromJson(Map<String, dynamic> json) => OrderEntry(
@@ -746,6 +846,7 @@ class OrderEntry extends HiveObject {
             const [],
         phone: (json['phone'] as String?) ?? '',
         countOnly: (json['countOnly'] as bool?) ?? false,
+        manualBonusEgp: (json['manualBonusEgp'] as num?)?.toDouble() ?? 0,
       );
 }
 
@@ -784,13 +885,14 @@ class OrderEntryAdapter extends TypeAdapter<OrderEntry> {
       roadBackLng: (fields[21] as List?)?.cast<double>() ?? const [],
       phone: (fields[22] as String?) ?? '',
       countOnly: (fields[23] as bool?) ?? false,
+      manualBonusEgp: (fields[24] as num?)?.toDouble() ?? 0,
     );
   }
 
   @override
   void write(BinaryWriter writer, OrderEntry obj) {
     writer
-      ..writeByte(24)
+      ..writeByte(25)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -838,7 +940,9 @@ class OrderEntryAdapter extends TypeAdapter<OrderEntry> {
       ..writeByte(22)
       ..write(obj.phone)
       ..writeByte(23)
-      ..write(obj.countOnly);
+      ..write(obj.countOnly)
+      ..writeByte(24)
+      ..write(obj.manualBonusEgp);
   }
 }
 
@@ -1147,6 +1251,40 @@ ScheduleDayChip scheduleDayChipFor({
   return ScheduleDayChip.notStarted;
 }
 
+/// One distance-bonus tier (v27.5): a completed order whose round-trip
+/// distance reaches [fromKm] earns [bonusEgp] on top of its order pay.
+class DistanceBonusTier {
+  final double fromKm;
+  final double bonusEgp;
+
+  const DistanceBonusTier({required this.fromKm, required this.bonusEgp});
+}
+
+/// Pure distance-bonus resolution (v27.5): the bonus of the HIGHEST
+/// tier whose threshold the round-trip distance reaches. Returns 0
+/// below the first threshold, when the distance is missing or zero
+/// (count-only entries and orders without a finalized distance earn
+/// no distance bonus), and when the feature is off for the week being
+/// computed. Tier order in [tiers] does not matter.
+double distanceBonusFor(
+  double? roundTripKm,
+  List<DistanceBonusTier> tiers, {
+  bool enabled = true,
+}) {
+  if (!enabled) return 0;
+  final km = roundTripKm ?? 0;
+  if (km <= 0) return 0;
+  var best = 0.0;
+  var bestFrom = double.negativeInfinity;
+  for (final t in tiers) {
+    if (km >= t.fromKm && t.fromKm >= bestFrom) {
+      bestFrom = t.fromKm;
+      best = t.bonusEgp;
+    }
+  }
+  return best;
+}
+
 class DayBreakdown {
   final String dateKey;
   final int? orders; // null => unrecorded
@@ -1156,6 +1294,14 @@ class DayBreakdown {
   final double kmOut; // detailed entries only
   final double kmBack; // detailed entries only
 
+  /// v27.5: Σ distance bonuses of the day's completed orders (0 when
+  /// the feature is off for the day's week).
+  final double distanceBonus;
+
+  /// v27.5: Σ manual per-order bonuses of the day's counted orders —
+  /// independent of the distance-bonus toggles.
+  final double manualBonus;
+
   const DayBreakdown({
     required this.dateKey,
     required this.orders,
@@ -1164,6 +1310,8 @@ class DayBreakdown {
     required this.isWorkingDay,
     this.kmOut = 0,
     this.kmBack = 0,
+    this.distanceBonus = 0,
+    this.manualBonus = 0,
   });
 
   double get kmTotal => kmOut + kmBack;
@@ -1190,6 +1338,18 @@ class WeeklyReport {
   final double totalKmOut;
   final double totalKmBack;
 
+  /// v27.5: Σ distance bonuses across the week (already resolved
+  /// against the week's effective on/off flag — 0 when off).
+  final double totalDistanceBonus;
+
+  /// v27.5: Σ manual per-order bonuses across the week.
+  final double totalManualBonus;
+
+  /// v27.5: the week's EFFECTIVE distance-bonus flag (per-week
+  /// override ?? global default), resolved when the report was built,
+  /// so displays never disagree with the totals.
+  final bool distanceBonusEnabled;
+
   const WeeklyReport({
     required this.weekStartKey,
     required this.weekEndKey,
@@ -1206,7 +1366,23 @@ class WeeklyReport {
     this.paidDaysCount = 0,
     this.totalKmOut = 0,
     this.totalKmBack = 0,
+    this.totalDistanceBonus = 0,
+    this.totalManualBonus = 0,
+    this.distanceBonusEnabled = true,
   });
 
   double get totalKm => totalKmOut + totalKmBack;
+
+  /// THE salary formula (v27.5) — the single computation every
+  /// earnings surface uses (weekly report card, Home card, PDF
+  /// export): counted orders × order price + paid days × daily fixed
+  /// pay + distance bonuses + manual bonuses.
+  double salaryTotal({
+    required double orderPrice,
+    required double dailyFixedPay,
+  }) =>
+      totalOrders * orderPrice +
+      paidDaysCount * dailyFixedPay +
+      totalDistanceBonus +
+      totalManualBonus;
 }

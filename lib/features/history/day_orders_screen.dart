@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/database/models.dart';
 import '../../core/date_time/week_calendar.dart';
+import '../../core/money_format.dart';
 import '../../core/providers.dart';
 import '../../theme/design_system.dart';
 import '../../theme/top_snack_bar.dart';
@@ -155,6 +156,17 @@ class DayOrdersScreen extends ConsumerWidget {
                                     if (entry.hasManualKm) ...[
                                       const SizedBox(width: 6),
                                       const ManualBadge(),
+                                    ],
+                                    // v27.5: manual-bonus indicator.
+                                    if (entry.manualBonusEgp > 0) ...[
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        '+${formatMoney(entry.manualBonusEgp)} ${l10n.egpUnit}',
+                                        style: text.bodySmall?.copyWith(
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.green,
+                                        ),
+                                      ),
                                     ],
                                   ],
                                 ),

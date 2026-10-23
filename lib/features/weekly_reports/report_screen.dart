@@ -252,6 +252,10 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
               // Weekly salary
               _salaryCard(context, ref, l10n, r, text, scheme),
               const SizedBox(height: 12),
+              // v27.5: this week's distance-bonus on/off (per-week
+              // override of the global default).
+              _distanceBonusWeekCard(context, ref, l10n, r, text, scheme),
+              const SizedBox(height: 12),
               // Best day + comparison
               GlassCard(
                 child: Column(
@@ -339,13 +343,15 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
                 ],
               ),
               const SizedBox(height: 10),
-              // v27.4: one-tap PDF of ALL past weeks (organized,
+              // v27.4: one-tap PDF of the recorded weeks (organized,
               // per-day tables + week/grand totals), shared as a file.
+              // v27.5: the button first asks the scope — all weeks,
+              // or one picked week exported on its own.
               GlassButton(
                 label: l10n.exportPdfAllWeeks,
                 primary: false,
                 icon: Icons.picture_as_pdf_rounded,
-                onPressed: _exportAllWeeksPdf,
+                onPressed: _choosePdfScope,
               ),
               const SizedBox(height: 24),
             ],
@@ -355,26 +361,125 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
     );
   }
 
-  /// v27.4: builds the all-past-weeks PDF and hands it to the share
-  /// sheet. Per the standing logs rule the outcome is recorded in the
-  /// diagnostics log (reports category); a failure shows the v25-style
-  /// dialog with the selectable technical reason.
-  Future<void> _exportAllWeeksPdf() async {
+  /// v27.5: the export button first asks the scope — every recorded
+  /// week (the v27.4 behavior), or one picked week exported on its
+  /// own. Weeks are listed newest first by their date range.
+  Future<void> _choosePdfScope() async {
+    final l10n = AppLocalizations.of(context);
+    final db = ref.read(databaseServiceProvider);
+    final settings = ref.read(settingsProvider);
+    final weeks = PastWeeksReportBuilder(db).availableWeeks(
+      locale: settings.languageCode == 'ar' ? 'ar' : 'en',
+    );
+    if (weeks.isEmpty) {
+      if (mounted) showTopSnackBar(context, l10n.pdfNoWeeks);
+      return;
+    }
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: GlassCard(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight:
+                    MediaQuery.of(sheetContext).size.height * 0.6,
+              ),
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  Text(l10n.pdfExportScopeTitle,
+                      style: Theme.of(sheetContext)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 8),
+                  _pdfScopeRow(
+                    sheetContext,
+                    icon: Icons.picture_as_pdf_rounded,
+                    title: l10n.pdfAllWeeksOption,
+                    onTap: () =>
+                        Navigator.of(sheetContext).pop('all'),
+                  ),
+                  for (final w in weeks) ...[
+                    const Divider(height: 8),
+                    _pdfScopeRow(
+                      sheetContext,
+                      icon: Icons.date_range_rounded,
+                      title: w.rangeLabel,
+                      onTap: () => Navigator.of(sheetContext)
+                          .pop(w.weekStartKey),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    if (!mounted || choice == null) return;
+    await _exportPdf(
+        onlyWeekStartKey: choice == 'all' ? null : choice);
+  }
+
+  Widget _pdfScopeRow(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+  }) {
+    final text = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+        child: Row(
+          children: [
+            Icon(icon, color: scheme.primary, size: 22),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(title,
+                  style: text.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w600)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// v27.4: builds the past-weeks PDF and hands it to the share
+  /// sheet. v27.5: [onlyWeekStartKey] scopes the export to that one
+  /// week (null = all weeks). Per the standing logs rule the outcome
+  /// — scope included — is recorded in the diagnostics log (reports
+  /// category); a failure shows the v25-style dialog with the
+  /// selectable technical reason.
+  Future<void> _exportPdf({String? onlyWeekStartKey}) async {
     final l10n = AppLocalizations.of(context);
     final db = ref.read(databaseServiceProvider);
     final settings = ref.read(settingsProvider);
     final log = ref.read(appLogServiceProvider);
+    final scope = onlyWeekStartKey ?? 'all';
     try {
       final data = PastWeeksReportBuilder(db).build(
         locale: settings.languageCode == 'ar' ? 'ar' : 'en',
         orderPrice: settings.orderPrice ?? 0,
         dailyFixedPay: settings.dailyFixedPay ?? 0,
+        onlyWeekStartKey: onlyWeekStartKey,
       );
       if (data.weeks.isEmpty) {
         if (mounted) showTopSnackBar(context, l10n.pdfNoWeeks);
         return;
       }
-      final bytes = await ReportsPdfBuilder().build(data, l10n);
+      final bytes = await ReportsPdfBuilder()
+          .build(data, l10n, singleWeek: onlyWeekStartKey != null);
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/deliveryflow_weeks_report.pdf');
       await file.writeAsBytes(bytes);
@@ -384,13 +489,13 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
       ));
       log.info(
         AppLogCategory.reports,
-        'PDF weeks report generated: ${data.weeks.length} week(s), '
-        '${bytes.length} bytes',
+        'PDF weeks report generated: scope=$scope, '
+        '${data.weeks.length} week(s), ${bytes.length} bytes',
       );
     } catch (e) {
       log.error(
         AppLogCategory.reports,
-        'PDF weeks report generation FAILED',
+        'PDF weeks report generation FAILED (scope=$scope)',
         error: e,
       );
       if (!mounted) return;
@@ -623,7 +728,9 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
     );
   }
 
-  /// Weekly salary = (attended days × daily fixed) + (orders × order price).
+  /// Weekly salary = (attended days × daily fixed) + (orders × order
+  /// price) + distance bonuses + manual bonuses (v27.5: the shared
+  /// [WeeklyReport.salaryTotal]).
   Widget _salaryCard(BuildContext context, WidgetRef ref, AppLocalizations l10n,
       WeeklyReport r, TextTheme text, ColorScheme scheme) {
     final settings = ref.watch(settingsProvider);
@@ -648,9 +755,12 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
     }
 
     // v27: daily fixed pay counts only days with >= 1 counted order.
+    // v27.5: the total is the ONE shared salary formula (orders +
+    // fixed + distance bonuses + manual bonuses).
     final daysPay = r.paidDaysCount * dailyFixed;
     final ordersPay = r.totalOrders * orderPrice;
-    final total = daysPay + ordersPay;
+    final total =
+        r.salaryTotal(orderPrice: orderPrice, dailyFixedPay: dailyFixed);
 
     return GlassCard(
       child: Column(
@@ -683,9 +793,64 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
               scheme,
               '${l10n.totalOrders} (${r.totalOrders} × ${_fmtMoney(orderPrice)})',
               '${_fmtMoney(ordersPay)} ${l10n.egpUnit}'),
+          const SizedBox(height: 6),
+          _salaryRow(text, scheme, l10n.distanceBonusLabel,
+              '${_fmtMoney(r.totalDistanceBonus)} ${l10n.egpUnit}'),
+          const SizedBox(height: 6),
+          _salaryRow(text, scheme, l10n.manualBonusLabel,
+              '${_fmtMoney(r.totalManualBonus)} ${l10n.egpUnit}'),
         ],
       ),
     );
+  }
+
+  /// v27.5: per-week distance-bonus switch — overrides the global
+  /// default for the DISPLAYED week only; every other week keeps
+  /// resolving its own override ?? global, so toggling one week never
+  /// rewrites another week's earnings. The switch reflects the
+  /// report's own resolved flag, so what it shows is what was paid.
+  Widget _distanceBonusWeekCard(BuildContext context, WidgetRef ref,
+      AppLocalizations l10n, WeeklyReport r, TextTheme text,
+      ColorScheme scheme) {
+    return GlassCard(
+      child: Row(
+        children: [
+          Icon(Icons.route_rounded, size: 20, color: scheme.primary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(l10n.distanceBonusWeekLabel,
+                style:
+                    text.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+          ),
+          Switch(
+            value: r.distanceBonusEnabled,
+            onChanged: (v) => _setWeekDistanceBonus(r.weekStartKey, v),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _setWeekDistanceBonus(String weekStartKey, bool value) async {
+    final log = ref.read(appLogServiceProvider);
+    await ref.read(settingsProvider.notifier).update((s) {
+      final overrides =
+          Map<String, bool>.from(s.distanceBonusWeekOverrides);
+      // Landing back on the global default clears the override instead
+      // of freezing today's default into the week forever.
+      if (value == s.distanceBonusEnabled) {
+        overrides.remove(weekStartKey);
+      } else {
+        overrides[weekStartKey] = value;
+      }
+      return s..distanceBonusWeekOverrides = overrides;
+    });
+    log.info(
+      AppLogCategory.settings,
+      'Distance bonus for week $weekStartKey -> ${value ? 'ON' : 'OFF'} '
+      '(per-week override)',
+    );
+    bumpDataVersion(ref);
   }
 
   Widget _salaryRow(

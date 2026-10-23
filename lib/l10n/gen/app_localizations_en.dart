@@ -1348,6 +1348,41 @@ class AppLocalizationsEn extends AppLocalizations {
   String get pdfFailedTitle => 'PDF generation failed';
 
   @override
+  String get pdfExportScopeTitle => 'Export PDF';
+
+  @override
+  String get pdfAllWeeksOption => 'All weeks';
+
+  @override
+  String get distanceBonusLabel => 'Distance bonus';
+
+  @override
+  String get distanceBonusWeekLabel => 'Distance bonus for this week';
+
+  @override
+  String distanceBonusTier(int tier) {
+    return 'Bonus tier $tier';
+  }
+
+  @override
+  String get distanceBonusFromKmTitle => 'Tier starts at (km)';
+
+  @override
+  String get distanceBonusAmountTitle => 'Bonus amount (EGP)';
+
+  @override
+  String get manualBonusLabel => 'Manual bonus';
+
+  @override
+  String get extraBonusLabel => 'Extra bonus';
+
+  @override
+  String get extraBonusNone => 'None';
+
+  @override
+  String get invalidAmount => 'Enter a valid amount';
+
+  @override
   String get logCategoryReports => 'Reports';
 
   @override

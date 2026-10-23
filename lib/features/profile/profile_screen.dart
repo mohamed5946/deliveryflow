@@ -18,6 +18,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/database/models.dart';
 import '../../core/developer/developer_mode.dart';
 import '../../core/logging/app_log_service.dart';
+import '../../core/money_format.dart';
 import '../../core/notifications/battery_optimization.dart';
 import '../../core/providers.dart';
 import '../../theme/app_theme.dart';
@@ -185,6 +186,76 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
     if (v == null) return;
     await onDone(v.isEmpty ? null : double.tryParse(v));
+  }
+
+  /// Compact number for settings values: 12 not 12.0, 12.5 stays 12.5.
+  String _fmtNum(double v) =>
+      v.truncateToDouble() == v ? v.toInt().toString() : v.toString();
+
+  /// v27.5: edits one distance-bonus tier as a (from-km, bonus-EGP)
+  /// pair through the standard number dialogs, one after the other.
+  /// Cancelling either dialog — or clearing a value — aborts the edit
+  /// and leaves the tier untouched.
+  Future<void> _editDistanceBonusTier(int index) async {
+    final l10n = AppLocalizations.of(context);
+    final settings = ref.read(settingsProvider);
+    final fromKms = [
+      settings.distanceBonusTier1Km,
+      settings.distanceBonusTier2Km,
+      settings.distanceBonusTier3Km,
+    ];
+    final amounts = [
+      settings.distanceBonusTier1Egp,
+      settings.distanceBonusTier2Egp,
+      settings.distanceBonusTier3Egp,
+    ];
+    double? fromKm;
+    var answered = false;
+    await _askNumber(
+      title: l10n.distanceBonusFromKmTitle,
+      initial: _fmtNum(fromKms[index]),
+      decimal: true,
+      onDone: (v) async {
+        answered = true;
+        fromKm = v;
+      },
+    );
+    if (!answered || fromKm == null) return;
+    double? amount;
+    answered = false;
+    await _askNumber(
+      title: l10n.distanceBonusAmountTitle,
+      initial: _fmtNum(amounts[index]),
+      decimal: true,
+      onDone: (v) async {
+        answered = true;
+        amount = v;
+      },
+    );
+    if (!answered || amount == null) return;
+    final km = fromKm!;
+    final egp = amount!;
+    await ref.read(settingsProvider.notifier).update((s) {
+      if (index == 0) {
+        s
+          ..distanceBonusTier1Km = km
+          ..distanceBonusTier1Egp = egp;
+      } else if (index == 1) {
+        s
+          ..distanceBonusTier2Km = km
+          ..distanceBonusTier2Egp = egp;
+      } else {
+        s
+          ..distanceBonusTier3Km = km
+          ..distanceBonusTier3Egp = egp;
+      }
+      return s;
+    });
+    ref.read(appLogServiceProvider).info(
+          AppLogCategory.settings,
+          'Distance bonus tier ${index + 1} updated: from ${km}km -> '
+          '$egp EGP',
+        );
   }
 
   Future<void> _backup() async {
@@ -675,6 +746,35 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             notifier.update((s) => s..dailyFixedPay = v),
                       ),
                     ),
+                    const SizedBox(height: 4),
+                    // v27.5: distance bonus — global default toggle
+                    // (a week can override it on the report screen)
+                    // plus the three editable tiers.
+                    _toggleRow(
+                      icon: Icons.route_rounded,
+                      label: l10n.distanceBonusLabel,
+                      value: settings.distanceBonusEnabled,
+                      onChanged: (v) async {
+                        await notifier
+                            .update((s) => s..distanceBonusEnabled = v);
+                        ref.read(appLogServiceProvider).info(
+                              AppLogCategory.settings,
+                              'Distance bonus global default -> '
+                              '${v ? 'ON' : 'OFF'}',
+                            );
+                      },
+                    ),
+                    if (settings.distanceBonusEnabled)
+                      for (var i = 0; i < 3; i++) ...[
+                        const SizedBox(height: 4),
+                        _valueRow(
+                          icon: Icons.toll_rounded,
+                          label: l10n.distanceBonusTier(i + 1),
+                          value:
+                              '${_fmtNum(settings.distanceBonusTiers[i].fromKm)}+ ${l10n.kmUnit} • ${formatMoney(settings.distanceBonusTiers[i].bonusEgp)} ${l10n.egpUnit}',
+                          onTap: () => _editDistanceBonusTier(i),
+                        ),
+                      ],
                   ],
                 ),
               ),

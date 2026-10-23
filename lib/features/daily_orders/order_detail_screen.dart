@@ -8,6 +8,9 @@ import 'package:intl/intl.dart' hide TextDirection;
 import 'package:latlong2/latlong.dart';
 
 import '../../core/database/models.dart';
+import '../../core/date_time/week_calendar.dart';
+import '../../core/logging/app_log_service.dart';
+import '../../core/money_format.dart';
 import '../../core/providers.dart';
 import '../../core/tracking/delivery_tracking_service.dart';
 import '../../theme/design_system.dart';
@@ -1216,8 +1219,8 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
     final l10n = AppLocalizations.of(context);
     final text = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
-    final locale =
-        ref.watch(settingsProvider.select((s) => s.languageCode));
+    final settings = ref.watch(settingsProvider);
+    final locale = settings.languageCode;
     final timeFmt =
         DateFormat.Hm(locale == 'ar' ? 'ar' : 'en');
 
@@ -1229,6 +1232,16 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
     final totalSec =
         entry.outgoingDurationSec + entry.returnDurationSec;
     final totalKm = entry.effectiveKmTotal;
+    // v27.5 distance bonus for this order: resolved against the
+    // CURRENT tiers and the effective flag of the order's own week —
+    // derived, exactly as the weekly report computes it.
+    final entryWeekKey = WeekCalendar.dateKey(WeekCalendar.weekStart(
+        WeekCalendar.parseDateKey(entry.dateKey)));
+    final distanceBonus = distanceBonusFor(
+      totalKm,
+      settings.distanceBonusTiers,
+      enabled: settings.distanceBonusEnabledForWeek(entryWeekKey),
+    );
 
     return GlassCard(
       child: Column(
@@ -1272,9 +1285,111 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
               '${_fmtKm(totalKm)} ${l10n.kmUnit}', Icons.route_rounded,
               scheme.secondary,
               bold: true),
+          // v27.5: the order's distance bonus, when it earns one.
+          if (entry.isCompleted && distanceBonus > 0)
+            _row(
+                context,
+                l10n.distanceBonusLabel,
+                '+${formatMoney(distanceBonus)} ${l10n.egpUnit}',
+                Icons.toll_rounded,
+                Colors.teal,
+                bold: true),
+          // v27.5: manual per-order bonus — always shown so it can be
+          // added to any order; tap to set or clear (0 clears).
+          InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: () => _editManualBonus(entry),
+            child: _row(
+                context,
+                l10n.extraBonusLabel,
+                entry.manualBonusEgp > 0
+                    ? '+${formatMoney(entry.manualBonusEgp)} ${l10n.egpUnit}'
+                    : l10n.extraBonusNone,
+                Icons.card_giftcard_rounded,
+                Colors.green,
+                bold: entry.manualBonusEgp > 0),
+          ),
         ],
       ),
     );
+  }
+
+  /// v27.5: sets/clears the manual bonus on this order. An empty
+  /// field or 0 clears it. The change is logged (orders category) and
+  /// every earnings surface re-derives from the entry, so the day,
+  /// week and PDF totals follow immediately.
+  Future<void> _editManualBonus(OrderEntry entry) async {
+    final l10n = AppLocalizations.of(context);
+    final controller = TextEditingController(
+      text: entry.manualBonusEgp > 0
+          ? (entry.manualBonusEgp.truncateToDouble() == entry.manualBonusEgp
+              ? entry.manualBonusEgp.toInt().toString()
+              : entry.manualBonusEgp.toString())
+          : '',
+    );
+    final amount = await showDialog<double>(
+      context: context,
+      builder: (ctx) {
+        var error = '';
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            void trySubmit() {
+              final raw =
+                  controller.text.trim().replaceAll(',', '.');
+              if (raw.isEmpty) {
+                Navigator.of(ctx).pop(0.0);
+                return;
+              }
+              final value = double.tryParse(raw);
+              if (value == null || value < 0) {
+                setDialogState(() => error = l10n.invalidAmount);
+                return;
+              }
+              Navigator.of(ctx).pop(value);
+            }
+
+            return AlertDialog(
+              title: Text(l10n.extraBonusLabel),
+              content: TextField(
+                controller: controller,
+                autofocus: true,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: InputDecoration(
+                  labelText: l10n.egpUnit,
+                  errorText: error.isEmpty ? null : error,
+                ),
+                onSubmitted: (_) => trySubmit(),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: Text(l10n.cancel),
+                ),
+                FilledButton(
+                  onPressed: trySubmit,
+                  child: Text(l10n.save),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    controller.dispose();
+    if (amount == null || !mounted) return;
+    await ref.read(databaseServiceProvider).updateOrderEntry(
+          dateKey: widget.dateKey,
+          entryId: entry.id,
+          manualBonusEgp: amount,
+        );
+    ref.read(appLogServiceProvider).info(
+          AppLogCategory.orders,
+          'Manual bonus for order ${entry.id} (${widget.dateKey}) set to '
+          '$amount EGP',
+        );
+    bumpDataVersion(ref);
+    if (mounted) _load();
   }
 
   Widget _row(BuildContext context, String label, String value,

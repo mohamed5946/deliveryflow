@@ -285,6 +285,7 @@ class DatabaseService {
     double? kmBack,
     String? notes,
     String? phone,
+    double? manualBonusEgp,
     int? status,
     int? pickupTimeMillis,
     int? deliveredTimeMillis,
@@ -322,6 +323,12 @@ class DatabaseService {
     }
     if (notes != null) entry.notes = notes;
     if (phone != null) entry.phone = phone;
+    if (manualBonusEgp != null) {
+      if (manualBonusEgp < 0) {
+        throw ArgumentError('Manual bonus cannot be negative');
+      }
+      entry.manualBonusEgp = manualBonusEgp;
+    }
     if (status != null) entry.status = status;
     if (pickupTimeMillis != null) entry.pickupTimeMillis = pickupTimeMillis;
     if (deliveredTimeMillis != null) {
@@ -730,6 +737,15 @@ class DatabaseService {
     final schedByDay = <String, DailySchedule>{
       for (final d in schedule?.dailySchedules ?? []) d.dateKey: d
     };
+    // v27.5: bonuses resolve against the CURRENT settings — the
+    // distance bonus against this week's effective flag (per-week
+    // override ?? global default) and the current tiers; manual
+    // bonuses are read straight off the entries. Derived, never
+    // stored, so edits re-derive everywhere consistently.
+    final settings = this.settings;
+    final weekKey = WeekCalendar.dateKey(start);
+    final distanceBonusOn = settings.distanceBonusEnabledForWeek(weekKey);
+    final bonusTiers = settings.distanceBonusTiers;
 
     var totalOrders = 0;
     var totalMinutes = 0;
@@ -739,6 +755,8 @@ class DatabaseService {
     var workingMinutesSum = 0;
     var totalKmOut = 0.0;
     var totalKmBack = 0.0;
+    var totalDistanceBonus = 0.0;
+    var totalManualBonus = 0.0;
     String? bestDay;
     var bestOrders = -1;
     final missing = <String>[];
@@ -772,6 +790,24 @@ class DatabaseService {
       final kmBack = order?.totalKmBack ?? 0;
       totalKmOut += kmOut;
       totalKmBack += kmBack;
+      // v27.5 bonuses for the day. Distance: only a COMPLETED order
+      // has a finalized round-trip distance to tier against (count-only
+      // entries complete with 0 km, so they earn none). Manual: counts
+      // for every counted order (status >= 1), independent of the
+      // distance-bonus flag.
+      var dayDistanceBonus = 0.0;
+      var dayManualBonus = 0.0;
+      for (final e in order?.entries ?? const <OrderEntry>[]) {
+        if (e.status >= 1 && e.manualBonusEgp > 0) {
+          dayManualBonus += e.manualBonusEgp;
+        }
+        if (distanceBonusOn && e.isCompleted) {
+          dayDistanceBonus +=
+              distanceBonusFor(e.effectiveKmTotal, bonusTiers);
+        }
+      }
+      totalDistanceBonus += dayDistanceBonus;
+      totalManualBonus += dayManualBonus;
       // v26: planned schedule hours count as worked when the day has at
       // least one logged order but no recorded session (derived only).
       final effMinutes = effectiveWorkMinutes(
@@ -792,6 +828,8 @@ class DatabaseService {
         isWorkingDay: isWorking,
         kmOut: kmOut,
         kmBack: kmBack,
+        distanceBonus: dayDistanceBonus,
+        manualBonus: dayManualBonus,
       ));
     }
 
@@ -832,6 +870,9 @@ class DatabaseService {
       paidDaysCount: paidDays,
       totalKmOut: totalKmOut,
       totalKmBack: totalKmBack,
+      totalDistanceBonus: totalDistanceBonus,
+      totalManualBonus: totalManualBonus,
+      distanceBonusEnabled: distanceBonusOn,
     );
   }
 

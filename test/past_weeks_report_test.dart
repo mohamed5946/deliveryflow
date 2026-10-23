@@ -19,6 +19,8 @@ void main() {
 
   late Directory tmp;
   late DatabaseService db;
+  late String currentWeekKey;
+  late String lastWeekKey;
 
   setUp(() async {
     tmp = await Directory.systemTemp.createTemp('df_pdf_');
@@ -31,6 +33,7 @@ void main() {
 
     final now = DateTime.now();
     final thisSunday = WeekCalendar.weekStart(now);
+    currentWeekKey = WeekCalendar.dateKey(thisSunday);
     // Current week, Sunday: 4 orders, 10 km, 7 h session (9→17, 1h break).
     final sunKey = WeekCalendar.dateKey(thisSunday);
     await db.upsertOrderRecord(dateKey: sunKey, completedOrders: 4);
@@ -48,6 +51,7 @@ void main() {
     );
     // Last week: a paid day (3 orders) and a recorded 0-order day off.
     final lastSunday = WeekCalendar.addDays(thisSunday, -7);
+    lastWeekKey = WeekCalendar.dateKey(lastSunday);
     await db.upsertOrderRecord(
       dateKey: WeekCalendar.dateKey(WeekCalendar.addDays(lastSunday, 2)),
       completedOrders: 3,
@@ -110,6 +114,68 @@ void main() {
     );
     final l10n = await AppLocalizations.delegate.load(const Locale('ar'));
     final Uint8List bytes = await ReportsPdfBuilder().build(data, l10n);
+    expect(bytes.length, greaterThan(1000));
+    expect(String.fromCharCodes(bytes.take(5)), '%PDF-');
+  });
+
+  // ── v27.5: single-week scope ────────────────────────────────
+
+  test('availableWeeks: data weeks newest-first with range labels', () {
+    final builder = PastWeeksReportBuilder(db);
+    final options = builder.availableWeeks(locale: 'ar');
+    expect(options.length, 2);
+    expect(options[0].weekStartKey, currentWeekKey);
+    expect(options[1].weekStartKey, lastWeekKey);
+    // The chooser labels are the sections' own range labels.
+    final data = builder.build(locale: 'ar', orderPrice: 10, dailyFixedPay: 100);
+    expect(options[0].rangeLabel, data.weeks[0].rangeLabel);
+    expect(options[1].rangeLabel, data.weeks[1].rangeLabel);
+  });
+
+  test('single-week filter returns only that week, totals folded', () {
+    final builder = PastWeeksReportBuilder(db);
+    final lastOnly = builder.build(
+      locale: 'ar',
+      orderPrice: 10,
+      dailyFixedPay: 100,
+      onlyWeekStartKey: lastWeekKey,
+    );
+    expect(lastOnly.weeks.length, 1);
+    expect(lastOnly.weeks.single.weekStartKey, lastWeekKey);
+    expect(lastOnly.totalOrders, 3);
+    expect(lastOnly.totalEarnings, 130);
+
+    final currentOnly = builder.build(
+      locale: 'ar',
+      orderPrice: 10,
+      dailyFixedPay: 100,
+      onlyWeekStartKey: currentWeekKey,
+    );
+    expect(currentOnly.weeks.length, 1);
+    expect(currentOnly.weeks.single.weekStartKey, currentWeekKey);
+    expect(currentOnly.totalOrders, 4);
+    expect(currentOnly.totalEarnings, 140);
+
+    // An unknown week key scopes to nothing (the UI then says so).
+    final none = builder.build(
+      locale: 'ar',
+      orderPrice: 10,
+      dailyFixedPay: 100,
+      onlyWeekStartKey: '1999-01-03',
+    );
+    expect(none.weeks, isEmpty);
+  });
+
+  test('pdf bytes generate for the single-week scope', () async {
+    final data = PastWeeksReportBuilder(db).build(
+      locale: 'ar',
+      orderPrice: 10,
+      dailyFixedPay: 100,
+      onlyWeekStartKey: lastWeekKey,
+    );
+    final l10n = await AppLocalizations.delegate.load(const Locale('ar'));
+    final Uint8List bytes =
+        await ReportsPdfBuilder().build(data, l10n, singleWeek: true);
     expect(bytes.length, greaterThan(1000));
     expect(String.fromCharCodes(bytes.take(5)), '%PDF-');
   });

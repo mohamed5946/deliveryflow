@@ -451,6 +451,24 @@
   "pdfGrandTotals": "الإجمالي الكلي",
   "pdfNoWeeks": "لا توجد أسابيع مسجلة بعد",
   "pdfFailedTitle": "فشل إنشاء ملف PDF",
+  "pdfExportScopeTitle": "تصدير PDF",
+  "pdfAllWeeksOption": "كل الأسابيع",
+  "distanceBonusLabel": "بونص المسافة",
+  "distanceBonusWeekLabel": "بونص المسافة لهذا الأسبوع",
+  "distanceBonusTier": "شريحة البونص {tier}",
+  "@distanceBonusTier": {
+    "placeholders": {
+      "tier": {
+        "type": "int"
+      }
+    }
+  },
+  "distanceBonusFromKmTitle": "تبدأ الشريحة من (كم)",
+  "distanceBonusAmountTitle": "قيمة البونص (ج.م.)",
+  "manualBonusLabel": "بونص يدوي",
+  "extraBonusLabel": "بونص إضافي",
+  "extraBonusNone": "لا يوجد",
+  "invalidAmount": "اكتب مبلغ صحيح",
   "logCategoryReports": "التقارير",
   "emailLabel": "البريد الإلكتروني"
 }

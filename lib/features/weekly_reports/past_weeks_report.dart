@@ -5,14 +5,18 @@ import '../../core/database/models.dart';
 import '../../core/date_time/week_calendar.dart';
 
 /// v27.4: data model + builder for the "all past weeks" PDF export.
+/// v27.5: the builder also lists the exportable weeks
+/// ([availableWeeks]) and can scope the data to a single week
+/// (`onlyWeekStartKey`).
 ///
 /// Single responsibility: turn the stored records into plain,
 /// presentation-ready rows (labels resolved, salary math done) so the
 /// PDF builder only has to draw. Salary math REUSES the weekly
 /// report's model — a week's earnings are exactly
-/// `totalOrders × orderPrice + paidDaysCount × dailyFixedPay`, and a
-/// day's earnings are its orders' pay plus the fixed pay when the day
-/// was paid (≥ 1 counted order) — never re-derived differently.
+/// [WeeklyReport.salaryTotal] (orders × price + paid days × fixed +
+/// distance bonuses + manual bonuses), and a day's earnings are its
+/// orders' pay plus the fixed pay when the day was paid (≥ 1 counted
+/// order) plus that day's bonuses — never re-derived differently.
 
 class PdfDayRow {
   final String weekdayLabel;
@@ -35,6 +39,9 @@ class PdfDayRow {
 }
 
 class PdfWeekSection {
+  /// Sunday date key (yyyy-MM-dd) identifying this week — the scope
+  /// key the export chooser passes back for a single-week export.
+  final String weekStartKey;
   final String rangeLabel;
   final List<PdfDayRow> days;
   final int totalOrders;
@@ -42,13 +49,30 @@ class PdfWeekSection {
   final double totalHours;
   final double totalEarnings;
 
+  /// v27.5: the week's Σ manual per-order bonuses — drawn as its own
+  /// line in the week table (it is already inside [totalEarnings]).
+  final double manualBonusTotal;
+
   const PdfWeekSection({
+    required this.weekStartKey,
     required this.rangeLabel,
     required this.days,
     required this.totalOrders,
     required this.totalKm,
     required this.totalHours,
     required this.totalEarnings,
+    this.manualBonusTotal = 0,
+  });
+}
+
+/// One selectable entry in the PDF export scope chooser (v27.5).
+class PdfWeekOption {
+  final String weekStartKey;
+  final String rangeLabel;
+
+  const PdfWeekOption({
+    required this.weekStartKey,
+    required this.rangeLabel,
   });
 }
 
@@ -79,11 +103,39 @@ class PastWeeksReportBuilder {
   /// includes weeks that actually hold recorded data.
   static const int maxWeeksBack = 104;
 
+  /// Weeks that hold recorded data, newest first — the entries the
+  /// export scope chooser lists under «كل الأسابيع» (v27.5).
+  List<PdfWeekOption> availableWeeks({
+    required String locale,
+    DateTime? now,
+  }) {
+    final today = now ?? DateTime.now();
+    final dateFmt = DateFormat.yMMMd(locale);
+    final options = <PdfWeekOption>[];
+    for (var i = 0; i < maxWeeksBack; i++) {
+      final probe = WeekCalendar.addDays(today, -7 * i);
+      final report = _db.buildWeeklyReport(probe);
+      if (report.recordedDaysCount == 0) continue;
+      final start = WeekCalendar.parseDateKey(report.weekStartKey);
+      final end = WeekCalendar.parseDateKey(report.weekEndKey);
+      options.add(PdfWeekOption(
+        weekStartKey: report.weekStartKey,
+        rangeLabel: '${dateFmt.format(start)} – ${dateFmt.format(end)}',
+      ));
+    }
+    return options;
+  }
+
+  /// Builds the export data. With [onlyWeekStartKey] null (default)
+  /// every week with data is included; with a Sunday date key, only
+  /// that week's section is included (v27.5 single-week export) and
+  /// the totals fold that week alone.
   PastWeeksReportData build({
     required String locale,
     required double orderPrice,
     required double dailyFixedPay,
     DateTime? now,
+    String? onlyWeekStartKey,
   }) {
     final today = now ?? DateTime.now();
     final dateFmt = DateFormat.yMMMd(locale);
@@ -97,6 +149,10 @@ class PastWeeksReportBuilder {
       final probe = WeekCalendar.addDays(today, -7 * i);
       final report = _db.buildWeeklyReport(probe);
       if (report.recordedDaysCount == 0) continue;
+      if (onlyWeekStartKey != null &&
+          report.weekStartKey != onlyWeekStartKey) {
+        continue;
+      }
 
       final rows = <PdfDayRow>[
         for (final d in report.days)
@@ -108,18 +164,23 @@ class PastWeeksReportBuilder {
             dailyFixedPay: dailyFixedPay,
           ),
       ];
-      // The exact WeeklyReport salary model for the week.
-      final weekEarnings = report.totalOrders * orderPrice +
-          report.paidDaysCount * dailyFixedPay;
+      // The exact WeeklyReport salary model for the week (v27.5:
+      // the shared salaryTotal — orders, fixed pay, both bonuses).
+      final weekEarnings = report.salaryTotal(
+        orderPrice: orderPrice,
+        dailyFixedPay: dailyFixedPay,
+      );
       final start = WeekCalendar.parseDateKey(report.weekStartKey);
       final end = WeekCalendar.parseDateKey(report.weekEndKey);
       sections.add(PdfWeekSection(
+        weekStartKey: report.weekStartKey,
         rangeLabel: '${dateFmt.format(start)} – ${dateFmt.format(end)}',
         days: rows,
         totalOrders: report.totalOrders,
         totalKm: report.totalKm,
         totalHours: report.totalRecordedHours,
         totalEarnings: weekEarnings,
+        manualBonusTotal: report.totalManualBonus,
       ));
       grandOrders += report.totalOrders;
       grandKm += report.totalKm;
@@ -160,7 +221,10 @@ class PastWeeksReportBuilder {
       orders: orders,
       km: d.kmTotal,
       hours: d.workMinutes / 60.0,
-      earnings: orders * orderPrice + (paid ? dailyFixedPay : 0),
+      // v27.5: day earnings carry the day's distance + manual bonuses,
+      // matching the in-app salary model exactly.
+      earnings:
+          orders * orderPrice + (paid ? dailyFixedPay : 0) + d.distanceBonus + d.manualBonus,
     );
   }
 }

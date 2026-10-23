@@ -6,9 +6,11 @@ import 'package:go_router/go_router.dart';
 
 import '../../theme/design_system.dart';
 
-/// Splash screen from the approved mockup: truck logo, "DeliveryFlow",
-/// tagline, and a loading indicator. Auto-navigates after a beat —
-/// the router redirect sends first-launch users to onboarding.
+/// Splash screen from the approved mockup: the app-icon logo (v27.5:
+/// the motorcycle courier art, replacing the old truck glyph),
+/// "DeliveryFlow", tagline, and a loading indicator. Auto-navigates
+/// after a beat — the router redirect sends first-launch users to
+/// onboarding.
 ///
 /// The loading bar shows REAL progress: the splash's init work is the
 /// timed 1600ms warm-up, so progress tracks elapsed time and the
@@ -71,7 +73,6 @@ class _SplashScreenState extends State<SplashScreen> {
                     height: 110,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(30),
-                      gradient: LiquidPalette.brandGradientLg,
                       boxShadow: [
                         BoxShadow(
                           color: LiquidPalette.primaryBlue
@@ -81,10 +82,12 @@ class _SplashScreenState extends State<SplashScreen> {
                         ),
                       ],
                     ),
-                    child: const Icon(
-                      Icons.local_shipping_rounded,
-                      color: Colors.white,
-                      size: 58,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(30),
+                      child: Image.asset(
+                        'assets/icon/app_icon.png',
+                        fit: BoxFit.cover,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 24),

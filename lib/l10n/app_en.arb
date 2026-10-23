@@ -499,6 +499,24 @@
   "pdfGrandTotals": "Grand totals",
   "pdfNoWeeks": "No recorded weeks yet",
   "pdfFailedTitle": "PDF generation failed",
+  "pdfExportScopeTitle": "Export PDF",
+  "pdfAllWeeksOption": "All weeks",
+  "distanceBonusLabel": "Distance bonus",
+  "distanceBonusWeekLabel": "Distance bonus for this week",
+  "distanceBonusTier": "Bonus tier {tier}",
+  "@distanceBonusTier": {
+    "placeholders": {
+      "tier": {
+        "type": "int"
+      }
+    }
+  },
+  "distanceBonusFromKmTitle": "Tier starts at (km)",
+  "distanceBonusAmountTitle": "Bonus amount (EGP)",
+  "manualBonusLabel": "Manual bonus",
+  "extraBonusLabel": "Extra bonus",
+  "extraBonusNone": "None",
+  "invalidAmount": "Enter a valid amount",
   "logCategoryReports": "Reports",
   "emailLabel": "Email"
 }

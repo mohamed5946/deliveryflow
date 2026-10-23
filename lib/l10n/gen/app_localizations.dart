@@ -2642,6 +2642,72 @@ abstract class AppLocalizations {
   /// **'PDF generation failed'**
   String get pdfFailedTitle;
 
+  /// No description provided for @pdfExportScopeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Export PDF'**
+  String get pdfExportScopeTitle;
+
+  /// No description provided for @pdfAllWeeksOption.
+  ///
+  /// In en, this message translates to:
+  /// **'All weeks'**
+  String get pdfAllWeeksOption;
+
+  /// No description provided for @distanceBonusLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Distance bonus'**
+  String get distanceBonusLabel;
+
+  /// No description provided for @distanceBonusWeekLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Distance bonus for this week'**
+  String get distanceBonusWeekLabel;
+
+  /// No description provided for @distanceBonusTier.
+  ///
+  /// In en, this message translates to:
+  /// **'Bonus tier {tier}'**
+  String distanceBonusTier(int tier);
+
+  /// No description provided for @distanceBonusFromKmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Tier starts at (km)'**
+  String get distanceBonusFromKmTitle;
+
+  /// No description provided for @distanceBonusAmountTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Bonus amount (EGP)'**
+  String get distanceBonusAmountTitle;
+
+  /// No description provided for @manualBonusLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Manual bonus'**
+  String get manualBonusLabel;
+
+  /// No description provided for @extraBonusLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Extra bonus'**
+  String get extraBonusLabel;
+
+  /// No description provided for @extraBonusNone.
+  ///
+  /// In en, this message translates to:
+  /// **'None'**
+  String get extraBonusNone;
+
+  /// No description provided for @invalidAmount.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a valid amount'**
+  String get invalidAmount;
+
   /// No description provided for @logCategoryReports.
   ///
   /// In en, this message translates to:

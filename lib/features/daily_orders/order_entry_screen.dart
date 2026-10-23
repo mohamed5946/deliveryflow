@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/database/models.dart';
 import '../../core/date_time/day_rollover.dart';
+import '../../core/money_format.dart';
 import '../../core/date_time/week_calendar.dart';
 import '../../core/providers.dart';
 import '../../core/tracking/delivery_tracking_service.dart';
@@ -700,6 +701,23 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
                           fontWeight: FontWeight.w700,
                           color: statusColor)),
                 ),
+                // v27.5: subtle manual-bonus indicator on the row.
+                if (entry.manualBonusEgp > 0) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                        '+${formatMoney(entry.manualBonusEgp)} ${l10n.egpUnit}',
+                        style: text.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: Colors.green)),
+                  ),
+                ],
               ],
             ),
             const SizedBox(height: 8),

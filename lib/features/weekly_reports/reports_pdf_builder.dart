@@ -20,8 +20,12 @@ import 'past_weeks_report.dart';
 class ReportsPdfBuilder {
   static const String _fontAsset = 'assets/fonts/Cairo.ttf';
 
+  /// [singleWeek] (v27.5): the data holds exactly one week's
+  /// section, whose own totals row closes the document — the
+  /// grand-totals table would only repeat it, so it is skipped.
   Future<Uint8List> build(
-      PastWeeksReportData data, AppLocalizations l10n) async {
+      PastWeeksReportData data, AppLocalizations l10n,
+      {bool singleWeek = false}) async {
     final fontData = await rootBundle.load(_fontAsset);
     final font = pw.Font.ttf(fontData);
     final doc = pw.Document(
@@ -55,14 +59,15 @@ class ReportsPdfBuilder {
             _weekTable(week, l10n),
             pw.SizedBox(height: 18),
           ],
-          _totalsTable(
-            title: l10n.pdfGrandTotals,
-            orders: data.totalOrders,
-            km: data.totalKm,
-            hours: data.totalHours,
-            earnings: data.totalEarnings,
-            l10n: l10n,
-          ),
+          if (!singleWeek)
+            _totalsTable(
+              title: l10n.pdfGrandTotals,
+              orders: data.totalOrders,
+              km: data.totalKm,
+              hours: data.totalHours,
+              earnings: data.totalEarnings,
+              l10n: l10n,
+            ),
         ],
       ),
     );
@@ -126,6 +131,19 @@ class ReportsPdfBuilder {
                 _cell(formatMoney(week.totalEarnings), bold: true),
               ],
             ),
+            // v27.5: the week's manual bonuses as their own line
+            // (the amount is already inside the week totals above).
+            if (week.manualBonusTotal > 0)
+              pw.TableRow(
+                children: [
+                  _cell(l10n.manualBonusLabel, bold: true),
+                  _cell(''),
+                  _cell(''),
+                  _cell(''),
+                  _cell(''),
+                  _cell(formatMoney(week.manualBonusTotal), bold: true),
+                ],
+              ),
           ],
         ),
       ],

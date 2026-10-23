@@ -532,11 +532,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   }
 
   /// v27.4: "this week's earnings so far" — the exact WeeklyReport
-  /// salary model for the current week (counted orders × order price
-  /// + paid days × daily fixed pay), live from the same report the
-  /// dashboard already watches. Tapping opens the weekly report.
-  /// Before salary values are configured it shows the setup hint and
-  /// taps through to the profile instead (zero dead buttons).
+  /// salary model for the current week, live from the same report the
+  /// dashboard already watches. v27.5: computed through the ONE
+  /// shared formula ([WeeklyReport.salaryTotal] — orders, fixed pay,
+  /// distance bonuses, manual bonuses). Tapping opens the weekly
+  /// report. Before salary values are configured it shows the setup
+  /// hint and taps through to the profile instead (zero dead buttons).
   Widget _earningsCard(BuildContext context, AppLocalizations l10n,
       WeeklyReport report, UserSettings settings) {
     final text = Theme.of(context).textTheme;
@@ -544,7 +545,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     final fixed = settings.dailyFixedPay;
     final configured = price != null && fixed != null;
     final total = configured
-        ? report.totalOrders * price + report.paidDaysCount * fixed
+        ? report.salaryTotal(orderPrice: price, dailyFixedPay: fixed)
         : 0.0;
     return Pressable(
       onTap: () => context.go(configured ? '/reports' : '/profile'),
