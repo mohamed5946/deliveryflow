@@ -960,7 +960,7 @@ class DatabaseService {
 
     return WeeklyReport(
       weekStartKey: WeekCalendar.dateKey(start),
-      weekEndKey: WeekCalendar.dateKey(start.add(const Duration(days: 6))),
+      weekEndKey: WeekCalendar.dateKey(WeekCalendar.addDays(start, 6)),
       totalOrders: totalOrders,
       totalRecordedHours: totalHours,
       totalPlannedHours: plannedHours,

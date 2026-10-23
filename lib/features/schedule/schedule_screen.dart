@@ -207,7 +207,7 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
       id: existing?.id ?? 'sch_${WeekCalendar.dateKey(start)}',
       weekStartKey: WeekCalendar.dateKey(start),
       weekEndKey:
-          WeekCalendar.dateKey(start.add(const Duration(days: 6))),
+          WeekCalendar.dateKey(WeekCalendar.addDays(start, 6)),
       dailySchedules: _days,
       createdAtMillis: existing?.createdAtMillis ?? now,
       updatedAtMillis: now,
@@ -246,7 +246,7 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
     ref.watch(dataVersionProvider);
     final loc = locale == 'ar' ? 'ar' : 'en';
     final rangeLabel =
-        '${DateFormat.d(loc).format(start)} - ${DateFormat.yMMMd(loc).format(start.add(const Duration(days: 6)))}';
+        '${DateFormat.d(loc).format(start)} - ${DateFormat.yMMMd(loc).format(WeekCalendar.addDays(start, 6))}';
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.scheduleTitle)),

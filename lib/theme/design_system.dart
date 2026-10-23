@@ -4,6 +4,7 @@ import 'package:deliveryflow/l10n/gen/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/date_time/week_calendar.dart';
 import '../core/providers.dart';
 import 'app_theme.dart';
 import 'pressable.dart';
@@ -992,7 +993,7 @@ class WeekDayStrip extends StatelessWidget {
           Expanded(
             child: Builder(
               builder: (context) {
-                final day = weekStart.add(Duration(days: i));
+                final day = WeekCalendar.addDays(weekStart, i);
                 final dayKey = DateTime(day.year, day.month, day.day);
                 final isToday = dayKey == todayKey;
                 final isHighlighted = highlightedDay != null

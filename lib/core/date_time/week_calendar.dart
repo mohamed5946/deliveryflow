@@ -3,6 +3,18 @@
 /// All calculations are pure functions over [DateTime] so they are easy to
 /// unit test, including month/year boundaries, leap years and DST-safe day
 /// arithmetic (days are compared by calendar date, never by 24h durations).
+///
+/// v27.11: ALL day stepping goes through the [DateTime] CONSTRUCTOR
+/// (`DateTime(y, m, d + n)` — pure wall-clock calendar arithmetic).
+/// `DateTime.add(Duration(days: n))` is ABSOLUTE 24h arithmetic: across
+/// Egypt's DST fall-back (Thu 2026-10-29 24:00 EEST, clocks back an
+/// hour) it generated the week Sun 2026-10-25..Sat 2026-10-31 as
+/// [25, 26, 27, 28, 29, 29, 30] — a duplicate Thursday and no Saturday
+/// at all. That drifted key list is what corrupted Mohamed's stored
+/// schedule week (and, via ScheduleNormalizer.canonicalKeys, hid the
+/// corruption from the v27.10 self-heal, which compared against the
+/// same broken generator). Never reintroduce Duration-based day math
+/// here; test/week_calendar_dst_test.dart locks this in.
 class WeekCalendar {
   const WeekCalendar._();
 
@@ -31,22 +43,24 @@ class WeekCalendar {
   static DateTime weekStart(DateTime date) {
     final d = dateOnly(date);
     final offset = d.weekday % 7; // Sunday -> 0, Monday -> 1, ...
-    return d.subtract(Duration(days: offset));
+    // Constructor arithmetic: stepping back over a DST transition day
+    // must land on the calendar date, not 23/25 hours earlier.
+    return DateTime(d.year, d.month, d.day - offset);
   }
 
   /// The Saturday ending the work week that contains [date].
-  static DateTime weekEnd(DateTime date) =>
-      weekStart(date).add(const Duration(days: 6));
+  static DateTime weekEnd(DateTime date) => addDays(weekStart(date), 6);
 
   /// The 7 calendar days (Sunday..Saturday) of the week containing [date].
   static List<DateTime> weekDays(DateTime date) {
     final start = weekStart(date);
-    return List.generate(7, (i) => start.add(Duration(days: i)));
+    return List.generate(
+        7, (i) => DateTime(start.year, start.month, start.day + i));
   }
 
   /// The Sunday starting the *next* work week after the week containing [date].
   static DateTime nextWeekStart(DateTime date) =>
-      weekStart(date).add(const Duration(days: 7));
+      addDays(weekStart(date), 7);
 
   /// True when [a] and [b] fall on the same calendar date.
   static bool isSameDay(DateTime a, DateTime b) =>
@@ -57,12 +71,23 @@ class WeekCalendar {
       isSameDay(weekStart(a), weekStart(b));
 
   /// Number of whole calendar days from [from] to [to] (can be negative).
-  static int daysBetween(DateTime from, DateTime to) =>
-      dateOnly(to).difference(dateOnly(from)).inDays;
+  ///
+  /// Computed on UTC midnights built from the calendar fields, so a
+  /// 23- or 25-hour local day can never skew the count (a local
+  /// difference across the fall-back day measures 47/49 hours and
+  /// truncates to the wrong whole-day count).
+  static int daysBetween(DateTime from, DateTime to) {
+    final a = DateTime.utc(from.year, from.month, from.day);
+    final b = DateTime.utc(to.year, to.month, to.day);
+    return b.difference(a).inDays;
+  }
 
-  /// Adds [days] calendar days, DST-safe because it goes through dateOnly.
-  static DateTime addDays(DateTime date, int days) =>
-      dateOnly(date).add(Duration(days: days));
+  /// Adds [days] calendar days (may be negative), DST-safe: the step
+  /// goes through the [DateTime] constructor, not a 24h duration.
+  static DateTime addDays(DateTime date, int days) {
+    final d = dateOnly(date);
+    return DateTime(d.year, d.month, d.day + days);
+  }
 
   /// Computes net working minutes for a shift.
   ///

@@ -5,9 +5,10 @@ import 'package:flutter/widgets.dart';
 import 'week_calendar.dart';
 
 /// The local midnight that ends the calendar day containing [from]
-/// (i.e. the start of the next day).
-DateTime nextMidnight(DateTime from) =>
-    WeekCalendar.dateOnly(from).add(const Duration(days: 1));
+/// (i.e. the start of the next day). Calendar arithmetic via
+/// [WeekCalendar.addDays] (v27.11): a Duration step would land at
+/// 23:00/01:00 across a DST transition instead of true midnight.
+DateTime nextMidnight(DateTime from) => WeekCalendar.addDays(from, 1);
 
 /// True when [a] and [b] fall on different calendar days.
 bool dayChanged(DateTime a, DateTime b) => !WeekCalendar.isSameDay(a, b);

@@ -29,7 +29,7 @@ class WeeklyHeatmapScreen extends ConsumerWidget {
     // Collect all route points from this week's orders.
     final points = <LatLng>[];
     for (var i = 0; i < 7; i++) {
-      final day = weekStart.add(Duration(days: i));
+      final day = WeekCalendar.addDays(weekStart, i);
       final key = WeekCalendar.dateKey(day);
       final record = db.orderRecord(key);
       if (record == null) continue;

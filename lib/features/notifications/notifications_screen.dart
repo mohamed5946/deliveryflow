@@ -49,7 +49,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     final items = <_NotificationItem>[];
     // 60-day lookback is more than enough for a 30-item feed.
     for (var i = 0; i < 60 && items.length < 30; i++) {
-      final day = today.subtract(Duration(days: i));
+      final day = WeekCalendar.addDays(today, -i);
       final key = WeekCalendar.dateKey(day);
       final record = db.orderRecord(key);
       if (record == null) continue;
