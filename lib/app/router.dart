@@ -11,6 +11,7 @@ import '../features/history/history_screen.dart';
 import '../features/onboarding/onboarding_screen.dart';
 import '../features/onboarding/splash_screen.dart';
 import '../features/profile/diagnostics_log_screen.dart';
+import '../features/profile/mart_picker_screen.dart';
 import '../features/profile/profile_screen.dart';
 import '../features/registration/registration_screen.dart';
 import '../features/schedule/schedule_screen.dart';
@@ -269,6 +270,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/diagnostics-log',
         builder: (context, state) => const DiagnosticsLogScreen(),
+      ),
+      GoRoute(
+        path: '/mart-picker',
+        builder: (context, state) => const MartPickerScreen(),
       ),
       GoRoute(
         path: '/hours',

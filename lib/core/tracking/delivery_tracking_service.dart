@@ -863,6 +863,8 @@ class DeliveryTrackingService {
           candidateLat: current.martCandidateLat,
           candidateLng: current.martCandidateLng,
           candidateCount: current.martCandidateCount,
+          // v27.9: a manually pinned mart freezes learning entirely.
+          manual: current.martManual,
         ),
         lat,
         lng,

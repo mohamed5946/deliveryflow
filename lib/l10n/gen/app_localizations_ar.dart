@@ -1398,6 +1398,27 @@ class AppLocalizationsAr extends AppLocalizations {
   String get martClear => 'مسح الموقع';
 
   @override
+  String get martPickerTitle => 'تحديد موقع المارت';
+
+  @override
+  String get martPickerHint => 'حرّك الخريطة لحد ما الدبوس يبقى على المارت';
+
+  @override
+  String get martPickerConfirm => 'تأكيد موقع المارت';
+
+  @override
+  String get martPickerUseMyLocation => 'استخدام موقعي الحالي';
+
+  @override
+  String get martPickerClear => 'مسح موقع المارت';
+
+  @override
+  String get martPickerManual => 'اتحدد يدويًا من الخريطة';
+
+  @override
+  String get martPickerLocationUnavailable => 'تعذر تحديد موقعك الحالي';
+
+  @override
   String get arrivalAtCustomerTitle => 'هل وصلت إلى العميل؟';
 
   @override

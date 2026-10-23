@@ -31,6 +31,29 @@ import 'phone_sheet.dart';
 /// - pending → "بدأ التوصيل" (starts GPS tracking)
 /// - toCustomer → "وصلت للعميل" (stops outgoing, starts return)
 /// - toMart → "وصلت للمارت" (stops return, completes order)
+
+/// v27.9: the `updateOrderEntry` km arguments for ONE leg after an
+/// edit-sheet save, resolved from the field's raw text against the
+/// leg's EFFECTIVE (currently displayed) distance.
+///
+/// The sheet's km semantics: an untouched field — left exactly as
+/// prefilled, or emptied — keeps the app's calculated distance
+/// ([km] and [gpsKm] both null → `updateOrderEntry` skips the leg
+/// entirely, GPS value and all). A deliberately changed value makes
+/// THAT leg manual only ([km] = new value, [gpsKm] = 0). A non-empty
+/// unparseable or negative value is [invalid] and blocks the save
+/// with the sheet's `invalidKm` error.
+typedef LegKmEdit = ({bool invalid, double? km, double? gpsKm});
+
+LegKmEdit resolveLegKmEdit(String raw, double effectiveKm) {
+  final t = raw.trim().replaceAll(',', '.');
+  if (t.isEmpty) return (invalid: false, km: null, gpsKm: null);
+  final v = double.tryParse(t);
+  if (v == null || v < 0) return (invalid: true, km: null, gpsKm: null);
+  if (v == effectiveKm) return (invalid: false, km: null, gpsKm: null);
+  return (invalid: false, km: v, gpsKm: 0.0);
+}
+
 class OrderDetailScreen extends ConsumerStatefulWidget {
   final String dateKey;
   final String entryId;
@@ -408,10 +431,15 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
     final scheme = Theme.of(context).colorScheme;
     final notesCtrl = TextEditingController(text: entry.notes);
     final phoneCtrl = TextEditingController(text: entry.phone);
+    // v27.9: prefill with the EFFECTIVE distances (the ones the user
+    // sees on this screen) — NOT the manual km fields, which stay 0
+    // whenever the app measured the trip itself. The old prefill made
+    // the sheet show 0.0 for GPS-measured legs and forced retyping
+    // numbers the app already knew (see resolveLegKmEdit).
     final kmOutCtrl =
-        TextEditingController(text: entry.kmOut.toString());
+        TextEditingController(text: entry.effectiveKmOut.toString());
     final kmBackCtrl =
-        TextEditingController(text: entry.kmBack.toString());
+        TextEditingController(text: entry.effectiveKmBack.toString());
     // v27.6: the manual bonus is editable here too — the same field
     // the breakdown-card row edits, so all order edits live in one
     // sheet. Prefilled like that editor (whole amounts without the
@@ -433,12 +461,6 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
         var bonusError = '';
         return StatefulBuilder(
           builder: (ctx, setSheetState) {
-            double? parseKm(String raw) {
-              final v = double.tryParse(
-                  raw.trim().replaceAll(',', '.'));
-              return (v == null || v < 0) ? null : v;
-            }
-
             // Empty clears the bonus; unparseable or negative is
             // rejected with the sheet's error pattern.
             double? parseBonus(String raw) {
@@ -449,9 +471,15 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
             }
 
             Future<void> trySave() async {
-              final kmOut = parseKm(kmOutCtrl.text);
-              final kmBack = parseKm(kmBackCtrl.text);
-              if (kmOut == null || kmBack == null) {
+              // v27.9: per-leg resolution — an emptied or unchanged
+              // km field is VALID and means "keep the calculated
+              // distance"; only a non-empty garbage/negative value
+              // errors.
+              final outEdit =
+                  resolveLegKmEdit(kmOutCtrl.text, entry.effectiveKmOut);
+              final backEdit =
+                  resolveLegKmEdit(kmBackCtrl.text, entry.effectiveKmBack);
+              if (outEdit.invalid || backEdit.invalid) {
                 setSheetState(() => error = l10n.invalidKm);
                 return;
               }
@@ -615,10 +643,11 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
       },
     );
 
-    final newKmOut = double.tryParse(
-        kmOutCtrl.text.trim().replaceAll(',', '.'));
-    final newKmBack = double.tryParse(
-        kmBackCtrl.text.trim().replaceAll(',', '.'));
+    // v27.9: resolve each leg independently against its effective
+    // distance (the sheet already validated these exact texts in
+    // trySave; resolving again here keeps one source of truth).
+    final outEdit = resolveLegKmEdit(kmOutCtrl.text, entry.effectiveKmOut);
+    final backEdit = resolveLegKmEdit(kmBackCtrl.text, entry.effectiveKmBack);
     final newBonusText = bonusCtrl.text.trim().replaceAll(',', '.');
     final newBonus =
         newBonusText.isEmpty ? 0.0 : double.tryParse(newBonusText);
@@ -630,25 +659,25 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
     kmBackCtrl.dispose();
     bonusCtrl.dispose();
     if (saved != true ||
-        newKmOut == null ||
-        newKmBack == null ||
+        outEdit.invalid ||
+        backEdit.invalid ||
         newBonus == null ||
         newBonus < 0 ||
         !mounted) {
       return;
     }
     final db = ref.read(databaseServiceProvider);
-    // Zero the GPS km only when the numbers actually changed: edited km
+    // Per leg: unchanged/emptied passes null for both km and gpsKm, so
+    // the stored value (GPS included) is preserved byte-for-byte; a
+    // changed leg passes its new km with gpsKm zeroed — that leg alone
     // becomes manual (يدوي badge) and takes effect.
-    final kmChanged = newKmOut != entry.kmOut ||
-        newKmBack != entry.kmBack;
     await db.updateOrderEntry(
       dateKey: widget.dateKey,
       entryId: widget.entryId,
-      kmOut: newKmOut,
-      kmBack: newKmBack,
-      gpsKmOut: kmChanged ? 0 : null,
-      gpsKmBack: kmChanged ? 0 : null,
+      kmOut: outEdit.km,
+      kmBack: backEdit.km,
+      gpsKmOut: outEdit.gpsKm,
+      gpsKmBack: backEdit.gpsKm,
       notes: newNotes,
       phone: newPhone,
       manualBonusEgp: newBonus,

@@ -529,6 +529,13 @@
     }
   },
   "martClear": "Clear location",
+  "martPickerTitle": "Set mart location",
+  "martPickerHint": "Move the map until the pin is on the mart",
+  "martPickerConfirm": "Confirm mart location",
+  "martPickerUseMyLocation": "Use my current location",
+  "martPickerClear": "Clear mart location",
+  "martPickerManual": "Set manually on the map",
+  "martPickerLocationUnavailable": "Couldn't get your current location",
   "arrivalAtCustomerTitle": "Have you arrived at the customer?",
   "arrivalAtMartTitle": "Have you arrived at the mart?",
   "arrivalAutoConfirmBody": "Arrival is confirmed automatically in 10 seconds unless you tap No",

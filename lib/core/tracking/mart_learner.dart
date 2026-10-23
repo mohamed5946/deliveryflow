@@ -10,7 +10,12 @@ import 'arrival_geofence.dart';
 /// refining it as a running mean. A far-away cluster that itself
 /// reaches the threshold replaces the saved mart (the courier's mart
 /// moved). Pure logic — persistence lives in UserSettings (Hive fields
-/// 39–44) and is applied by the main isolate only.
+/// 39–45) and is applied by the main isolate only.
+///
+/// v27.9: a mart pinned by hand on the map picker ([MartLearnerState.manual])
+/// is FROZEN — observations are ignored entirely while it is set (no
+/// refine, no replace, no candidate growth), so the saved point can
+/// never drift away from where the courier put the pin.
 class MartLearnerState {
   double? martLat;
   double? martLng;
@@ -19,6 +24,9 @@ class MartLearnerState {
   double? candidateLng;
   int candidateCount;
 
+  /// True when the saved mart was set manually on the map picker.
+  bool manual;
+
   MartLearnerState({
     this.martLat,
     this.martLng,
@@ -26,6 +34,7 @@ class MartLearnerState {
     this.candidateLat,
     this.candidateLng,
     this.candidateCount = 0,
+    this.manual = false,
   });
 
   factory MartLearnerState.empty() => MartLearnerState();
@@ -66,6 +75,10 @@ class MartLearner {
 
   static MartObservationOutcome observe(
       MartLearnerState s, double lat, double lng) {
+    // v27.9: a manually pinned mart is frozen — ignore the observation
+    // completely (no state change, nothing to persist).
+    if (s.manual) return MartObservationOutcome(state: s);
+
     // Near the saved mart: fold into its running mean.
     if (s.hasMart &&
         ArrivalGeofence.distanceMeters(lat, lng, s.martLat!, s.martLng!) <=
@@ -101,6 +114,7 @@ class MartLearner {
             martLat: meanLat,
             martLng: meanLng,
             martCount: count,
+            manual: s.manual,
           ),
           changed: true,
           learned: !s.hasMart,
@@ -115,6 +129,7 @@ class MartLearner {
           candidateLat: meanLat,
           candidateLng: meanLng,
           candidateCount: count,
+          manual: s.manual,
         ),
         changed: true,
       );
@@ -129,6 +144,7 @@ class MartLearner {
         candidateLat: lat,
         candidateLng: lng,
         candidateCount: 1,
+        manual: s.manual,
       ),
       changed: true,
     );

@@ -2738,6 +2738,48 @@ abstract class AppLocalizations {
   /// **'Clear location'**
   String get martClear;
 
+  /// No description provided for @martPickerTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Set mart location'**
+  String get martPickerTitle;
+
+  /// No description provided for @martPickerHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Move the map until the pin is on the mart'**
+  String get martPickerHint;
+
+  /// No description provided for @martPickerConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm mart location'**
+  String get martPickerConfirm;
+
+  /// No description provided for @martPickerUseMyLocation.
+  ///
+  /// In en, this message translates to:
+  /// **'Use my current location'**
+  String get martPickerUseMyLocation;
+
+  /// No description provided for @martPickerClear.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear mart location'**
+  String get martPickerClear;
+
+  /// No description provided for @martPickerManual.
+  ///
+  /// In en, this message translates to:
+  /// **'Set manually on the map'**
+  String get martPickerManual;
+
+  /// No description provided for @martPickerLocationUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t get your current location'**
+  String get martPickerLocationUnavailable;
+
   /// No description provided for @arrivalAtCustomerTitle.
   ///
   /// In en, this message translates to:

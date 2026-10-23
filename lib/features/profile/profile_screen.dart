@@ -157,54 +157,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (t != null) await onPick(t);
   }
 
-  /// v27.8: inspect / clear the learned mart location.
-  Future<void> _showMartLocationDialog(UserSettings settings) async {
-    final l10n = AppLocalizations.of(context);
-    final hasMart = settings.hasMart;
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l10n.martLocationLabel),
-        content: Text(
-          hasMart
-              ? '${settings.martLat!.toStringAsFixed(5)}, '
-                  '${settings.martLng!.toStringAsFixed(5)}\n'
-                  '${l10n.martObservations(settings.martObservationCount)}'
-              : l10n.martNotSaved,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(l10n.cancel),
-          ),
-          if (hasMart)
-            TextButton(
-              onPressed: () async {
-                await ref.read(settingsProvider.notifier).update(
-                      (s) => s
-                        ..martLat = null
-                        ..martLng = null
-                        ..martObservationCount = 0
-                        ..martCandidateLat = null
-                        ..martCandidateLng = null
-                        ..martCandidateCount = 0,
-                    );
-                ref.read(appLogServiceProvider).info(
-                      AppLogCategory.settings,
-                      'Mart location cleared by user',
-                    );
-                if (ctx.mounted) Navigator.of(ctx).pop();
-              },
-              child: Text(
-                l10n.martClear,
-                style: TextStyle(color: Theme.of(ctx).colorScheme.error),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _askNumber({
     required String title,
     required String initial,
@@ -855,8 +807,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     const SizedBox(height: 4),
                     // v27.8: the learned mart location — the return
                     // leg's arrival geofence target. Learned from trip
-                    // start points + confirmed return endpoints; tap
-                    // to inspect or clear it.
+                    // start points + confirmed return endpoints.
+                    // v27.9: tapping opens the map picker, where the
+                    // mart can also be pinned by hand (a manual pin
+                    // freezes learning) or cleared entirely.
                     _valueRow(
                       icon: Icons.store_rounded,
                       label: l10n.martLocationLabel,
@@ -864,7 +818,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           ? '${settings.martLat!.toStringAsFixed(5)}, '
                               '${settings.martLng!.toStringAsFixed(5)}'
                           : l10n.martNotSaved,
-                      onTap: () => _showMartLocationDialog(settings),
+                      onTap: () => context.push('/mart-picker'),
                     ),
                   ],
                 ),

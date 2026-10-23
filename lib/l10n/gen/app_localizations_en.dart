@@ -1401,6 +1401,28 @@ class AppLocalizationsEn extends AppLocalizations {
   String get martClear => 'Clear location';
 
   @override
+  String get martPickerTitle => 'Set mart location';
+
+  @override
+  String get martPickerHint => 'Move the map until the pin is on the mart';
+
+  @override
+  String get martPickerConfirm => 'Confirm mart location';
+
+  @override
+  String get martPickerUseMyLocation => 'Use my current location';
+
+  @override
+  String get martPickerClear => 'Clear mart location';
+
+  @override
+  String get martPickerManual => 'Set manually on the map';
+
+  @override
+  String get martPickerLocationUnavailable =>
+      'Couldn\'t get your current location';
+
+  @override
   String get arrivalAtCustomerTitle => 'Have you arrived at the customer?';
 
   @override

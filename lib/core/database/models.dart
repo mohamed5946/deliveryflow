@@ -103,6 +103,9 @@ class UserSettings extends HiveObject {
   double? martCandidateLng;
   @HiveField(44)
   int martCandidateCount; // observations in the pending cluster
+  // --- Manual mart override (v27.9) ---
+  @HiveField(45)
+  bool martManual; // mart pinned by hand on the map — learning must not move it
 
   /// True once a mart location has been learned and saved.
   bool get hasMart => martLat != null && martLng != null;
@@ -170,6 +173,7 @@ class UserSettings extends HiveObject {
     this.martCandidateLat,
     this.martCandidateLng,
     this.martCandidateCount = 0,
+    this.martManual = false,
   })  : readNotificationIds = readNotificationIds ?? [],
         dismissedNotificationIds = dismissedNotificationIds ?? [],
         distanceBonusWeekOverrides = distanceBonusWeekOverrides ?? {};
@@ -220,6 +224,7 @@ class UserSettings extends HiveObject {
         'martCandidateLat': martCandidateLat,
         'martCandidateLng': martCandidateLng,
         'martCandidateCount': martCandidateCount,
+        'martManual': martManual,
         'schemaVersion': kSchemaVersion,
       };
 
@@ -295,6 +300,7 @@ class UserSettings extends HiveObject {
         martCandidateLng: (json['martCandidateLng'] as num?)?.toDouble(),
         martCandidateCount:
             (json['martCandidateCount'] as num?)?.toInt() ?? 0,
+        martManual: (json['martManual'] as bool?) ?? false,
       );
 }
 
@@ -356,13 +362,14 @@ class UserSettingsAdapter extends TypeAdapter<UserSettings> {
       martCandidateLat: (fields[42] as num?)?.toDouble(),
       martCandidateLng: (fields[43] as num?)?.toDouble(),
       martCandidateCount: (fields[44] as int?) ?? 0,
+      martManual: (fields[45] as bool?) ?? false,
     );
   }
 
   @override
   void write(BinaryWriter writer, UserSettings obj) {
     writer
-      ..writeByte(45)
+      ..writeByte(46)
       ..writeByte(0)
       ..write(obj.displayName)
       ..writeByte(1)
@@ -452,7 +459,9 @@ class UserSettingsAdapter extends TypeAdapter<UserSettings> {
       ..writeByte(43)
       ..write(obj.martCandidateLng)
       ..writeByte(44)
-      ..write(obj.martCandidateCount);
+      ..write(obj.martCandidateCount)
+      ..writeByte(45)
+      ..write(obj.martManual);
   }
 }
 
