@@ -4,6 +4,7 @@ import 'package:deliveryflow/l10n/gen/app_localizations.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../theme/design_system.dart';
+import '../../theme/top_snack_bar.dart';
 
 /// Customer phone bottom sheet (mockup style): shows the full number,
 /// with "اتصال" (call) and "نسخ الرقم" (copy) actions.
@@ -66,9 +67,7 @@ Future<void> showCustomerPhoneSheet(
                         Clipboard.setData(
                             ClipboardData(text: phone));
                         Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(l10n.copied)),
-                        );
+                        showTopSnackBar(context, l10n.copied);
                       },
                     ),
                   ),

@@ -10,6 +10,7 @@ import '../../core/date_time/day_rollover.dart';
 import '../../core/date_time/week_calendar.dart';
 import '../../core/providers.dart';
 import '../../theme/design_system.dart';
+import '../../theme/top_snack_bar.dart';
 import '../../theme/pressable.dart';
 
 /// Weekly schedule editor (Sunday–Saturday).
@@ -218,8 +219,7 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
         _editing = false;
         _error = null;
       });
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(l10n.scheduleSaved)));
+      showTopSnackBar(context, l10n.scheduleSaved);
     }
   }
 

@@ -8,6 +8,7 @@ import '../../core/logging/app_log_service.dart';
 import '../../core/providers.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../theme/design_system.dart';
+import '../../theme/top_snack_bar.dart';
 
 /// v27.2: سجل التشخيص — viewer for the in-app diagnostics log.
 ///
@@ -52,6 +53,7 @@ class _DiagnosticsLogScreenState
         AppLogCategory.share => l10n.logCategoryShare,
         AppLogCategory.system => l10n.logCategorySystem,
         AppLogCategory.settings => l10n.logCategorySettings,
+        AppLogCategory.reports => l10n.logCategoryReports,
       };
 
   String _levelLabel(AppLocalizations l10n, AppLogLevel level) =>
@@ -73,9 +75,7 @@ class _DiagnosticsLogScreenState
     await Clipboard.setData(ClipboardData(text: svc.exportText()));
     if (!mounted) return;
     final l10n = AppLocalizations.of(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(l10n.diagnosticsLogCopied)),
-    );
+    showTopSnackBar(context, l10n.diagnosticsLogCopied);
   }
 
   Future<void> _shareAll() async {

@@ -7,6 +7,7 @@ import '../../core/database/models.dart';
 import '../../core/date_time/week_calendar.dart';
 import '../../core/providers.dart';
 import '../../theme/design_system.dart';
+import '../../theme/top_snack_bar.dart';
 import '../../theme/page_transitions.dart';
 import '../../theme/pressable.dart';
 import '../daily_orders/order_detail_screen.dart';
@@ -95,9 +96,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     setState(() => _items = _items
         ?.where((it) => it.entry.id != item.entry.id)
         .toList());
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(l10n.notificationDismissed)));
+    hideTopSnackBar();
+    showTopSnackBar(context, l10n.notificationDismissed);
   }
 
   @override

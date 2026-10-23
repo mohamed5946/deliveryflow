@@ -10,6 +10,7 @@ import '../../core/date_time/week_calendar.dart';
 import '../../core/providers.dart';
 import '../../core/tracking/delivery_tracking_service.dart';
 import '../../theme/design_system.dart';
+import '../../theme/top_snack_bar.dart';
 import '../../theme/page_transitions.dart';
 import '../../theme/pressable.dart';
 import 'order_detail_screen.dart';
@@ -326,8 +327,7 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
     await ref.read(settingsProvider.notifier).refreshReminders();
     _load();
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(l10n.recordSaved)));
+    showTopSnackBar(context, l10n.recordSaved);
   }
 
   Future<void> _editEntry(OrderEntry entry) async {
@@ -385,8 +385,7 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
     if (!mounted) return;
     bumpDataVersion(ref);
     _load();
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(l10n.orderDeleted)));
+    showTopSnackBar(context, l10n.orderDeleted);
   }
 
   /// How many of this day's entries are already counted toward the

@@ -1607,7 +1607,7 @@ abstract class AppLocalizations {
   /// No description provided for @statusPending.
   ///
   /// In en, this message translates to:
-  /// **'Pending'**
+  /// **'Currently scheduled notifications'**
   String get statusPending;
 
   /// No description provided for @statusToCustomer.
@@ -2461,6 +2461,198 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'A new order that opens right away — so you can start delivery and track the distance.'**
   String get addOrderDetailedDesc;
+
+  /// No description provided for @developerMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Developer Mode'**
+  String get developerMode;
+
+  /// No description provided for @developerModeOn.
+  ///
+  /// In en, this message translates to:
+  /// **'On'**
+  String get developerModeOn;
+
+  /// No description provided for @developerModeOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Off'**
+  String get developerModeOff;
+
+  /// No description provided for @developerPasswordTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable Developer Mode'**
+  String get developerPasswordTitle;
+
+  /// No description provided for @developerPasswordHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter the password'**
+  String get developerPasswordHint;
+
+  /// No description provided for @developerPasswordError.
+  ///
+  /// In en, this message translates to:
+  /// **'Incorrect password'**
+  String get developerPasswordError;
+
+  /// No description provided for @developerUnlock.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlock'**
+  String get developerUnlock;
+
+  /// No description provided for @developerDisableTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn off Developer Mode?'**
+  String get developerDisableTitle;
+
+  /// No description provided for @developerDisableBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The diagnostics tools (notification tests, diagnostics log and notification status) will be hidden until you unlock again with the password.'**
+  String get developerDisableBody;
+
+  /// No description provided for @developerDisable.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn off'**
+  String get developerDisable;
+
+  /// No description provided for @notificationStatusTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Notification status'**
+  String get notificationStatusTitle;
+
+  /// No description provided for @statusPermNotifications.
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications permission'**
+  String get statusPermNotifications;
+
+  /// No description provided for @statusExactAlarm.
+  ///
+  /// In en, this message translates to:
+  /// **'Exact alarm permission'**
+  String get statusExactAlarm;
+
+  /// No description provided for @statusBattery.
+  ///
+  /// In en, this message translates to:
+  /// **'Battery optimization exemption'**
+  String get statusBattery;
+
+  /// No description provided for @statusChannel.
+  ///
+  /// In en, this message translates to:
+  /// **'Reminders channel priority'**
+  String get statusChannel;
+
+  /// No description provided for @statusOk.
+  ///
+  /// In en, this message translates to:
+  /// **'OK'**
+  String get statusOk;
+
+  /// No description provided for @statusProblem.
+  ///
+  /// In en, this message translates to:
+  /// **'Problem'**
+  String get statusProblem;
+
+  /// No description provided for @statusUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown'**
+  String get statusUnknown;
+
+  /// No description provided for @weekEarningsSoFar.
+  ///
+  /// In en, this message translates to:
+  /// **'This week\'s earnings so far'**
+  String get weekEarningsSoFar;
+
+  /// No description provided for @exportPdfAllWeeks.
+  ///
+  /// In en, this message translates to:
+  /// **'Export all weeks as PDF'**
+  String get exportPdfAllWeeks;
+
+  /// No description provided for @pdfReportTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Weeks report'**
+  String get pdfReportTitle;
+
+  /// No description provided for @pdfGeneratedOn.
+  ///
+  /// In en, this message translates to:
+  /// **'Generated on'**
+  String get pdfGeneratedOn;
+
+  /// No description provided for @pdfColDate.
+  ///
+  /// In en, this message translates to:
+  /// **'Date'**
+  String get pdfColDate;
+
+  /// No description provided for @pdfColStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Status'**
+  String get pdfColStatus;
+
+  /// No description provided for @pdfColHours.
+  ///
+  /// In en, this message translates to:
+  /// **'Hours'**
+  String get pdfColHours;
+
+  /// No description provided for @pdfColEarnings.
+  ///
+  /// In en, this message translates to:
+  /// **'Earnings'**
+  String get pdfColEarnings;
+
+  /// No description provided for @pdfWeekTotals.
+  ///
+  /// In en, this message translates to:
+  /// **'Week total'**
+  String get pdfWeekTotals;
+
+  /// No description provided for @pdfGrandTotals.
+  ///
+  /// In en, this message translates to:
+  /// **'Grand totals'**
+  String get pdfGrandTotals;
+
+  /// No description provided for @pdfNoWeeks.
+  ///
+  /// In en, this message translates to:
+  /// **'No recorded weeks yet'**
+  String get pdfNoWeeks;
+
+  /// No description provided for @pdfFailedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'PDF generation failed'**
+  String get pdfFailedTitle;
+
+  /// No description provided for @logCategoryReports.
+  ///
+  /// In en, this message translates to:
+  /// **'Reports'**
+  String get logCategoryReports;
+
+  /// No description provided for @emailLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Email'**
+  String get emailLabel;
 }
 
 class _AppLocalizationsDelegate

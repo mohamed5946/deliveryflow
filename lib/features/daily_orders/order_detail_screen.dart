@@ -11,6 +11,7 @@ import '../../core/database/models.dart';
 import '../../core/providers.dart';
 import '../../core/tracking/delivery_tracking_service.dart';
 import '../../theme/design_system.dart';
+import '../../theme/top_snack_bar.dart';
 import '../../theme/page_transitions.dart';
 import '../../theme/pressable.dart';
 import '../navigation/navigation_screen.dart';
@@ -594,11 +595,8 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
     bumpDataVersion(ref);
     _load();
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content:
-                Text(AppLocalizations.of(context).orderUpdated)),
-      );
+      showTopSnackBar(
+          context, AppLocalizations.of(context).orderUpdated);
     }
   }
 
@@ -784,9 +782,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
       _load();
       if (!mounted) return;
       final l10n = AppLocalizations.of(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.orderCompleted)),
-      );
+      showTopSnackBar(context, l10n.orderCompleted);
     } finally {
       if (mounted) setState(() => _busy = false);
     }

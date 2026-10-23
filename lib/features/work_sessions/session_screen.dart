@@ -11,6 +11,7 @@ import '../../core/date_time/day_rollover.dart';
 import '../../core/date_time/week_calendar.dart';
 import '../../core/providers.dart';
 import '../../theme/design_system.dart';
+import '../../theme/top_snack_bar.dart';
 
 /// Working-hours tracker:
 /// - Method A: manual entry (start/end/break, overnight-safe).
@@ -100,8 +101,7 @@ class _SessionScreenState extends ConsumerState<SessionScreen> {
     bumpDataVersion(ref);
     if (mounted) {
       setState(() => _mError = null);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(l10n.recordSaved)));
+      showTopSnackBar(context, l10n.recordSaved);
       // Return to the previous screen after saving.
       context.pop();
     }
@@ -115,8 +115,7 @@ class _SessionScreenState extends ConsumerState<SessionScreen> {
       bumpDataVersion(ref);
     } on StateError {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(l10n.overlapWarning)));
+        showTopSnackBar(context, l10n.overlapWarning);
       }
     }
     setState(() {});
@@ -182,8 +181,7 @@ class _SessionScreenState extends ConsumerState<SessionScreen> {
       _restoredNoticeShown = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(l10n.sessionRestored)));
+          showTopSnackBar(context, l10n.sessionRestored);
         }
       });
     }

@@ -801,7 +801,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get orderDetails => 'تفاصيل الأوردر';
 
   @override
-  String get statusPending => 'في الانتظار';
+  String get statusPending => 'إشعارات مجدولة حاليًا';
 
   @override
   String get statusToCustomer => 'في الطريق للعميل';
@@ -1253,4 +1253,101 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get addOrderDetailedDesc =>
       'أوردر جديد بيتفتح على طول — عشان تبدأ التوصيل وتتتبّع المسافة.';
+
+  @override
+  String get developerMode => 'نسخة المطور';
+
+  @override
+  String get developerModeOn => 'مفعّلة';
+
+  @override
+  String get developerModeOff => 'غير مفعّلة';
+
+  @override
+  String get developerPasswordTitle => 'تفعيل نسخة المطور';
+
+  @override
+  String get developerPasswordHint => 'اكتب كلمة المرور';
+
+  @override
+  String get developerPasswordError => 'كلمة المرور غير صحيحة';
+
+  @override
+  String get developerUnlock => 'تفعيل';
+
+  @override
+  String get developerDisableTitle => 'إيقاف نسخة المطور؟';
+
+  @override
+  String get developerDisableBody =>
+      'هتختفي أدوات التشخيص (اختبارات الإشعارات وسجل التشخيص وحالة الإشعارات) لحد ما تفعّلها تاني بكلمة المرور.';
+
+  @override
+  String get developerDisable => 'إيقاف';
+
+  @override
+  String get notificationStatusTitle => 'حالة الإشعارات';
+
+  @override
+  String get statusPermNotifications => 'إذن الإشعارات';
+
+  @override
+  String get statusExactAlarm => 'إذن المنبه الدقيق';
+
+  @override
+  String get statusBattery => 'استثناء تحسين البطارية';
+
+  @override
+  String get statusChannel => 'أولوية قناة التذكيرات';
+
+  @override
+  String get statusOk => 'تمام';
+
+  @override
+  String get statusProblem => 'في مشكلة';
+
+  @override
+  String get statusUnknown => 'غير معروف';
+
+  @override
+  String get weekEarningsSoFar => 'مكاسب الأسبوع لحد دلوقتي';
+
+  @override
+  String get exportPdfAllWeeks => 'تصدير كل الأسابيع PDF';
+
+  @override
+  String get pdfReportTitle => 'تقرير الأسابيع';
+
+  @override
+  String get pdfGeneratedOn => 'اتعمل بتاريخ';
+
+  @override
+  String get pdfColDate => 'التاريخ';
+
+  @override
+  String get pdfColStatus => 'الحالة';
+
+  @override
+  String get pdfColHours => 'الساعات';
+
+  @override
+  String get pdfColEarnings => 'المكاسب';
+
+  @override
+  String get pdfWeekTotals => 'إجمالي الأسبوع';
+
+  @override
+  String get pdfGrandTotals => 'الإجمالي الكلي';
+
+  @override
+  String get pdfNoWeeks => 'لا توجد أسابيع مسجلة بعد';
+
+  @override
+  String get pdfFailedTitle => 'فشل إنشاء ملف PDF';
+
+  @override
+  String get logCategoryReports => 'التقارير';
+
+  @override
+  String get emailLabel => 'البريد الإلكتروني';
 }

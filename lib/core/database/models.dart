@@ -67,6 +67,8 @@ class UserSettings extends HiveObject {
   int autoNavMode; // 0=in-app navigation, 1=Google Maps middleman (default since v27)
   @HiveField(28)
   bool shiftEndReminderEnabled; // v26: remind at shift end to log orders
+  @HiveField(29)
+  bool developerModeUnlocked; // v27.4: diagnostics tools gate (asked once)
 
   UserSettings({
     this.displayName = '',
@@ -98,6 +100,7 @@ class UserSettings extends HiveObject {
     this.registered = false,
     this.autoNavMode = 1,
     this.shiftEndReminderEnabled = false,
+    this.developerModeUnlocked = false,
   })  : readNotificationIds = readNotificationIds ?? [],
         dismissedNotificationIds = dismissedNotificationIds ?? [];
 
@@ -131,6 +134,7 @@ class UserSettings extends HiveObject {
         'registered': registered,
         'autoNavMode': autoNavMode,
         'shiftEndReminderEnabled': shiftEndReminderEnabled,
+        'developerModeUnlocked': developerModeUnlocked,
         'schemaVersion': kSchemaVersion,
       };
 
@@ -176,6 +180,8 @@ class UserSettings extends HiveObject {
         autoNavMode: (json['autoNavMode'] as num?)?.toInt() ?? 1,
         shiftEndReminderEnabled:
             (json['shiftEndReminderEnabled'] as bool?) ?? false,
+        developerModeUnlocked:
+            (json['developerModeUnlocked'] as bool?) ?? false,
       );
 }
 
@@ -220,13 +226,14 @@ class UserSettingsAdapter extends TypeAdapter<UserSettings> {
       registered: (fields[26] as bool?) ?? false,
       autoNavMode: (fields[27] as int?) ?? 1,
       shiftEndReminderEnabled: (fields[28] as bool?) ?? false,
+      developerModeUnlocked: (fields[29] as bool?) ?? false,
     );
   }
 
   @override
   void write(BinaryWriter writer, UserSettings obj) {
     writer
-      ..writeByte(29)
+      ..writeByte(30)
       ..writeByte(0)
       ..write(obj.displayName)
       ..writeByte(1)
@@ -284,7 +291,9 @@ class UserSettingsAdapter extends TypeAdapter<UserSettings> {
       ..writeByte(27)
       ..write(obj.autoNavMode)
       ..writeByte(28)
-      ..write(obj.shiftEndReminderEnabled);
+      ..write(obj.shiftEndReminderEnabled)
+      ..writeByte(29)
+      ..write(obj.developerModeUnlocked);
   }
 }
 

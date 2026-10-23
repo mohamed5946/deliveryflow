@@ -3,9 +3,11 @@ package com.valor.deliveryflow
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
+import android.view.WindowManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -25,6 +27,42 @@ class MainActivity : FlutterActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         pendingNavUri = extractShareable(intent)
+        preferHighestRefreshRate()
+    }
+
+    /// v27.4: ask the display for its fastest mode. Flutter renders at
+    /// the display's active refresh rate, but without an app-side
+    /// preference many devices keep apps at 60 Hz even on 120 Hz
+    /// panels, which reads as lag when scrolling. Pick the supported
+    /// mode with the highest refresh rate at (or below) the current
+    /// resolution and set it as the window's preferred mode + rate.
+    /// On 60 Hz-only hardware the best mode IS 60 Hz, so behavior is
+    /// unchanged there. Guarded: a display quirk must never crash
+    /// startup.
+    private fun preferHighestRefreshRate() {
+        try {
+            val display = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                display
+            } else {
+                @Suppress("DEPRECATION")
+                windowManager.defaultDisplay
+            } ?: return
+            val modes = display.supportedModes ?: return
+            if (modes.isEmpty()) return
+            val current = display.mode
+            val best = modes
+                .filter { it.physicalWidth <= current.physicalWidth &&
+                    it.physicalHeight <= current.physicalHeight }
+                .maxByOrNull { it.refreshRate }
+                ?: modes.maxByOrNull { it.refreshRate }
+                ?: return
+            val attrs: WindowManager.LayoutParams = window.attributes
+            attrs.preferredDisplayModeId = best.modeId
+            attrs.preferredRefreshRate = best.refreshRate
+            window.attributes = attrs
+        } catch (_: Exception) {
+            // Best effort only — default refresh behavior stays.
+        }
     }
 
     override fun onNewIntent(intent: Intent) {

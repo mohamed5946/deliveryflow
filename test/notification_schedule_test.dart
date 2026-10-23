@@ -9,13 +9,23 @@ import 'package:flutter_test/flutter_test.dart';
 /// decides — a revoked/misreported exact-alarm permission must
 /// degrade to inexact instead of silently losing the reminder.
 void main() {
-  group('notification channel (v27.3 priority migration)', () {
-    // Reminders live on the fresh high-importance channel; the legacy
-    // id stays named so the launch cleanup can delete it.
-    test('user-facing channel is the _v2 high-importance one', () {
-      expect(NotificationService.channelId, 'deliveryflow_reminders_v2');
+  group('notification channel (v27.4 max-priority migration)', () {
+    // Reminders live on the fresh Importance.max channel; BOTH legacy
+    // ids stay named so the launch cleanup can delete them.
+    test('user-facing channel is the _v3 maximum-importance one', () {
+      expect(NotificationService.channelId, 'deliveryflow_reminders_v3');
+      expect(NotificationService.legacyChannelId, 'deliveryflow_reminders');
       expect(
-          NotificationService.legacyChannelId, 'deliveryflow_reminders');
+          NotificationService.legacyChannelIdV2, 'deliveryflow_reminders_v2');
+    });
+
+    test('reminder details post at maximum priority, publicly', () {
+      const d = NotificationService.reminderAndroidDetails;
+      expect(d.channelId, NotificationService.channelId);
+      expect(d.importance, Importance.max);
+      expect(d.priority, Priority.max);
+      expect(d.category, AndroidNotificationCategory.reminder);
+      expect(d.visibility, NotificationVisibility.public);
     });
   });
 
@@ -58,8 +68,7 @@ void main() {
         isFalse,
       );
       expect(
-        shouldRetryInexact(
-            usedExact: true, error: ArgumentError('bad id')),
+        shouldRetryInexact(usedExact: true, error: ArgumentError('bad id')),
         isFalse,
       );
     });

@@ -20,7 +20,15 @@ import 'package:path_provider/path_provider.dart';
 ///   until [init] has opened the box.
 /// - Cheap: entries are tiny JSON strings in their own Hive box, hard
 ///   capped at [maxEntries] with the oldest pruned automatically.
-enum AppLogCategory { notifications, tracking, orders, share, system, settings }
+enum AppLogCategory {
+  notifications,
+  tracking,
+  orders,
+  share,
+  system,
+  settings,
+  reports, // v27.4: PDF report generation outcomes
+}
 
 enum AppLogLevel { info, warn, error }
 

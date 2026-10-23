@@ -10,6 +10,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/tracking/route_snap_service.dart';
 import '../../theme/design_system.dart';
+import '../../theme/top_snack_bar.dart';
 import '../../theme/pressable.dart';
 import '../daily_orders/phone_sheet.dart';
 
@@ -466,11 +467,8 @@ class _NavigationScreenState extends State<NavigationScreen>
         }
         if (!_routeFailedNoteShown) {
           _routeFailedNoteShown = true;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-                content:
-                    Text(AppLocalizations.of(context).navRouteFailed)),
-          );
+          showTopSnackBar(
+              context, AppLocalizations.of(context).navRouteFailed);
         }
       }
     });

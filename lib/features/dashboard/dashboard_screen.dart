@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import '../../core/database/models.dart';
 import '../../core/database/database_service.dart';
 import '../../core/date_time/day_rollover.dart';
+import '../../core/money_format.dart';
 import '../../core/date_time/week_calendar.dart';
 import '../../core/deep_link/geo_share_service.dart';
 import '../../core/providers.dart';
@@ -41,8 +42,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
 
   /// Day-filter: tapping a week-strip cell selects that day and the cards
   /// above reflect it. Days with no recorded work show zero.
-  late DateTime _selectedDay =
-      DateTime(_today.year, _today.month, _today.day);
+  late DateTime _selectedDay = DateTime(_today.year, _today.month, _today.day);
 
   late final DayRolloverWatcher _rollover;
 
@@ -115,8 +115,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
 
     // Mockup greeting: fixed "مرحباً" + profile name.
     final greeting = l10n.greetingHello;
-    final name =
-        settings.displayName.isEmpty ? 'محمد' : settings.displayName;
+    final name = settings.displayName.isEmpty ? 'محمد' : settings.displayName;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -139,10 +138,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
             final hasAnyData = report.recordedDaysCount > 0 ||
                 db.scheduleForWeek(_today) != null;
             final lang = settings.languageCode == 'ar' ? 'ar' : 'en';
-            final selWeekday =
-                DateFormat('EEEE', lang).format(_selectedDay);
-            final selDate =
-                DateFormat('d MMMM', lang).format(_selectedDay);
+            final selWeekday = DateFormat('EEEE', lang).format(_selectedDay);
+            final selDate = DateFormat('d MMMM', lang).format(_selectedDay);
             return SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
               physics: const AlwaysScrollableScrollPhysics(),
@@ -156,8 +153,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                     children: [
                       Expanded(
                         child: Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(greeting,
                                 style: text.bodyMedium?.copyWith(
@@ -183,8 +179,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                         Icons.search_rounded,
                         () => Navigator.of(context).push(
                           SmoothPageRoute(
-                              builder: (_) =>
-                                  const CustomerSearchScreen()),
+                              builder: (_) => const CustomerSearchScreen()),
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -193,8 +188,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                         Icons.notifications_outlined,
                         () => Navigator.of(context).push(
                           SmoothPageRoute(
-                              builder: (_) =>
-                                  const NotificationsScreen()),
+                              builder: (_) => const NotificationsScreen()),
                         ),
                       ),
                     ],
@@ -206,8 +200,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                       title: l10n.emptyStateTitle,
                       body: l10n.emptyStateBody,
                       actionLabel: l10n.emptyStateAction,
-                      onAction: () =>
-                          context.push('/orders?date=$todayKey'),
+                      onAction: () => context.push('/orders?date=$todayKey'),
                     )
                   else ...[
                     // Today + completed: ONE card like the mockup — the right
@@ -221,11 +214,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                         children: [
                           Expanded(
                             child: Pressable(
-                              onTap: () =>
-                                  Navigator.of(context).push(
+                              onTap: () => Navigator.of(context).push(
                                 SmoothPageRoute(
-                                    builder: (_) => DayOrdersScreen(
-                                        dateKey: selectedKey)),
+                                    builder: (_) =>
+                                        DayOrdersScreen(dateKey: selectedKey)),
                               ),
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(
@@ -237,8 +229,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                                       decoration: BoxDecoration(
                                         color: LiquidPalette.primaryBlue
                                             .withValues(alpha: 0.12),
-                                        borderRadius:
-                                            BorderRadius.circular(12),
+                                        borderRadius: BorderRadius.circular(12),
                                       ),
                                       child: const Icon(
                                           Icons.inventory_2_rounded,
@@ -253,10 +244,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                                         children: [
                                           Text('$selectedCompleted',
                                               style: text.titleLarge?.copyWith(
-                                                  fontWeight:
-                                                      FontWeight.w800,
-                                                  color: LiquidPalette
-                                                      .primaryBlue,
+                                                  fontWeight: FontWeight.w800,
+                                                  color:
+                                                      LiquidPalette.primaryBlue,
                                                   height: 1.0)),
                                           Text(l10n.completedOrdersLabel,
                                               style: text.bodySmall?.copyWith(
@@ -290,13 +280,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 14, vertical: 8),
                                 child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
-                                        isTodaySelected
-                                            ? 'اليوم'
-                                            : selWeekday,
+                                    Text(isTodaySelected ? 'اليوم' : selWeekday,
                                         style: text.bodySmall?.copyWith(
                                             color: text.bodySmall?.color
                                                 ?.withValues(alpha: 0.6),
@@ -336,8 +322,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                           child: _statCard(
                             context,
                             l10n.weekHours,
-                            WeekCalendar.formatHoursMinutes(
-                                shownMinutes),
+                            WeekCalendar.formatHoursMinutes(shownMinutes),
                             Icons.schedule_rounded,
                             onTap: () =>
                                 context.push('/hours?date=$selectedKey'),
@@ -350,14 +335,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                     _weekProgressCard(
                         context, l10n, report, settings.weeklyOrderGoal),
                     const SizedBox(height: 12),
+                    // v27.4: this week's earnings so far — the number he
+                    // actually checks daily, no trip to the report needed.
+                    _earningsCard(context, l10n, report, settings),
+                    const SizedBox(height: 12),
                     // Mini week strip — tapping a day filters the cards above.
                     SectionHeader(title: l10n.scheduleTitle),
                     GlassCard(
                       child: WeekDayStrip(
                         weekStart: WeekCalendar.weekStart(_today),
                         highlightedDay: _selectedDay,
-                        onSelect: (day) =>
-                            setState(() => _selectedDay = day),
+                        onSelect: (day) => setState(() => _selectedDay = day),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -418,8 +406,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     );
   }
 
-  Widget _statCard(BuildContext context, String label, String value,
-      IconData icon, {VoidCallback? onTap}) {
+  Widget _statCard(
+      BuildContext context, String label, String value, IconData icon,
+      {VoidCallback? onTap}) {
     final text = Theme.of(context).textTheme;
     final card = GlassCard(
       child: Row(
@@ -431,8 +420,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               borderRadius: BorderRadius.circular(14),
               boxShadow: [
                 BoxShadow(
-                  color: LiquidPalette.primaryBlue
-                      .withValues(alpha: 0.3),
+                  color: LiquidPalette.primaryBlue.withValues(alpha: 0.3),
                   blurRadius: 12,
                   offset: const Offset(0, 4),
                 ),
@@ -446,15 +434,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(value,
-                    style: text.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w800, height: 1.0),
+                    style: text.headlineSmall
+                        ?.copyWith(fontWeight: FontWeight.w800, height: 1.0),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis),
                 const SizedBox(height: 4),
                 Text(label,
                     style: text.bodySmall?.copyWith(
-                        color: text.bodySmall?.color
-                            ?.withValues(alpha: 0.65),
+                        color: text.bodySmall?.color?.withValues(alpha: 0.65),
                         fontWeight: FontWeight.w600),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis),
@@ -494,8 +481,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       WeeklyReport report, int? goal) {
     final text = Theme.of(context).textTheme;
     final g = (goal ?? 0).toDouble();
-    final progress =
-        g <= 0 ? 0.0 : (report.totalOrders / g).clamp(0.0, 1.0);
+    final progress = g <= 0 ? 0.0 : (report.totalOrders / g).clamp(0.0, 1.0);
     final card = GlassCard(
       child: Row(
         children: [
@@ -504,8 +490,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(l10n.weekProgress,
-                    style: text.titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w800)),
+                    style:
+                        text.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
                 const SizedBox(height: 6),
                 Text(
                   goal == null
@@ -540,17 +526,88 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     // No goal configured yet: tapping opens the profile where the
     // weekly goal can be set.
     if (goal == null) {
-      return Pressable(
-          onTap: () => context.go('/profile'), child: card);
+      return Pressable(onTap: () => context.go('/profile'), child: card);
     }
     return card;
+  }
+
+  /// v27.4: "this week's earnings so far" — the exact WeeklyReport
+  /// salary model for the current week (counted orders × order price
+  /// + paid days × daily fixed pay), live from the same report the
+  /// dashboard already watches. Tapping opens the weekly report.
+  /// Before salary values are configured it shows the setup hint and
+  /// taps through to the profile instead (zero dead buttons).
+  Widget _earningsCard(BuildContext context, AppLocalizations l10n,
+      WeeklyReport report, UserSettings settings) {
+    final text = Theme.of(context).textTheme;
+    final price = settings.orderPrice;
+    final fixed = settings.dailyFixedPay;
+    final configured = price != null && fixed != null;
+    final total = configured
+        ? report.totalOrders * price + report.paidDaysCount * fixed
+        : 0.0;
+    return Pressable(
+      onTap: () => context.go(configured ? '/reports' : '/profile'),
+      child: GlassCard(
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                gradient: LiquidPalette.brandGradientLg,
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [
+                  BoxShadow(
+                    color: LiquidPalette.primaryBlue.withValues(alpha: 0.3),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: const Icon(Icons.payments_rounded,
+                  color: Colors.white, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    configured ? '${formatMoney(total)} ${l10n.egpUnit}' : '–',
+                    style: text.headlineSmall
+                        ?.copyWith(fontWeight: FontWeight.w800, height: 1.0),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    configured ? l10n.weekEarningsSoFar : l10n.setSalaryHint,
+                    style: text.bodySmall?.copyWith(
+                        color: text.bodySmall?.color?.withValues(alpha: 0.65),
+                        fontWeight: FontWeight.w600),
+                    maxLines: configured ? 1 : 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_left_rounded,
+              color: Theme.of(context)
+                  .colorScheme
+                  .onSurface
+                  .withValues(alpha: 0.4),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _avatarContent(
       BuildContext context, UserSettings settings, String name) {
     final photoPath = settings.photoPath;
-    final photoFile =
-        photoPath.isNotEmpty ? File(photoPath) : null;
+    final photoFile = photoPath.isNotEmpty ? File(photoPath) : null;
     final hasPhoto = photoFile != null && photoFile.existsSync();
     return Container(
       width: 48,
@@ -563,8 +620,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
             : null,
         boxShadow: [
           BoxShadow(
-            color:
-                LiquidPalette.primaryBlue.withValues(alpha: 0.35),
+            color: LiquidPalette.primaryBlue.withValues(alpha: 0.35),
             blurRadius: 14,
             offset: const Offset(0, 5),
           ),
@@ -683,8 +739,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: text.bodySmall?.copyWith(
-                        color:
-                            text.bodySmall?.color?.withValues(alpha: 0.65),
+                        color: text.bodySmall?.color?.withValues(alpha: 0.65),
                       ),
                     ),
                   ],
@@ -737,8 +792,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                 ),
                 const SizedBox(width: 8),
                 TextButton(
-                  onPressed: () =>
-                      setState(() => _saturdayPromptShown = true),
+                  onPressed: () => setState(() => _saturdayPromptShown = true),
                   child: Text(l10n.remindMeLater),
                 ),
               ],

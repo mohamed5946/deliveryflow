@@ -802,7 +802,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get orderDetails => 'Order details';
 
   @override
-  String get statusPending => 'Pending';
+  String get statusPending => 'Currently scheduled notifications';
 
   @override
   String get statusToCustomer => 'On the way to customer';
@@ -1255,4 +1255,101 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get addOrderDetailedDesc =>
       'A new order that opens right away — so you can start delivery and track the distance.';
+
+  @override
+  String get developerMode => 'Developer Mode';
+
+  @override
+  String get developerModeOn => 'On';
+
+  @override
+  String get developerModeOff => 'Off';
+
+  @override
+  String get developerPasswordTitle => 'Enable Developer Mode';
+
+  @override
+  String get developerPasswordHint => 'Enter the password';
+
+  @override
+  String get developerPasswordError => 'Incorrect password';
+
+  @override
+  String get developerUnlock => 'Unlock';
+
+  @override
+  String get developerDisableTitle => 'Turn off Developer Mode?';
+
+  @override
+  String get developerDisableBody =>
+      'The diagnostics tools (notification tests, diagnostics log and notification status) will be hidden until you unlock again with the password.';
+
+  @override
+  String get developerDisable => 'Turn off';
+
+  @override
+  String get notificationStatusTitle => 'Notification status';
+
+  @override
+  String get statusPermNotifications => 'Notifications permission';
+
+  @override
+  String get statusExactAlarm => 'Exact alarm permission';
+
+  @override
+  String get statusBattery => 'Battery optimization exemption';
+
+  @override
+  String get statusChannel => 'Reminders channel priority';
+
+  @override
+  String get statusOk => 'OK';
+
+  @override
+  String get statusProblem => 'Problem';
+
+  @override
+  String get statusUnknown => 'Unknown';
+
+  @override
+  String get weekEarningsSoFar => 'This week\'s earnings so far';
+
+  @override
+  String get exportPdfAllWeeks => 'Export all weeks as PDF';
+
+  @override
+  String get pdfReportTitle => 'Weeks report';
+
+  @override
+  String get pdfGeneratedOn => 'Generated on';
+
+  @override
+  String get pdfColDate => 'Date';
+
+  @override
+  String get pdfColStatus => 'Status';
+
+  @override
+  String get pdfColHours => 'Hours';
+
+  @override
+  String get pdfColEarnings => 'Earnings';
+
+  @override
+  String get pdfWeekTotals => 'Week total';
+
+  @override
+  String get pdfGrandTotals => 'Grand totals';
+
+  @override
+  String get pdfNoWeeks => 'No recorded weeks yet';
+
+  @override
+  String get pdfFailedTitle => 'PDF generation failed';
+
+  @override
+  String get logCategoryReports => 'Reports';
+
+  @override
+  String get emailLabel => 'Email';
 }

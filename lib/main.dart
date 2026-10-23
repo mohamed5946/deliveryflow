@@ -76,8 +76,7 @@ Future<void> main() async {
         settings: settings,
         hasOrderRecord: (k) => db.orderRecord(k) != null,
         isWorkingDay: (k) {
-          final sched =
-              db.scheduleForWeek(WeekCalendar.parseDateKey(k));
+          final sched = db.scheduleForWeek(WeekCalendar.parseDateKey(k));
           if (sched == null) return true;
           for (final d in sched.dailySchedules) {
             if (d.dateKey == k) return d.isWorkingDay;
@@ -85,8 +84,7 @@ Future<void> main() async {
           return true;
         },
         scheduleForDate: (k) {
-          final sched =
-              db.scheduleForWeek(WeekCalendar.parseDateKey(k));
+          final sched = db.scheduleForWeek(WeekCalendar.parseDateKey(k));
           if (sched == null) return null;
           for (final d in sched.dailySchedules) {
             if (d.dateKey == k) return d;
@@ -94,9 +92,9 @@ Future<void> main() async {
           return null;
         },
       );
-      // v27.3: every pending schedule now points at the new
-      // high-importance channel — the legacy channel can go.
-      await notif.deleteLegacyChannel();
+      // v27.4: every pending schedule now points at the new
+      // Importance.max channel — both legacy channels can go.
+      await notif.deleteLegacyChannels();
     } catch (_) {}
   });
 }

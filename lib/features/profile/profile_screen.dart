@@ -3,6 +3,9 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart'
+    show Importance;
 import 'package:deliveryflow/l10n/gen/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -13,11 +16,13 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/database/models.dart';
+import '../../core/developer/developer_mode.dart';
 import '../../core/logging/app_log_service.dart';
 import '../../core/notifications/battery_optimization.dart';
 import '../../core/providers.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/design_system.dart';
+import '../../theme/top_snack_bar.dart';
 import '../../theme/pressable.dart';
 
 /// Profile / account hub: the single settings control center.
@@ -134,9 +139,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       // v21 stage 3/3: settings persisted — exactly 1.0 when done.
       if (mounted) setState(() => _photoProgress = 1);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AppLocalizations.of(context).done)),
-        );
+        showTopSnackBar(context, AppLocalizations.of(context).done);
       }
     } catch (_) {
       // Gallery cancelled / unavailable — stay silent, nothing to persist.
@@ -197,13 +200,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         subject: 'DeliveryFlow backup',
       ));
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(l10n.backupCreated)));
+        showTopSnackBar(context, l10n.backupCreated);
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(l10n.backupFailed)));
+        showTopSnackBar(context, l10n.backupFailed);
       }
     }
   }
@@ -237,13 +238,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       await ref.read(databaseServiceProvider).restoreFromJson(content);
       bumpDataVersion(ref);
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(l10n.backupRestored)));
+        showTopSnackBar(context, l10n.backupRestored);
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(l10n.backupFailed)));
+        showTopSnackBar(context, l10n.backupFailed);
       }
     }
   }
@@ -272,8 +271,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     await ref.read(notificationServiceProvider).cancelAll();
     bumpDataVersion(ref);
     if (mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(l10n.done)));
+      showTopSnackBar(context, l10n.done);
     }
   }
 
@@ -285,8 +283,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       subject: 'deliveryflow.csv',
     ));
     if (mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(l10n.csvExported)));
+      showTopSnackBar(context, l10n.csvExported);
     }
   }
 
@@ -304,8 +301,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         final ok =
             await ref.read(notificationServiceProvider).requestPermission();
         if (!ok && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(l10n.notificationPermissionNeeded)));
+          showTopSnackBar(context, l10n.notificationPermissionNeeded);
         }
       } catch (_) {}
       await notifier.update((s) {
@@ -339,8 +335,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         final ok =
             await ref.read(notificationServiceProvider).requestPermission();
         if (!ok && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(l10n.notificationPermissionNeeded)));
+          showTopSnackBar(context, l10n.notificationPermissionNeeded);
         }
       } catch (_) {}
       await notifier.update((s) {
@@ -410,6 +405,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   icon: Icons.brush_rounded,
                   label: l10n.designedBy,
                   value: l10n.designerName,
+                  wrapValue: true,
+                ),
+                const SizedBox(height: 4),
+                _valueRow(
+                  icon: Icons.email_rounded,
+                  label: l10n.emailLabel,
+                  value: _supportEmail,
+                  onTap: _openSupportEmail,
                 ),
                 const SizedBox(height: 4),
                 _infoRow(
@@ -421,8 +424,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 GlassButton(
                   label: l10n.callUs,
                   icon: Icons.call_rounded,
-                  onPressed: () =>
-                      launchUrl(Uri.parse('tel:01557887719')),
+                  onPressed: () => launchUrl(Uri.parse('tel:01557887719')),
                 ),
               ],
             ),
@@ -442,8 +444,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final db = ref.watch(databaseServiceProvider);
     final counts = db.recordCounts();
     final dailyTime = TimeOfDay(
-        hour: settings.dailyReminderHour,
-        minute: settings.dailyReminderMinute);
+        hour: settings.dailyReminderHour, minute: settings.dailyReminderMinute);
 
     // Keep the header name field in sync with the stored name when it
     // changes elsewhere (e.g. the first-run setup card below).
@@ -505,24 +506,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       icon: Icons.brightness_auto_rounded,
                       label: l10n.themeSystem,
                       selected: settings.themeMode == 0,
-                      onTap: () =>
-                          notifier.update((s) => s..themeMode = 0),
+                      onTap: () => notifier.update((s) => s..themeMode = 0),
                     ),
                     const SizedBox(height: 4),
                     _radioRow(
                       icon: Icons.wb_sunny_rounded,
                       label: l10n.themeLight,
                       selected: settings.themeMode == 1,
-                      onTap: () =>
-                          notifier.update((s) => s..themeMode = 1),
+                      onTap: () => notifier.update((s) => s..themeMode = 1),
                     ),
                     const SizedBox(height: 4),
                     _radioRow(
                       icon: Icons.nightlight_rounded,
                       label: l10n.themeDark,
                       selected: settings.themeMode == 2,
-                      onTap: () =>
-                          notifier.update((s) => s..themeMode = 2),
+                      onTap: () => notifier.update((s) => s..themeMode = 2),
                     ),
                   ],
                 ),
@@ -540,24 +538,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       icon: Icons.navigation_rounded,
                       label: l10n.autoNavInApp,
                       selected: settings.autoNavMode == 0,
-                      onTap: () =>
-                          notifier.update((s) => s..autoNavMode = 0),
+                      onTap: () => notifier.update((s) => s..autoNavMode = 0),
                     ),
                     const SizedBox(height: 4),
                     _radioRow(
                       icon: Icons.map_rounded,
                       label: l10n.autoNavGoogleMaps,
                       selected: settings.autoNavMode == 1,
-                      onTap: () =>
-                          notifier.update((s) => s..autoNavMode = 1),
+                      onTap: () => notifier.update((s) => s..autoNavMode = 1),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       l10n.autoNavGoogleMapsDesc,
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: Theme.of(context)
                                 .textTheme
                                 .bodySmall
@@ -591,16 +584,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       icon: Icons.language_rounded,
                       label: 'العربية',
                       selected: settings.languageCode == 'ar',
-                      onTap: () => notifier
-                          .update((s) => s..languageCode = 'ar'),
+                      onTap: () =>
+                          notifier.update((s) => s..languageCode = 'ar'),
                     ),
                     const SizedBox(height: 4),
                     _radioRow(
                       icon: Icons.language_rounded,
                       label: 'English',
                       selected: settings.languageCode == 'en',
-                      onTap: () => notifier
-                          .update((s) => s..languageCode = 'en'),
+                      onTap: () =>
+                          notifier.update((s) => s..languageCode = 'en'),
                     ),
                   ],
                 ),
@@ -617,26 +610,22 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       value: settings.weeklyOrderGoal?.toString() ?? '–',
                       onTap: () => _askNumber(
                         title: l10n.weeklyOrderGoalLabel,
-                        initial:
-                            settings.weeklyOrderGoal?.toString() ?? '',
-                        onDone: (v) => notifier.update(
-                            (s) => s..weeklyOrderGoal = v?.toInt()),
+                        initial: settings.weeklyOrderGoal?.toString() ?? '',
+                        onDone: (v) => notifier
+                            .update((s) => s..weeklyOrderGoal = v?.toInt()),
                       ),
                     ),
                     const SizedBox(height: 4),
                     _valueRow(
                       icon: Icons.schedule_rounded,
                       label: l10n.weeklyHoursGoalLabel,
-                      value:
-                          settings.weeklyWorkHoursGoal?.toString() ?? '–',
+                      value: settings.weeklyWorkHoursGoal?.toString() ?? '–',
                       onTap: () => _askNumber(
                         title: l10n.weeklyHoursGoalLabel,
-                        initial:
-                            settings.weeklyWorkHoursGoal?.toString() ??
-                                '',
+                        initial: settings.weeklyWorkHoursGoal?.toString() ?? '',
                         decimal: true,
-                        onDone: (v) => notifier.update(
-                            (s) => s..weeklyWorkHoursGoal = v),
+                        onDone: (v) =>
+                            notifier.update((s) => s..weeklyWorkHoursGoal = v),
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -646,11 +635,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       value: '${settings.defaultBreakDurationMinutes}',
                       onTap: () => _askNumber(
                         title: l10n.defaultBreakLabel,
-                        initial: settings.defaultBreakDurationMinutes
-                            .toString(),
-                        onDone: (v) => notifier.update((s) => s
-                          ..defaultBreakDurationMinutes =
-                              v?.toInt() ?? 30),
+                        initial:
+                            settings.defaultBreakDurationMinutes.toString(),
+                        onDone: (v) => notifier.update((s) =>
+                            s..defaultBreakDurationMinutes = v?.toInt() ?? 30),
                       ),
                     ),
                   ],
@@ -670,23 +658,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         title: l10n.orderPriceLabel,
                         initial: settings.orderPrice?.toString() ?? '',
                         decimal: true,
-                        onDone: (v) => notifier.update(
-                            (s) => s..orderPrice = v),
+                        onDone: (v) =>
+                            notifier.update((s) => s..orderPrice = v),
                       ),
                     ),
                     const SizedBox(height: 4),
                     _valueRow(
                       icon: Icons.wallet_rounded,
                       label: l10n.dailyFixedLabel,
-                      value:
-                          settings.dailyFixedPay?.toString() ?? '–',
+                      value: settings.dailyFixedPay?.toString() ?? '–',
                       onTap: () => _askNumber(
                         title: l10n.dailyFixedLabel,
-                        initial:
-                            settings.dailyFixedPay?.toString() ?? '',
+                        initial: settings.dailyFixedPay?.toString() ?? '',
                         decimal: true,
-                        onDone: (v) => notifier.update(
-                            (s) => s..dailyFixedPay = v),
+                        onDone: (v) =>
+                            notifier.update((s) => s..dailyFixedPay = v),
                       ),
                     ),
                   ],
@@ -748,6 +734,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       icon: Icons.brush_rounded,
                       label: l10n.designedBy,
                       value: l10n.designerName,
+                      wrapValue: true,
+                    ),
+                    const SizedBox(height: 4),
+                    _valueRow(
+                      icon: Icons.email_rounded,
+                      label: l10n.emailLabel,
+                      value: _supportEmail,
+                      onTap: _openSupportEmail,
                     ),
                     const SizedBox(height: 4),
                     _infoRow(
@@ -758,6 +752,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     const SizedBox(height: 4),
                     _aboutRow(l10n),
                   ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              // ── نسخة المطور (v27.4: بوابة أدوات التشخيص) ────
+              GlassCard(
+                child: _valueRow(
+                  icon: Icons.code_rounded,
+                  label: l10n.developerMode,
+                  value: settings.developerModeUnlocked
+                      ? l10n.developerModeOn
+                      : l10n.developerModeOff,
+                  onTap: _onDeveloperModeTap,
                 ),
               ),
               const SizedBox(height: 24),
@@ -799,9 +805,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     (s) => s..displayName = name,
                   );
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(l10n.done)),
-                );
+                showTopSnackBar(context, l10n.done);
               }
             },
           ),
@@ -841,13 +845,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
                 const SizedBox(height: 4),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: LiquidPalette.primaryBlue
-                        .withValues(alpha: 0.12),
-                    borderRadius:
-                        BorderRadius.circular(GlassTokens.radiusS),
+                    color: LiquidPalette.primaryBlue.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(GlassTokens.radiusS),
                   ),
                   child: Text(
                     l10n.driverRole,
@@ -874,10 +876,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final name = settings.displayName.trim();
     final initial = name.isNotEmpty ? name.characters.first : 'م';
     final path = settings.photoPath;
-    final file =
-        path.isNotEmpty ? File(path) : null;
-    final hasPhoto =
-        file != null && file.existsSync();
+    final file = path.isNotEmpty ? File(path) : null;
+    final hasPhoto = file != null && file.existsSync();
 
     Widget circle = Container(
       width: radius * 2,
@@ -892,8 +892,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           width: 2,
         ),
         image: hasPhoto
-            ? DecorationImage(
-                image: FileImage(file), fit: BoxFit.cover)
+            ? DecorationImage(image: FileImage(file), fit: BoxFit.cover)
             : null,
       ),
       child: hasPhoto
@@ -941,9 +940,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               colors: LiquidPalette.brandGradient,
             ),
             border: Border.all(
-              color: isDark
-                  ? LiquidPalette.darkSurface
-                  : Colors.white,
+              color: isDark ? LiquidPalette.darkSurface : Colors.white,
               width: 2,
             ),
           ),
@@ -1018,8 +1015,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   .requestPermission();
               if (!mounted) return;
               if (!ok) {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content: Text(l10n.notificationPermissionNeeded)));
+                showTopSnackBar(context, l10n.notificationPermissionNeeded);
               }
             } catch (_) {}
           }
@@ -1037,58 +1033,124 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ..dailyReminderMinute = t.minute),
         ),
       ),
-      // v27: on-device notification diagnostics — prove delivery works.
-      const SizedBox(height: 4),
-      _actionRow(
-        icon: Icons.notifications_active_rounded,
-        label: l10n.testNotificationNow,
-        onTap: () => ref.read(notificationServiceProvider).showTest(
-              title: l10n.testNotificationTitle,
-              body: l10n.testNotificationBody,
-            ),
-      ),
-      _actionRow(
-        icon: Icons.timer_rounded,
-        label: l10n.testNotificationScheduled,
-        onTap: () async {
-          // v27.1: a scheduling failure must be VISIBLE — before, a
-          // throw (e.g. an exact-alarm PlatformException) vanished
-          // silently and the user just waited for a notification that
-          // was never scheduled.
-          // v27.2: the failure now shows the TECHNICAL REASON in a
-          // dialog (same pattern as the v25 share-failure dialog), not
-          // just a generic snackbar — and the attempt is in the
-          // diagnostics log either way.
-          try {
-            await ref.read(notificationServiceProvider).showScheduledTest(
-                  title: l10n.testNotificationTitle,
-                  body: l10n.testScheduledBody,
-                );
-          } catch (e) {
+      // v27.4: the diagnostics tools (both notification tests, the
+      // notification status card, the diagnostics log) are DEVELOPER
+      // ONLY — hidden entirely until Developer Mode is unlocked with
+      // the password (see the نسخة المطور entry at the end of this
+      // screen). Mohamed's other users never see them.
+      if (settings.developerModeUnlocked) ...[
+        const SizedBox(height: 4),
+        _actionRow(
+          icon: Icons.notifications_active_rounded,
+          label: l10n.testNotificationNow,
+          onTap: () => ref.read(notificationServiceProvider).showTest(
+                title: l10n.testNotificationTitle,
+                body: l10n.testNotificationBody,
+              ),
+        ),
+        _actionRow(
+          icon: Icons.timer_rounded,
+          label: l10n.testNotificationScheduled,
+          onTap: () async {
+            // v27.1: a scheduling failure must be VISIBLE — before, a
+            // throw (e.g. an exact-alarm PlatformException) vanished
+            // silently and the user just waited for a notification that
+            // was never scheduled.
+            // v27.2: the failure now shows the TECHNICAL REASON in a
+            // dialog (same pattern as the v25 share-failure dialog), not
+            // just a generic snackbar — and the attempt is in the
+            // diagnostics log either way.
+            try {
+              await ref.read(notificationServiceProvider).showScheduledTest(
+                    title: l10n.testNotificationTitle,
+                    body: l10n.testScheduledBody,
+                  );
+            } catch (e) {
+              if (!mounted) return;
+              await _showScheduledTestFailed(e);
+              return;
+            }
             if (!mounted) return;
-            await _showScheduledTestFailed(e);
-            return;
-          }
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(l10n.testScheduledInstructions),
+            showTopSnackBar(
+              context,
+              l10n.testScheduledInstructions,
               duration: const Duration(seconds: 6),
-            ),
-          );
-        },
-      ),
+            );
+          },
+        ),
+        const SizedBox(height: 4),
+        const _NotificationStatusCard(),
+        const SizedBox(height: 4),
+        _actionRow(
+          icon: Icons.receipt_long_rounded,
+          label: l10n.diagnosticsLog,
+          onTap: () => context.push('/diagnostics-log'),
+        ),
+      ],
       // v27: reminder-delivery health (exact alarm + battery exemption).
+      // NOT developer-gated: these rows are user fixes, shown to
+      // everyone only when action is needed.
       const _ReminderHealthRows(),
-      // v27.2: the diagnostics log — where every scheduling attempt,
-      // tracking outcome and share result is recorded with its reason.
-      const SizedBox(height: 4),
-      _actionRow(
-        icon: Icons.receipt_long_rounded,
-        label: l10n.diagnosticsLog,
-        onTap: () => context.push('/diagnostics-log'),
-      ),
     ];
+  }
+
+  /// v27.4: support email shown under the designer credit in the
+  /// About section and the help sheet.
+  static const String _supportEmail = 'ma4670156@gmail.com';
+
+  /// Opens the mail app for the support email; when no mail app can
+  /// take the mailto: link, copies the address and confirms with the
+  /// top snackbar — no dead end.
+  Future<void> _openSupportEmail() async {
+    var ok = false;
+    try {
+      ok = await launchUrl(Uri.parse('mailto:$_supportEmail'));
+    } catch (_) {
+      ok = false;
+    }
+    if (ok || !mounted) return;
+    await Clipboard.setData(const ClipboardData(text: _supportEmail));
+    if (!mounted) return;
+    showTopSnackBar(context, AppLocalizations.of(context).copied);
+  }
+
+  /// v27.4: the نسخة المطور entry — the lock for every diagnostics
+  /// tool. Locked: ask for the password (asked ONCE; the unlocked
+  /// flag persists in settings across restarts). Unlocked: offer to
+  /// turn it back off. Both outcomes land in the diagnostics log
+  /// (settings category) — the entered value never does.
+  Future<void> _onDeveloperModeTap() async {
+    final l10n = AppLocalizations.of(context);
+    final log = ref.read(appLogServiceProvider);
+    final notifier = ref.read(settingsProvider.notifier);
+    if (ref.read(settingsProvider).developerModeUnlocked) {
+      final off = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(l10n.developerDisableTitle),
+          content: Text(l10n.developerDisableBody),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(l10n.cancel)),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(l10n.developerDisable)),
+          ],
+        ),
+      );
+      if (off != true) return;
+      await notifier.update((s) => s..developerModeUnlocked = false);
+      log.info(AppLogCategory.settings, 'Developer mode turned OFF');
+      return;
+    }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => _DeveloperPasswordDialog(log: log),
+    );
+    if (ok != true) return;
+    await notifier.update((s) => s..developerModeUnlocked = true);
+    log.info(AppLogCategory.settings, 'Developer mode unlocked');
   }
 
   /// v27.2: scheduled-test failure dialog — Arabic explanation plus
@@ -1107,8 +1169,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         return AlertDialog(
           title: Row(
             children: [
-              Icon(Icons.error_outline_rounded,
-                  color: scheme.error, size: 28),
+              Icon(Icons.error_outline_rounded, color: scheme.error, size: 28),
               const SizedBox(width: 10),
               Expanded(child: Text(l10n.testScheduledFailedTitle)),
             ],
@@ -1130,8 +1191,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: scheme.surfaceContainerHighest
-                      .withValues(alpha: 0.5),
+                  color: scheme.surfaceContainerHighest.withValues(alpha: 0.5),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: SelectableText(
@@ -1174,8 +1234,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           final scheme = Theme.of(ctx).colorScheme;
           final text = Theme.of(ctx).textTheme;
           return GestureDetector(
-            onTap: () =>
-                notifier.update((s) => s..themePreset = preset.id),
+            onTap: () => notifier.update((s) => s..themePreset = preset.id),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -1202,8 +1261,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     boxShadow: selected
                         ? [
                             BoxShadow(
-                              color:
-                                  scheme.primary.withValues(alpha: 0.4),
+                              color: scheme.primary.withValues(alpha: 0.4),
                               blurRadius: 10,
                             )
                           ]
@@ -1218,8 +1276,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 Text(
                   preset.name(settings.languageCode),
                   style: text.bodySmall?.copyWith(
-                    fontWeight:
-                        selected ? FontWeight.w800 : FontWeight.w400,
+                    fontWeight: selected ? FontWeight.w800 : FontWeight.w400,
                     fontSize: 11,
                   ),
                   textAlign: TextAlign.center,
@@ -1241,8 +1298,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(title,
-          style:
-              text.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+          style: text.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
     );
   }
 
@@ -1267,17 +1323,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(GlassTokens.radiusS),
       child: Padding(
-        padding:
-            const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
         child: Row(
           children: [
-            Icon(icon,
-                color: LiquidPalette.primaryBlue, size: 22),
+            Icon(icon, color: LiquidPalette.primaryBlue, size: 22),
             const SizedBox(width: 12),
             Expanded(
               child: Text(label,
-                  style: text.titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w600)),
+                  style:
+                      text.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
             ),
             _radioDot(selected),
           ],
@@ -1293,9 +1347,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       height: 22,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: selected
-            ? LiquidPalette.primaryBlue
-            : Colors.transparent,
+        color: selected ? LiquidPalette.primaryBlue : Colors.transparent,
         border: Border.all(
           color: selected
               ? LiquidPalette.primaryBlue
@@ -1327,20 +1379,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }) {
     final text = Theme.of(context).textTheme;
     return Padding(
-      padding:
-          const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
       child: Row(
         children: [
-          Icon(icon,
-              color: LiquidPalette.primaryBlue, size: 22),
+          Icon(icon, color: LiquidPalette.primaryBlue, size: 22),
           const SizedBox(width: 12),
           Expanded(
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: () => onChanged(!value),
               child: Text(label,
-                  style: text.titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w600)),
+                  style:
+                      text.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
             ),
           ),
           Switch(value: value, onChanged: onChanged),
@@ -1361,14 +1411,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(GlassTokens.radiusS),
       child: Padding(
-        padding:
-            const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
         child: Row(
           children: [
             Expanded(
               child: Text(label,
-                  style: text.titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w600)),
+                  style:
+                      text.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
             ),
             Row(
               mainAxisSize: MainAxisSize.min,
@@ -1376,8 +1425,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 Icon(
                   Icons.chevron_right_rounded,
                   size: 20,
-                  color:
-                      scheme.onSurface.withValues(alpha: 0.35),
+                  color: scheme.onSurface.withValues(alpha: 0.35),
                 ),
                 const SizedBox(width: 4),
                 Text(
@@ -1405,17 +1453,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(GlassTokens.radiusS),
       child: Padding(
-        padding:
-            const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
         child: Row(
           children: [
-            Icon(icon,
-                color: LiquidPalette.primaryBlue, size: 22),
+            Icon(icon, color: LiquidPalette.primaryBlue, size: 22),
             const SizedBox(width: 12),
             Expanded(
               child: Text(label,
-                  style: text.titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w600)),
+                  style:
+                      text.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
             ),
             Icon(
               Icons.chevron_right_rounded,
@@ -1441,20 +1487,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(GlassTokens.radiusS),
       child: Padding(
-        padding:
-            const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
         child: Row(
           children: [
-            Icon(icon,
-                color: LiquidPalette.primaryBlue, size: 22),
+            Icon(icon, color: LiquidPalette.primaryBlue, size: 22),
             const SizedBox(width: 12),
             Expanded(
               child: Text(label,
-                  style: text.titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w600)),
+                  style:
+                      text.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
             ),
-            Text(value,
-                style: const TextStyle(fontWeight: FontWeight.w700)),
+            Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
             const SizedBox(width: 4),
             Icon(
               Icons.chevron_right_rounded,
@@ -1476,14 +1519,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }) {
     final text = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
-    final color =
-        destructive ? scheme.error : LiquidPalette.primaryBlue;
+    final color = destructive ? scheme.error : LiquidPalette.primaryBlue;
     return Pressable(
       onTap: onTap,
       borderRadius: BorderRadius.circular(GlassTokens.radiusS),
       child: Padding(
-        padding:
-            const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
         child: Row(
           children: [
             Icon(icon, color: color, size: 22),
@@ -1508,30 +1549,34 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   /// Menu info row: icon + label on the right, static value on the left.
+  /// [wrapValue] (v27.4) lets the value wrap onto multiple lines in
+  /// full — used by the designer credit, which used to truncate with
+  /// an ellipsis on narrow phones.
   Widget _infoRow({
     required IconData icon,
     required String label,
     required String value,
+    bool wrapValue = false,
   }) {
     final text = Theme.of(context).textTheme;
     return Padding(
-      padding:
-          const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
       child: Row(
+        crossAxisAlignment:
+            wrapValue ? CrossAxisAlignment.start : CrossAxisAlignment.center,
         children: [
-          Icon(icon,
-              color: LiquidPalette.primaryBlue, size: 22),
+          Icon(icon, color: LiquidPalette.primaryBlue, size: 22),
           const SizedBox(width: 12),
           Expanded(
             child: Text(label,
-                style: text.titleSmall
-                    ?.copyWith(fontWeight: FontWeight.w600)),
+                style: text.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
           ),
           // v23: value must never paint outside the row on narrow phones.
           Flexible(
             child: Text(value,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                maxLines: wrapValue ? null : 1,
+                overflow:
+                    wrapValue ? TextOverflow.visible : TextOverflow.ellipsis,
                 textAlign: TextAlign.end,
                 style: const TextStyle(fontWeight: FontWeight.w700)),
           ),
@@ -1543,8 +1588,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Widget _aboutRow(AppLocalizations l10n) {
     final text = Theme.of(context).textTheme;
     return Padding(
-      padding:
-          const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1556,8 +1600,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(l10n.privacyInfo,
-                    style: text.titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w600)),
+                    style:
+                        text.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 2),
                 Text(l10n.privacyBody,
                     style: text.bodySmall,
@@ -1728,22 +1772,21 @@ class _ReminderHealthRowsState extends ConsumerState<_ReminderHealthRows>
         children: [
           Row(
             children: [
-              const Icon(Icons.warning_amber_rounded,
-                  size: 20, color: warn),
+              const Icon(Icons.warning_amber_rounded, size: 20, color: warn),
               const SizedBox(width: 8),
               Icon(icon, size: 18, color: warn),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(title,
-                    style: text.titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w700)),
+                    style:
+                        text.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
               ),
             ],
           ),
           const SizedBox(height: 4),
           Text(desc,
-              style: text.bodySmall?.copyWith(
-                  color: scheme.onSurface.withValues(alpha: 0.7))),
+              style: text.bodySmall
+                  ?.copyWith(color: scheme.onSurface.withValues(alpha: 0.7))),
           Align(
             alignment: AlignmentDirectional.centerEnd,
             child: TextButton(
@@ -1751,6 +1794,258 @@ class _ReminderHealthRowsState extends ConsumerState<_ReminderHealthRows>
               child: Text(actionLabel),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// v27.4: password prompt for Developer Mode. Wrong entries show an
+/// inline error and stay in the dialog (and land in the diagnostics
+/// log WITHOUT the entered value); a correct entry pops with `true`.
+class _DeveloperPasswordDialog extends StatefulWidget {
+  const _DeveloperPasswordDialog({required this.log});
+
+  final AppLogService log;
+
+  @override
+  State<_DeveloperPasswordDialog> createState() =>
+      _DeveloperPasswordDialogState();
+}
+
+class _DeveloperPasswordDialogState extends State<_DeveloperPasswordDialog> {
+  final _ctrl = TextEditingController();
+  bool _error = false;
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (DeveloperMode.accepts(_ctrl.text)) {
+      Navigator.pop(context, true);
+    } else {
+      widget.log.warn(
+        AppLogCategory.settings,
+        'Developer mode unlock attempt failed (wrong password)',
+      );
+      setState(() => _error = true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return AlertDialog(
+      title: Text(l10n.developerPasswordTitle),
+      content: TextField(
+        controller: _ctrl,
+        autofocus: true,
+        obscureText: true,
+        keyboardType: TextInputType.number,
+        onSubmitted: (_) => _submit(),
+        decoration: InputDecoration(
+          labelText: l10n.developerPasswordHint,
+          errorText: _error ? l10n.developerPasswordError : null,
+        ),
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(l10n.cancel)),
+        FilledButton(onPressed: _submit, child: Text(l10n.developerUnlock)),
+      ],
+    );
+  }
+}
+
+/// v27.4: notification status card — DEVELOPER MODE ONLY. One glance
+/// answers the whole v26–v27.4 saga: is the permission granted, can
+/// exact alarms fire, is the app battery-exempt, does the active
+/// reminders channel really carry high/max importance, and how many
+/// notifications are actually scheduled right now. Every value is
+/// read LIVE from the platform when the card builds and again when
+/// the app resumes (returning from a system settings screen). A
+/// problem row offers the same fix as the dedicated settings rows.
+class _NotificationStatusCard extends ConsumerStatefulWidget {
+  const _NotificationStatusCard();
+
+  @override
+  ConsumerState<_NotificationStatusCard> createState() =>
+      _NotificationStatusCardState();
+}
+
+class _NotificationStatusCardState
+    extends ConsumerState<_NotificationStatusCard> with WidgetsBindingObserver {
+  bool _loaded = false;
+  bool? _permOk;
+  bool? _exactOk;
+  bool? _batteryOk;
+  Importance? _channelImportance;
+  int? _pendingCount;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _check();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _check();
+  }
+
+  Future<void> _check() async {
+    final svc = ref.read(notificationServiceProvider);
+    final perm = await svc.notificationsPermissionGranted();
+    final exact = await svc.canScheduleExactNotifications();
+    final battery = await BatteryOptimization.isIgnoring();
+    final importance = await svc.remindersChannelImportance();
+    final pending = await svc.pendingNotificationCount();
+    if (!mounted) return;
+    setState(() {
+      _loaded = true;
+      _permOk = perm;
+      _exactOk = exact;
+      _batteryOk = battery;
+      _channelImportance = importance;
+      _pendingCount = pending;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final text = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    final svc = ref.read(notificationServiceProvider);
+    // OK only at high or max — anything lower lands in the shade's
+    // silent section (the v27.3/v27.4 lesson). Unreadable = unknown.
+    final bool? channelOk = !_loaded
+        ? null
+        : _channelImportance == null
+            ? null
+            : (_channelImportance == Importance.high ||
+                _channelImportance == Importance.max);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHighest.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(GlassTokens.radiusS),
+        border: Border.all(color: scheme.outline.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.health_and_safety_rounded,
+                  size: 20, color: LiquidPalette.primaryBlue),
+              const SizedBox(width: 8),
+              Text(l10n.notificationStatusTitle,
+                  style:
+                      text.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          _row(
+            label: l10n.statusPermNotifications,
+            ok: _loaded ? _permOk : null,
+            onFix: _permOk == false
+                ? () async {
+                    await svc.requestPermission();
+                    await _check();
+                  }
+                : null,
+          ),
+          _row(
+            label: l10n.statusExactAlarm,
+            ok: _loaded ? _exactOk : null,
+            onFix: _exactOk == false
+                ? () async {
+                    await svc.requestExactAlarmPermission();
+                    await _check();
+                  }
+                : null,
+          ),
+          _row(
+            label: l10n.statusBattery,
+            ok: _loaded ? _batteryOk : null,
+            onFix: _batteryOk == false
+                ? () async {
+                    await BatteryOptimization.requestIgnore();
+                    await _check();
+                  }
+                : null,
+          ),
+          _row(
+            label: l10n.statusChannel,
+            ok: channelOk,
+          ),
+          _row(
+            label: l10n.statusPending,
+            ok: null,
+            valueOverride: _pendingCount == null ? null : '$_pendingCount',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _row({
+    required String label,
+    required bool? ok,
+    String? valueOverride,
+    VoidCallback? onFix,
+  }) {
+    final l10n = AppLocalizations.of(context);
+    final text = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    final (icon, color, statusText) = switch ((ok, valueOverride)) {
+      (_, String v) => (
+          Icons.schedule_rounded,
+          scheme.onSurface.withValues(alpha: 0.55),
+          v
+        ),
+      (true, _) => (
+          Icons.check_circle_rounded,
+          LiquidPalette.success,
+          l10n.statusOk
+        ),
+      (false, _) => (Icons.error_rounded, scheme.error, l10n.statusProblem),
+      _ => (
+          Icons.help_outline_rounded,
+          scheme.onSurface.withValues(alpha: 0.45),
+          l10n.statusUnknown
+        ),
+    };
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        children: [
+          Icon(icon, size: 19, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(label,
+                style: text.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+          ),
+          Text(statusText,
+              style: text.bodySmall
+                  ?.copyWith(color: color, fontWeight: FontWeight.w700)),
+          if (onFix != null)
+            TextButton(
+              onPressed: onFix,
+              child: Text(l10n.enableAction),
+            ),
         ],
       ),
     );

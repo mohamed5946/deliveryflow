@@ -7,6 +7,7 @@ import '../../core/database/models.dart';
 import '../../core/date_time/week_calendar.dart';
 import '../../core/providers.dart';
 import '../../theme/design_system.dart';
+import '../../theme/top_snack_bar.dart';
 import '../../theme/page_transitions.dart';
 import '../../theme/pressable.dart';
 import '../daily_orders/order_detail_screen.dart';
@@ -258,8 +259,7 @@ class DayOrdersScreen extends ConsumerWidget {
         dateKey: dateKey, entryId: entry.id);
     bumpDataVersion(ref);
     if (context.mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(l10n.orderDeleted)));
+      showTopSnackBar(context, l10n.orderDeleted);
     }
   }
 }

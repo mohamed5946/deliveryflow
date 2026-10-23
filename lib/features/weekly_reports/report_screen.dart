@@ -1,17 +1,24 @@
+import 'dart:io';
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:deliveryflow/l10n/gen/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../core/database/models.dart';
 import '../../core/date_time/day_rollover.dart';
 import '../../core/date_time/week_calendar.dart';
+import '../../core/logging/app_log_service.dart';
 import '../../core/providers.dart';
 import '../../theme/design_system.dart';
+import '../../theme/top_snack_bar.dart';
 import '../../theme/page_transitions.dart';
+import 'past_weeks_report.dart';
+import 'reports_pdf_builder.dart';
 import 'weekly_heatmap_screen.dart';
 
 /// Weekly report: totals, averages (recorded days only), best day,
@@ -58,13 +65,12 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
     final l10n = AppLocalizations.of(context);
     final text = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
-    final locale =
-        ref.watch(settingsProvider.select((s) => s.languageCode));
+    final locale = ref.watch(settingsProvider.select((s) => s.languageCode));
     final loc = locale == 'ar' ? 'ar' : 'en';
 
     final reportAsync = ref.watch(weeklyReportProvider(_anchor));
-    final prevAsync = ref.watch(
-        weeklyReportProvider(WeekCalendar.addDays(_anchor, -7)));
+    final prevAsync =
+        ref.watch(weeklyReportProvider(WeekCalendar.addDays(_anchor, -7)));
 
     return Scaffold(
       appBar: AppBar(
@@ -82,14 +88,14 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
           IconButton(
             tooltip: l10n.previousWeek,
             icon: const Icon(Icons.chevron_left_rounded),
-            onPressed: () => setState(
-                () => _anchor = WeekCalendar.addDays(_anchor, -7)),
+            onPressed: () =>
+                setState(() => _anchor = WeekCalendar.addDays(_anchor, -7)),
           ),
           IconButton(
             tooltip: l10n.nextWeek,
             icon: const Icon(Icons.chevron_right_rounded),
-            onPressed: () => setState(
-                () => _anchor = WeekCalendar.addDays(_anchor, 7)),
+            onPressed: () =>
+                setState(() => _anchor = WeekCalendar.addDays(_anchor, 7)),
           ),
         ],
       ),
@@ -105,15 +111,14 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
             padding: GlassTokens.screenPadding,
             children: [
               Text(range,
-                  style: text.titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w700)),
+                  style:
+                      text.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
               const SizedBox(height: 4),
               if (r.missingRecordDates.isNotEmpty)
                 Text(
                   '${l10n.incompleteWeek} (${l10n.missingRecords}: ${r.missingRecordDates.length})',
                   style: text.bodySmall?.copyWith(
-                      color: scheme.tertiary,
-                      fontWeight: FontWeight.w600),
+                      color: scheme.tertiary, fontWeight: FontWeight.w600),
                 ),
               const SizedBox(height: 12),
               // Day summary (mockup's "ملخص اليوم") — current week only.
@@ -136,8 +141,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
                   Expanded(
                     child: StatTile(
                       label: l10n.totalRecordedHours,
-                      value: WeekCalendar.formatHours(
-                          r.totalRecordedHours),
+                      value: WeekCalendar.formatHours(r.totalRecordedHours),
                       icon: Icons.schedule_rounded,
                       accent: LiquidPalette.primaryBlue,
                     ),
@@ -150,8 +154,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
                   Expanded(
                     child: StatTile(
                       label: l10n.totalPlannedHoursLabel,
-                      value: WeekCalendar.formatHours(
-                          r.totalPlannedHours),
+                      value: WeekCalendar.formatHours(r.totalPlannedHours),
                       icon: Icons.event_note_rounded,
                       accent: LiquidPalette.primaryBlue,
                     ),
@@ -162,8 +165,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
                       label: l10n.ordersPerHour,
                       value: r.ordersPerWorkingHour == null
                           ? '–'
-                          : r.ordersPerWorkingHour!
-                              .toStringAsFixed(1),
+                          : r.ordersPerWorkingHour!.toStringAsFixed(1),
                       icon: Icons.speed_rounded,
                       accent: LiquidPalette.success,
                     ),
@@ -178,8 +180,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
                       label: l10n.avgOrdersWorkingDay,
                       value: r.averageOrdersPerWorkingDay == null
                           ? '–'
-                          : r.averageOrdersPerWorkingDay!
-                              .toStringAsFixed(1),
+                          : r.averageOrdersPerWorkingDay!.toStringAsFixed(1),
                       icon: Icons.trending_up_rounded,
                       accent: LiquidPalette.warning,
                     ),
@@ -210,8 +211,8 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
                             size: 20, color: LiquidPalette.skyBlue),
                         const SizedBox(width: 8),
                         Text(l10n.weekKmLabel,
-                            style: text.titleSmall?.copyWith(
-                                fontWeight: FontWeight.w800)),
+                            style: text.titleSmall
+                                ?.copyWith(fontWeight: FontWeight.w800)),
                         const Spacer(),
                         Text(
                           '${WeekCalendar.formatKm(r.totalKm)} ${l10n.kmUnit}',
@@ -225,18 +226,12 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
                     Row(
                       children: [
                         Expanded(
-                          child: _kmStat(
-                              context,
-                              l10n.kmOutLabel,
-                              WeekCalendar.formatKm(r.totalKmOut),
-                              l10n),
+                          child: _kmStat(context, l10n.kmOutLabel,
+                              WeekCalendar.formatKm(r.totalKmOut), l10n),
                         ),
                         Expanded(
-                          child: _kmStat(
-                              context,
-                              l10n.kmBackLabel,
-                              WeekCalendar.formatKm(r.totalKmBack),
-                              l10n),
+                          child: _kmStat(context, l10n.kmBackLabel,
+                              WeekCalendar.formatKm(r.totalKmBack), l10n),
                         ),
                         Expanded(
                           child: _kmStat(
@@ -261,12 +256,12 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
               GlassCard(
                 child: Column(
                   children: [
-                    _kv(l10n.bestDay,
+                    _kv(
+                        l10n.bestDay,
                         r.bestDayKey == null
                             ? '–'
                             : DateFormat.EEEE(loc).format(
-                                WeekCalendar.parseDateKey(
-                                    r.bestDayKey!)),
+                                WeekCalendar.parseDateKey(r.bestDayKey!)),
                         text),
                     const Divider(height: 16),
                     prevAsync.when(
@@ -274,15 +269,12 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
                       error: (_, __) => const SizedBox.shrink(),
                       data: (p) => Column(
                         children: [
-                          _kv(
-                              '${l10n.totalOrders} (${l10n.vsLastWeek})',
-                              _delta(r.totalOrders,
-                                  p.totalOrders),
-                              text),
+                          _kv('${l10n.totalOrders} (${l10n.vsLastWeek})',
+                              _delta(r.totalOrders, p.totalOrders), text),
                           _kv(
                               '${l10n.totalRecordedHours} (${l10n.vsLastWeek})',
-                              _deltaHours(r.totalRecordedHours,
-                                  p.totalRecordedHours),
+                              _deltaHours(
+                                  r.totalRecordedHours, p.totalRecordedHours),
                               text),
                         ],
                       ),
@@ -297,13 +289,12 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(l10n.dailyBreakdown,
-                        style: text.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w700)),
+                        style: text.titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w700)),
                     const SizedBox(height: 12),
                     RepaintBoundary(
-                      child: SizedBox(
-                          height: 180,
-                          child: _ordersChart(r, scheme)),
+                      child:
+                          SizedBox(height: 180, child: _ordersChart(r, scheme)),
                     ),
                   ],
                 ),
@@ -320,12 +311,11 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
                       primary: false,
                       icon: Icons.share_rounded,
                       onPressed: () {
-                        final db =
-                            ref.read(databaseServiceProvider);
+                        final db = ref.read(databaseServiceProvider);
                         SharePlus.instance.share(ShareParams(
                             text: db.reportShareText(r,
-                                dayLabel: (k) => DateFormat.EEEE(loc).format(
-                                    WeekCalendar.parseDateKey(k)))));
+                                dayLabel: (k) => DateFormat.EEEE(loc)
+                                    .format(WeekCalendar.parseDateKey(k)))));
                       },
                     ),
                   ),
@@ -336,27 +326,132 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
                       primary: false,
                       icon: Icons.download_rounded,
                       onPressed: () async {
-                        final db =
-                            ref.read(databaseServiceProvider);
+                        final db = ref.read(databaseServiceProvider);
                         final csv = db.exportCsv();
                         await SharePlus.instance.share(ShareParams(
                             text: csv, subject: 'deliveryflow.csv'));
                         if (context.mounted) {
-                          ScaffoldMessenger.of(context)
-                              .showSnackBar(SnackBar(
-                                  content:
-                                      Text(l10n.csvExported)));
+                          showTopSnackBar(context, l10n.csvExported);
                         }
                       },
                     ),
                   ),
                 ],
               ),
+              const SizedBox(height: 10),
+              // v27.4: one-tap PDF of ALL past weeks (organized,
+              // per-day tables + week/grand totals), shared as a file.
+              GlassButton(
+                label: l10n.exportPdfAllWeeks,
+                primary: false,
+                icon: Icons.picture_as_pdf_rounded,
+                onPressed: _exportAllWeeksPdf,
+              ),
               const SizedBox(height: 24),
             ],
           );
         },
       ),
+    );
+  }
+
+  /// v27.4: builds the all-past-weeks PDF and hands it to the share
+  /// sheet. Per the standing logs rule the outcome is recorded in the
+  /// diagnostics log (reports category); a failure shows the v25-style
+  /// dialog with the selectable technical reason.
+  Future<void> _exportAllWeeksPdf() async {
+    final l10n = AppLocalizations.of(context);
+    final db = ref.read(databaseServiceProvider);
+    final settings = ref.read(settingsProvider);
+    final log = ref.read(appLogServiceProvider);
+    try {
+      final data = PastWeeksReportBuilder(db).build(
+        locale: settings.languageCode == 'ar' ? 'ar' : 'en',
+        orderPrice: settings.orderPrice ?? 0,
+        dailyFixedPay: settings.dailyFixedPay ?? 0,
+      );
+      if (data.weeks.isEmpty) {
+        if (mounted) showTopSnackBar(context, l10n.pdfNoWeeks);
+        return;
+      }
+      final bytes = await ReportsPdfBuilder().build(data, l10n);
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/deliveryflow_weeks_report.pdf');
+      await file.writeAsBytes(bytes);
+      await SharePlus.instance.share(ShareParams(
+        files: [XFile(file.path)],
+        subject: l10n.pdfReportTitle,
+      ));
+      log.info(
+        AppLogCategory.reports,
+        'PDF weeks report generated: ${data.weeks.length} week(s), '
+        '${bytes.length} bytes',
+      );
+    } catch (e) {
+      log.error(
+        AppLogCategory.reports,
+        'PDF weeks report generation FAILED',
+        error: e,
+      );
+      if (!mounted) return;
+      await _showPdfFailed(e);
+    }
+  }
+
+  /// v27.4: PDF failure dialog — explanation plus the raw technical
+  /// reason in selectable text (the v25 failure-dialog pattern).
+  Future<void> _showPdfFailed(Object error) async {
+    final l10n = AppLocalizations.of(context);
+    final reason = formatLogError(error);
+    await showDialog<void>(
+      context: context,
+      useRootNavigator: true,
+      builder: (ctx) {
+        final scheme = Theme.of(ctx).colorScheme;
+        final text = Theme.of(ctx).textTheme;
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.error_outline_rounded, color: scheme.error, size: 28),
+              const SizedBox(width: 10),
+              Expanded(child: Text(l10n.pdfFailedTitle)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                l10n.technicalReason,
+                style: text.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: scheme.onSurface.withValues(alpha: 0.7),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: scheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: SelectableText(
+                  reason,
+                  style: text.bodySmall?.copyWith(
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text(l10n.ok),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -384,7 +479,10 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
     // v26: effective minutes — auto-credited planned hours included.
     final minutes = db.effectiveMinutesForDate(todayKey);
     final km = rec?.totalKm ?? 0;
-    final loc = ref.watch(settingsProvider.select((s) => s.languageCode)) == 'ar' ? 'ar' : 'en';
+    final loc =
+        ref.watch(settingsProvider.select((s) => s.languageCode)) == 'ar'
+            ? 'ar'
+            : 'en';
 
     Widget breakdownRow(String label, int count, Color color, IconData icon) {
       return Padding(
@@ -398,8 +496,8 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
                     style: text.bodyMedium
                         ?.copyWith(fontWeight: FontWeight.w600))),
             Text('$count',
-                style: text.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800, color: color)),
+                style: text.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w800, color: color)),
           ],
         ),
       );
@@ -411,13 +509,11 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(l10n.daySummary,
-              style:
-                  text.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+              style: text.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
           const SizedBox(height: 2),
           Text(DateFormat.yMMMMEEEEd(loc).format(now),
               style: text.bodySmall?.copyWith(
-                  color: text.bodySmall?.color
-                      ?.withValues(alpha: 0.6))),
+                  color: text.bodySmall?.color?.withValues(alpha: 0.6))),
           const SizedBox(height: 14),
           Center(
             child: ProgressRing(
@@ -451,14 +547,13 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
           ),
           const SizedBox(height: 12),
           Text(l10n.ordersBreakdown,
-              style:
-                  text.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
-          breakdownRow(l10n.statusCompleted, completed,
-              LiquidPalette.success, Icons.check_circle_rounded),
+              style: text.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+          breakdownRow(l10n.statusCompleted, completed, LiquidPalette.success,
+              Icons.check_circle_rounded),
           breakdownRow(l10n.statusInProgress, inProgress,
               LiquidPalette.primaryBlue, Icons.delivery_dining_rounded),
-          breakdownRow(l10n.statusPending, pending,
-              Colors.grey, Icons.hourglass_empty_rounded),
+          breakdownRow(l10n.statusPending, pending, Colors.grey,
+              Icons.hourglass_empty_rounded),
           const SizedBox(height: 10),
           GlassButton(
             label: l10n.viewFullReport,
@@ -494,14 +589,13 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(value,
-                    style: text.titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w800),
+                    style:
+                        text.titleSmall?.copyWith(fontWeight: FontWeight.w800),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis),
                 Text(label,
                     style: text.bodySmall?.copyWith(
-                        color: text.bodySmall?.color
-                            ?.withValues(alpha: 0.6),
+                        color: text.bodySmall?.color?.withValues(alpha: 0.6),
                         fontSize: 11),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis),
@@ -513,26 +607,25 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
     );
   }
 
-  Widget _kmStat(BuildContext context, String label, String value,
-      AppLocalizations l10n) {
+  Widget _kmStat(
+      BuildContext context, String label, String value, AppLocalizations l10n) {
     final text = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
     return Column(
       children: [
         Text('$value ${l10n.kmUnit}',
-            style:
-                text.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+            style: text.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
         const SizedBox(height: 2),
         Text(label,
-            style: text.bodySmall?.copyWith(
-                color: scheme.onSurface.withValues(alpha: 0.6))),
+            style: text.bodySmall
+                ?.copyWith(color: scheme.onSurface.withValues(alpha: 0.6))),
       ],
     );
   }
 
   /// Weekly salary = (attended days × daily fixed) + (orders × order price).
-  Widget _salaryCard(BuildContext context, WidgetRef ref,
-      AppLocalizations l10n, WeeklyReport r, TextTheme text, ColorScheme scheme) {
+  Widget _salaryCard(BuildContext context, WidgetRef ref, AppLocalizations l10n,
+      WeeklyReport r, TextTheme text, ColorScheme scheme) {
     final settings = ref.watch(settingsProvider);
     final orderPrice = settings.orderPrice;
     final dailyFixed = settings.dailyFixedPay;
@@ -547,8 +640,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
             Expanded(
               child: Text(l10n.setSalaryHint,
                   style: text.bodyMedium?.copyWith(
-                      color:
-                          scheme.onSurface.withValues(alpha: 0.7))),
+                      color: scheme.onSurface.withValues(alpha: 0.7))),
             ),
           ],
         ),
@@ -566,18 +658,16 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
         children: [
           Row(
             children: [
-              Icon(Icons.payments_rounded,
-                  size: 20, color: scheme.primary),
+              Icon(Icons.payments_rounded, size: 20, color: scheme.primary),
               const SizedBox(width: 8),
               Text(l10n.weeklySalary,
-                  style: text.titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w800)),
+                  style:
+                      text.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
               const Spacer(),
               Text(
                 '${_fmtMoney(total)} ${l10n.egpUnit}',
                 style: text.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: scheme.primary),
+                    fontWeight: FontWeight.w800, color: scheme.primary),
               ),
             ],
           ),
@@ -605,12 +695,11 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
       children: [
         Expanded(
           child: Text(label,
-              style: text.bodyMedium?.copyWith(
-                  color: scheme.onSurface.withValues(alpha: 0.75))),
+              style: text.bodyMedium
+                  ?.copyWith(color: scheme.onSurface.withValues(alpha: 0.75))),
         ),
         Text(value,
-            style:
-                text.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+            style: text.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
       ],
     );
   }
@@ -638,8 +727,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
         children: [
           Text(k, style: text.bodyMedium),
           Text(v,
-              style: text.bodyMedium
-                  ?.copyWith(fontWeight: FontWeight.w700)),
+              style: text.bodyMedium?.copyWith(fontWeight: FontWeight.w700)),
         ],
       ),
     );
@@ -685,8 +773,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
                 child: Text(dayLetters[v.toInt() % 7],
                     style: TextStyle(
                         fontSize: 11,
-                        color: scheme.onSurface
-                            .withValues(alpha: 0.6))),
+                        color: scheme.onSurface.withValues(alpha: 0.6))),
               ),
             ),
           ),
@@ -737,8 +824,8 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
     );
   }
 
-  Widget _dayRow(BuildContext context, DayBreakdown d,
-      AppLocalizations l10n, String loc) {
+  Widget _dayRow(
+      BuildContext context, DayBreakdown d, AppLocalizations l10n, String loc) {
     final text = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
     final date = WeekCalendar.parseDateKey(d.dateKey);
@@ -746,8 +833,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: GlassCard(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         child: Row(
           children: [
             Expanded(
@@ -759,8 +845,8 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
                       Flexible(
                         child: Text(name,
                             overflow: TextOverflow.ellipsis,
-                            style: text.bodyMedium?.copyWith(
-                                fontWeight: FontWeight.w700)),
+                            style: text.bodyMedium
+                                ?.copyWith(fontWeight: FontWeight.w700)),
                       ),
                       const SizedBox(width: 8),
                       _dayStatusChip(context, d, l10n),
@@ -771,9 +857,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
                         ? l10n.unrecorded
                         : l10n.ordersCount(d.orders!),
                     style: text.bodySmall?.copyWith(
-                        color: d.orders == null
-                            ? scheme.tertiary
-                            : null),
+                        color: d.orders == null ? scheme.tertiary : null),
                   ),
                 ],
               ),
@@ -782,8 +866,8 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(WeekCalendar.formatHours(d.workMinutes / 60.0),
-                    style: text.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w700)),
+                    style:
+                        text.bodyMedium?.copyWith(fontWeight: FontWeight.w700)),
                 Text(
                     '${l10n.scheduledVsActual}: ${WeekCalendar.formatHours(d.plannedHours)}',
                     style: text.bodySmall),

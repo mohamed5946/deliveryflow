@@ -75,14 +75,37 @@ class NotificationService {
   /// 'deliveryflow_reminders' channel was created by an old build with
   /// low importance, and Android freezes a channel's importance at
   /// creation — notifications landed in the shade's silent section and
-  /// the app could never raise it in place. The _v2 channel is created
-  /// with Importance.high (heads-up + sound); the legacy channel is
-  /// deleted on launch once pending schedules point at the new one.
-  static const String channelId = 'deliveryflow_reminders_v2';
+  /// the app could never raise it in place.
+  ///
+  /// v27.4: STILL landing silently on Mohamed's phone despite the v2
+  /// channel, so reminders move once more — to
+  /// 'deliveryflow_reminders_v3', created explicitly with
+  /// Importance.max (sound + vibration) so they post at the very top
+  /// of the shade. Both legacy channels are deleted on launch once
+  /// pending schedules point at the new one (see main).
+  static const String channelId = 'deliveryflow_reminders_v3';
   static const String legacyChannelId = 'deliveryflow_reminders';
+  static const String legacyChannelIdV2 = 'deliveryflow_reminders_v2';
   static const String channelName = 'Reminders';
   static const String channelDesc =
       'Schedule, daily order and weekly report reminders';
+
+  /// v27.4: ONE details object for every user-facing notification —
+  /// maximum importance/priority, reminder category, public visibility
+  /// — so reminders and both tests always post heads-up at the top of
+  /// the shade instead of the silent section.
+  static const AndroidNotificationDetails reminderAndroidDetails =
+      AndroidNotificationDetails(
+    channelId,
+    channelName,
+    channelDescription: channelDesc,
+    importance: Importance.max,
+    priority: Priority.max,
+    category: AndroidNotificationCategory.reminder,
+    visibility: NotificationVisibility.public,
+  );
+  static const NotificationDetails reminderDetails =
+      NotificationDetails(android: reminderAndroidDetails);
 
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
@@ -120,11 +143,16 @@ class NotificationService {
     const settings = InitializationSettings(android: android);
     try {
       await _plugin.initialize(settings);
+      // v27.4: create the v3 channel EXPLICITLY at Importance.max
+      // with sound + vibration — the strongest posting Android allows,
+      // so reminders land at the very top of the shade, never silent.
       const channel = AndroidNotificationChannel(
         channelId,
         channelName,
         description: channelDesc,
-        importance: Importance.high,
+        importance: Importance.max,
+        playSound: true,
+        enableVibration: true,
       );
       await _plugin
           .resolvePlatformSpecificImplementation<
@@ -145,29 +173,32 @@ class NotificationService {
     );
   }
 
-  /// v27.3: delete the pre-v27.3 reminders channel after the launch
-  /// reschedule has re-pointed every pending schedule at the new
-  /// high-importance channel. Harmless when the legacy channel does
-  /// not exist (fresh installs); failures are logged, never thrown —
-  /// a stale silent channel in system settings is cosmetic only.
-  Future<void> deleteLegacyChannel() async {
-    try {
-      await _plugin
-          .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>()
-          ?.deleteNotificationChannel(legacyChannelId);
-      _log?.info(
-        AppLogCategory.notifications,
-        'Legacy notification channel deleted '
-        '(priority migration to $channelId)',
-      );
-    } catch (e) {
-      _log?.warn(
-        AppLogCategory.notifications,
-        'Legacy notification channel deletion failed',
-        error: e,
-      );
+  /// v27.4: delete BOTH pre-v27.4 reminders channels (the original
+  /// and the v27.3 v2 channel) after the launch reschedule has
+  /// re-pointed every pending schedule at the Importance.max v3
+  /// channel. Harmless when a channel does not exist (fresh installs);
+  /// each deletion is guarded and the migration is recorded in the
+  /// diagnostics log.
+  Future<void> deleteLegacyChannels() async {
+    final android = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    if (android == null) return;
+    for (final id in [legacyChannelId, legacyChannelIdV2]) {
+      try {
+        await android.deleteNotificationChannel(id);
+      } catch (e) {
+        _log?.warn(
+          AppLogCategory.notifications,
+          'Legacy notification channel deletion failed ($id)',
+          error: e,
+        );
+      }
     }
+    _log?.info(
+      AppLogCategory.notifications,
+      'Legacy notification channels deleted '
+      '(max-priority migration to $channelId)',
+    );
   }
 
   /// Requests POST_NOTIFICATIONS (Android 13+) and returns the result.
@@ -212,16 +243,8 @@ class NotificationService {
   Future<void> cancelAll() => _plugin.cancelAll();
 
   Future<void> showTest({required String title, required String body}) async {
-    const details = NotificationDetails(
-      android: AndroidNotificationDetails(
-        channelId,
-        channelName,
-        channelDescription: channelDesc,
-        importance: Importance.defaultImportance,
-      ),
-    );
     try {
-      await _plugin.show(_testId, title, body, details);
+      await _plugin.show(_testId, title, body, reminderDetails);
       _log?.info(
         AppLogCategory.notifications,
         'Instant test notification shown (id $_testId)',
@@ -247,16 +270,7 @@ class NotificationService {
     required String body,
   }) async {
     final exact = await canScheduleExactNotifications();
-    final when =
-        tz.TZDateTime.now(tz.local).add(const Duration(seconds: 60));
-    const details = NotificationDetails(
-      android: AndroidNotificationDetails(
-        channelId,
-        channelName,
-        channelDescription: channelDesc,
-        importance: Importance.max,
-      ),
-    );
+    final when = tz.TZDateTime.now(tz.local).add(const Duration(seconds: 60));
     _log?.info(
       AppLogCategory.notifications,
       'Scheduled test: target $when, exact=$exact (id $_testScheduledId)',
@@ -267,7 +281,7 @@ class NotificationService {
         title: title,
         body: body,
         when: when,
-        details: details,
+        details: reminderDetails,
         exact: exact,
       );
       _log?.info(
@@ -301,6 +315,56 @@ class NotificationService {
       return await android.canScheduleExactNotifications() ?? false;
     } catch (_) {
       return false;
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // v27.4: notification status-card reads (developer mode). Each one
+  // answers from the LIVE platform state, never from cached settings.
+  // ---------------------------------------------------------------
+
+  /// Whether notifications are currently allowed for the app
+  /// (POST_NOTIFICATIONS / app-level toggle). Fails safe to true on
+  /// non-Android; false when the platform call itself fails (the
+  /// status card then flags it instead of lying).
+  Future<bool> notificationsPermissionGranted() async {
+    final android = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    if (android == null) return true;
+    try {
+      return await android.areNotificationsEnabled() ?? true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// The importance the system reports for the ACTIVE reminders
+  /// channel (v3) — the ground truth for whether reminders post
+  /// heads-up or land in the shade's silent section. Null when the
+  /// channel can't be read (not created yet / non-Android / error).
+  Future<Importance?> remindersChannelImportance() async {
+    final android = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    if (android == null) return null;
+    try {
+      final channels = await android.getNotificationChannels();
+      if (channels == null) return null;
+      for (final c in channels) {
+        if (c.id == channelId) return c.importance;
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// How many notifications are currently scheduled (pending) with
+  /// the plugin — the status card's proof that rescheduleAll worked.
+  Future<int> pendingNotificationCount() async {
+    try {
+      return (await _plugin.pendingNotificationRequests()).length;
+    } catch (_) {
+      return 0;
     }
   }
 
@@ -394,8 +458,9 @@ class NotificationService {
     final now = tz.TZDateTime.now(tz.local);
     var day = tz.TZDateTime(tz.local, now.year, now.month, now.day);
     var delta = (weekday - day.weekday) % 7;
-    var candidate = tz.TZDateTime(
-        tz.local, day.year, day.month, day.day, hour, minute).add(Duration(days: delta));
+    var candidate =
+        tz.TZDateTime(tz.local, day.year, day.month, day.day, hour, minute)
+            .add(Duration(days: delta));
     if (!candidate.isAfter(now)) {
       candidate = candidate.add(const Duration(days: 7));
     }
@@ -409,20 +474,12 @@ class NotificationService {
     required String body,
     required bool exact,
   }) async {
-    final details = const NotificationDetails(
-      android: AndroidNotificationDetails(
-        channelId,
-        channelName,
-        channelDescription: channelDesc,
-        importance: Importance.defaultImportance,
-      ),
-    );
     await _zonedScheduleWithFallback(
       id: id,
       title: title,
       body: body,
       when: when,
-      details: details,
+      details: reminderDetails,
       exact: exact,
       matchDateTimeComponents: DateTimeComponents.time,
     );
@@ -526,14 +583,7 @@ class NotificationService {
           title: strings.followUpTitle,
           body: strings.followUpBody,
           when: when,
-          details: const NotificationDetails(
-            android: AndroidNotificationDetails(
-              channelId,
-              channelName,
-              channelDescription: channelDesc,
-              importance: Importance.defaultImportance,
-            ),
-          ),
+          details: reminderDetails,
           exact: exact,
         );
         scheduled++;
@@ -546,14 +596,6 @@ class NotificationService {
     // 14 days like follow-ups; rescheduleAll re-runs on app start, on
     // settings changes and on schedule changes (refreshReminders).
     if (settings.shiftEndReminderEnabled && scheduleForDate != null) {
-      const details = NotificationDetails(
-        android: AndroidNotificationDetails(
-          channelId,
-          channelName,
-          channelDescription: channelDesc,
-          importance: Importance.defaultImportance,
-        ),
-      );
       final tzNow = tz.TZDateTime.now(tz.local);
       final today = DateTime.now();
       for (var i = 0; i < 14; i++) {
@@ -583,7 +625,7 @@ class NotificationService {
                     ? strings.shiftOvernightEndBody
                     : strings.shiftEndBody),
             when: when,
-            details: details,
+            details: reminderDetails,
             exact: exact,
           );
           scheduled++;
@@ -597,16 +639,9 @@ class NotificationService {
         id: _scheduleId,
         title: strings.scheduleTitle,
         body: strings.scheduleBody,
-        when: _nextWeekday(6, settings.scheduleReminderHour,
-            settings.scheduleReminderMinute),
-        details: const NotificationDetails(
-          android: AndroidNotificationDetails(
-            channelId,
-            channelName,
-            channelDescription: channelDesc,
-            importance: Importance.defaultImportance,
-          ),
-        ),
+        when: _nextWeekday(
+            6, settings.scheduleReminderHour, settings.scheduleReminderMinute),
+        details: reminderDetails,
         exact: exact,
         matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
       );
@@ -619,16 +654,9 @@ class NotificationService {
         id: _reportId,
         title: strings.reportTitle,
         body: strings.reportBody,
-        when: _nextWeekday(6, settings.reportReminderHour,
-            settings.reportReminderMinute),
-        details: const NotificationDetails(
-          android: AndroidNotificationDetails(
-            channelId,
-            channelName,
-            channelDescription: channelDesc,
-            importance: Importance.defaultImportance,
-          ),
-        ),
+        when: _nextWeekday(
+            6, settings.reportReminderHour, settings.reportReminderMinute),
+        details: reminderDetails,
         exact: exact,
         matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
       );
@@ -657,7 +685,8 @@ class _LocalizedStrings {
   factory _LocalizedStrings(String languageCode) {
     if (languageCode == 'ar') {
       return const _LocalizedStrings._(
-        dailyTitle: 'مساء الخير! 🚚 خلصت شغل النهارده؟ سجل عدد الأوردرات اللي عملتها.',
+        dailyTitle:
+            'مساء الخير! 🚚 خلصت شغل النهارده؟ سجل عدد الأوردرات اللي عملتها.',
         dailyBody: 'سجّل أوردرات النهارده وساعات شغلك عشان تقريرك يفضل دقيق.',
         followUpTitle: 'تذكير',
         followUpBody: 'لسه مسجلتش أوردرات النهارده.',
@@ -667,8 +696,7 @@ class _LocalizedStrings {
         reportTitle: 'تقرير الأسبوع جاهز 📊',
         reportBody: 'تقرير الأسبوع جاهز! شوف إجمالي أوردراتك وساعات شغلك.',
         shiftEndTitle: 'خلصت الشيفت؟ 🏁',
-        shiftEndBody:
-            'سجّل أوردرات اليوم وانت فاكرها — دي آخر خطوة في يومك.',
+        shiftEndBody: 'سجّل أوردرات اليوم وانت فاكرها — دي آخر خطوة في يومك.',
         shiftPreMidnightTitle: 'قبل ما اليوم يخلص 🌙',
         shiftPreMidnightBody:
             'سجّل أوردرات النهارده اللي عملتها لحد دلوقتي، وبكرة كمّل باقي الشيفت.',
