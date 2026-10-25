@@ -670,6 +670,41 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
               ),
               const SizedBox(height: 12),
+              // ── صيغة الوقت (v27.12) ─────────────────────────
+              // Default "حسب الجهاز" preserves the pre-v27.12
+              // TimeOfDay.format rendering exactly; 24/12-hour
+              // options apply to Home hour blocks + schedule rows.
+              _section(l10n.timeFormatSection),
+              GlassCard(
+                child: Column(
+                  children: [
+                    _radioRow(
+                      icon: Icons.schedule_rounded,
+                      label: l10n.timeFormatSystem,
+                      selected: settings.timeFormat == 0,
+                      onTap: () =>
+                          notifier.update((s) => s..timeFormat = 0),
+                    ),
+                    const SizedBox(height: 4),
+                    _radioRow(
+                      icon: Icons.schedule_rounded,
+                      label: l10n.timeFormat24,
+                      selected: settings.timeFormat == 1,
+                      onTap: () =>
+                          notifier.update((s) => s..timeFormat = 1),
+                    ),
+                    const SizedBox(height: 4),
+                    _radioRow(
+                      icon: Icons.schedule_rounded,
+                      label: l10n.timeFormat12,
+                      selected: settings.timeFormat == 2,
+                      onTap: () =>
+                          notifier.update((s) => s..timeFormat = 2),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
               // ── تفضيلات العمل ─────────────────────────────
               _section(l10n.workPrefsSection),
               GlassCard(

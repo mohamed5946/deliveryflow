@@ -1442,4 +1442,72 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get emailLabel => 'البريد الإلكتروني';
+
+  @override
+  String get yes => 'نعم';
+
+  @override
+  String get no => 'لا';
+
+  @override
+  String get dayHoursSection => 'ساعات اليوم';
+
+  @override
+  String dayShiftRange(Object end, Object start) {
+    return 'هتبدأ $start - هتخلص $end';
+  }
+
+  @override
+  String workedRemaining(Object remaining, Object worked) {
+    return 'اشتغلت $worked ساعة - فاضل $remaining ساعة';
+  }
+
+  @override
+  String get hourWorked => 'اشتغلتها';
+
+  @override
+  String get hourCurrent => 'الساعة الحالية';
+
+  @override
+  String get hourUpcoming => 'جاية';
+
+  @override
+  String get hourBreak => 'استراحة';
+
+  @override
+  String get addHour => '+ ساعة';
+
+  @override
+  String get removeHour => '- ساعة';
+
+  @override
+  String get noScheduleForDay => 'مفيش جدول لليوم ده';
+
+  @override
+  String registeredBreak(Object minutes) {
+    return 'استراحة مسجلة: $minutes دقيقة';
+  }
+
+  @override
+  String breakHoursCount(Object count) {
+    return 'استراحة: $count ساعة';
+  }
+
+  @override
+  String get timeFormatSection => 'صيغة الوقت';
+
+  @override
+  String get timeFormatSystem => 'حسب الجهاز';
+
+  @override
+  String get timeFormat24 => '24 ساعة';
+
+  @override
+  String get timeFormat12 => '12 ساعة';
+
+  @override
+  String get confirmDeleteBlock => 'هل أنت متأكد من حذف البلوكاية؟';
+
+  @override
+  String get confirmAddBlock => 'هل أنت متأكد من إضافة البلوكاية؟';
 }

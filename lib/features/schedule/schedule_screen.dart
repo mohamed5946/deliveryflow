@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../../core/database/database_service.dart';
 import '../../core/database/models.dart';
 import '../../core/date_time/day_rollover.dart';
+import '../../core/date_time/time_format.dart';
 import '../../core/date_time/schedule_normalizer.dart';
 import '../../core/date_time/week_calendar.dart';
 import '../../core/providers.dart';
@@ -91,9 +92,18 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
     _error = null;
   }
 
+  /// v27.12: honours the Profile time-format setting. Mode "system"
+  /// (the default) keeps the exact pre-v27.12 behaviour —
+  /// `TimeOfDay.format` — so existing users see no change until they
+  /// pick 12h or 24h; explicit modes use the shared pure formatter.
   String _fmtTime(BuildContext context, int minutes) {
-    final t = TimeOfDay(hour: minutes ~/ 60, minute: minutes % 60);
-    return t.format(context);
+    final settings = ref.read(settingsProvider);
+    return formatMinutesWithContext(
+      context,
+      minutes,
+      timeFormatModeFromStored(settings.timeFormat),
+      arabic: settings.languageCode == 'ar',
+    );
   }
 
   Future<void> _pickTime(int index, bool isStart) async {
@@ -177,6 +187,9 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
         _days[i].startMinutes = src.startMinutes;
         _days[i].endMinutes = src.endMinutes;
         _days[i].breakDurationMinutes = src.breakDurationMinutes;
+        // v27.12: copy-day must carry the break blocks too, or the
+        // copied day silently loses its break marks.
+        _days[i].breakHourStarts = List.of(src.breakHourStarts);
       }
     });
   }
@@ -340,6 +353,8 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
     final date = WeekCalendar.parseDateKey(d.dateKey);
     final locale =
         ref.watch(settingsProvider.select((s) => s.languageCode));
+    // v27.12: rebuild rows when the time-format setting changes.
+    ref.watch(settingsProvider.select((s) => s.timeFormat));
     final loc = locale == 'ar' ? 'ar' : 'en';
     final dayName = DateFormat.EEEE(loc).format(date);
     final dayDate = DateFormat.Md(loc).format(date);
@@ -383,6 +398,29 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
                     ],
                   )
                 else ...[
+                  // v27.12 view mode: working days always show their
+                  // start–end times opposite the day name (previously
+                  // times appeared only in edit mode). Day-off rows
+                  // show Day off here only when the status chip does
+                  // not already say so (a scheduled day off that got
+                  // worked shows the completed chip instead) — the
+                  // chip itself is untouched.
+                  if (d.isWorkingDay) ...[
+                    Text(
+                      '${_fmtTime(context, d.startMinutes)} - '
+                      '${_fmtTime(context, d.endMinutes)}',
+                      style: text.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(width: 10),
+                  ] else if (_chipFor(i) != ScheduleDayChip.dayOff) ...[
+                    Text(
+                      l10n.dayOff,
+                      style: text.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(width: 10),
+                  ],
                   _dayStatus(context, i, l10n),
                   const SizedBox(width: 10),
                   Icon(
@@ -428,14 +466,15 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
   /// when it is today and work has started, a day-off chip (v27.3,
   /// derived by [scheduleDayChipFor]) for past no-order days and
   /// plan-marked off days, gray "لم يبدأ" otherwise.
-  Widget _dayStatus(
-      BuildContext context, int i, AppLocalizations l10n) {
+  /// Shared chip computation for [_dayStatus] and the v27.12 view-mode
+  /// Day off label (extracted so both agree on the same chip).
+  ScheduleDayChip _chipFor(int i) {
     final db = ref.read(databaseServiceProvider);
     final d = _days[i];
     final record = db.orderRecord(d.dateKey);
     final count = record?.completedOrders ?? 0;
     final todayKey = WeekCalendar.dateKey(DateTime.now());
-    final chip = scheduleDayChipFor(
+    return scheduleDayChipFor(
       countedOrders: count,
       isWorkingDay: d.isWorkingDay,
       workStartedToday: d.dateKey == todayKey &&
@@ -443,6 +482,15 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
       date: WeekCalendar.parseDateKey(d.dateKey),
       today: DateTime.now(),
     );
+  }
+
+  Widget _dayStatus(
+      BuildContext context, int i, AppLocalizations l10n) {
+    final db = ref.read(databaseServiceProvider);
+    final d = _days[i];
+    final record = db.orderRecord(d.dateKey);
+    final count = record?.completedOrders ?? 0;
+    final chip = _chipFor(i);
 
     final String label;
     final Color color;

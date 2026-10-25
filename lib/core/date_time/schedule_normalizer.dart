@@ -183,5 +183,8 @@ class ScheduleNormalizer {
         endMinutes: d.endMinutes,
         breakDurationMinutes: d.breakDurationMinutes,
         notes: d.notes,
+        // v27.12: break blocks must survive normalization, or a
+        // repaired week would silently lose the user's break marks.
+        breakHourStarts: List.of(d.breakHourStarts),
       );
 }

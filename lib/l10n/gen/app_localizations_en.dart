@@ -1446,4 +1446,72 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get emailLabel => 'Email';
+
+  @override
+  String get yes => 'Yes';
+
+  @override
+  String get no => 'No';
+
+  @override
+  String get dayHoursSection => 'Day hours';
+
+  @override
+  String dayShiftRange(Object end, Object start) {
+    return 'Starts $start - ends $end';
+  }
+
+  @override
+  String workedRemaining(Object remaining, Object worked) {
+    return 'Worked ${worked}h - ${remaining}h left';
+  }
+
+  @override
+  String get hourWorked => 'Worked';
+
+  @override
+  String get hourCurrent => 'Current hour';
+
+  @override
+  String get hourUpcoming => 'Upcoming';
+
+  @override
+  String get hourBreak => 'Break';
+
+  @override
+  String get addHour => '+ 1 hour';
+
+  @override
+  String get removeHour => '- 1 hour';
+
+  @override
+  String get noScheduleForDay => 'No schedule for this day';
+
+  @override
+  String registeredBreak(Object minutes) {
+    return 'Registered break: $minutes min';
+  }
+
+  @override
+  String breakHoursCount(Object count) {
+    return 'Break: ${count}h';
+  }
+
+  @override
+  String get timeFormatSection => 'Time format';
+
+  @override
+  String get timeFormatSystem => 'Follow device';
+
+  @override
+  String get timeFormat24 => '24-hour';
+
+  @override
+  String get timeFormat12 => '12-hour';
+
+  @override
+  String get confirmDeleteBlock => 'Are you sure you want to delete the block?';
+
+  @override
+  String get confirmAddBlock => 'Are you sure you want to add the block?';
 }

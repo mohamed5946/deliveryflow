@@ -9,6 +9,9 @@ import 'package:intl/intl.dart';
 import '../../core/database/models.dart';
 import '../../core/database/database_service.dart';
 import '../../core/date_time/day_rollover.dart';
+import '../../core/date_time/hour_blocks.dart';
+import '../../core/date_time/time_format.dart';
+import '../../core/logging/app_log_service.dart';
 import '../../core/money_format.dart';
 import '../../core/date_time/week_calendar.dart';
 import '../../core/deep_link/geo_share_service.dart';
@@ -18,6 +21,7 @@ import '../../theme/design_system.dart';
 import '../../theme/page_transitions.dart';
 import '../../theme/pressable.dart';
 import '../daily_orders/order_detail_screen.dart';
+import 'day_hours_section.dart';
 import '../history/day_orders_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../search/customer_search_screen.dart';
@@ -371,6 +375,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                       ],
                     ),
                     const SizedBox(height: 8),
+                    // v27.12: hour blocks for the selected day, full
+                    // width, below Quick actions.
+                    _dayHoursSection(context, db, settings),
+                    const SizedBox(height: 8),
                   ],
                 ],
               ),
@@ -379,6 +387,77 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         ),
       ),
     );
+  }
+
+  /// v27.12: hour blocks for the selected day. The section itself
+  /// owns the confirmation dialogs; these callbacks only run after an
+  /// explicit Yes, and every edit saves through the schedule save
+  /// chokepoint ([DatabaseService.saveSchedule], which normalizes)
+  /// and is logged under the schedule diagnostics category.
+  Widget _dayHoursSection(
+      BuildContext context, DatabaseService db, UserSettings settings) {
+    final selectedKey = WeekCalendar.dateKey(_selectedDay);
+    final week = db.scheduleForWeek(_selectedDay);
+    DailySchedule? day;
+    if (week != null) {
+      for (final d in week.dailySchedules) {
+        if (d.dateKey == selectedKey) day = d;
+      }
+    }
+    final current = day;
+    return DayHoursSection(
+      day: current,
+      selectedDay: _selectedDay,
+      now: DateTime.now(),
+      timeFormat: timeFormatModeFromStored(settings.timeFormat),
+      arabic: settings.languageCode == 'ar',
+      onToggleBreak: (start) {
+        if (current != null) {
+          _saveDayHours(db, toggleBreakHour(current, start), 'toggle-break');
+        }
+      },
+      onAddHour: () {
+        if (current != null) _saveDayHours(db, addHour(current), 'add-hour');
+      },
+      onRemoveHour: () {
+        if (current == null) return;
+        final next = removeLastHour(current);
+        if (next != null) _saveDayHours(db, next, 'remove-hour');
+      },
+    );
+  }
+
+  Future<void> _saveDayHours(
+      DatabaseService db, DailySchedule updated, String action) async {
+    final week = db.scheduleForWeek(_selectedDay);
+    if (week == null) return;
+    DailySchedule? old;
+    for (final d in week.dailySchedules) {
+      if (d.dateKey == updated.dateKey) old = d;
+    }
+    final days = [
+      for (final d in week.dailySchedules)
+        if (d.dateKey == updated.dateKey) updated else d,
+    ];
+    await db.saveSchedule(WorkSchedule(
+      id: week.id,
+      weekStartKey: week.weekStartKey,
+      weekEndKey: week.weekEndKey,
+      dailySchedules: days,
+      createdAtMillis: week.createdAtMillis,
+      updatedAtMillis: DateTime.now().millisecondsSinceEpoch,
+    ));
+    ref.read(appLogServiceProvider).info(
+      AppLogCategory.schedule,
+      'Day hours edited ($action)',
+      detail: '${updated.dateKey}: '
+          '${old?.startMinutes}-${old?.endMinutes} '
+          'breaks=${old?.breakHourStarts} -> '
+          '${updated.startMinutes}-${updated.endMinutes} '
+          'breaks=${updated.breakHourStarts}',
+    );
+    bumpDataVersion(ref);
+    if (mounted) setState(() {});
   }
 
   Widget _headerIconButton(

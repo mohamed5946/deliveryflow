@@ -709,6 +709,7 @@ class DatabaseService {
                           'endMinutes': d.endMinutes,
                           'breakDurationMinutes': d.breakDurationMinutes,
                           'notes': d.notes,
+                          'breakHourStarts': d.breakHourStarts,
                         })
                     .toList(),
               })
@@ -773,6 +774,8 @@ class DatabaseService {
           breakDurationMinutes:
               (dm['breakDurationMinutes'] as num?)?.toInt() ?? 30,
           notes: (dm['notes'] as String?) ?? '',
+          breakHourStarts:
+              (dm['breakHourStarts'] as List?)?.cast<int>() ?? [],
         ));
       }
       final sched = WorkSchedule(

@@ -2827,6 +2827,126 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Email'**
   String get emailLabel;
+
+  /// No description provided for @yes.
+  ///
+  /// In en, this message translates to:
+  /// **'Yes'**
+  String get yes;
+
+  /// No description provided for @no.
+  ///
+  /// In en, this message translates to:
+  /// **'No'**
+  String get no;
+
+  /// No description provided for @dayHoursSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Day hours'**
+  String get dayHoursSection;
+
+  /// No description provided for @dayShiftRange.
+  ///
+  /// In en, this message translates to:
+  /// **'Starts {start} - ends {end}'**
+  String dayShiftRange(Object end, Object start);
+
+  /// No description provided for @workedRemaining.
+  ///
+  /// In en, this message translates to:
+  /// **'Worked {worked}h - {remaining}h left'**
+  String workedRemaining(Object remaining, Object worked);
+
+  /// No description provided for @hourWorked.
+  ///
+  /// In en, this message translates to:
+  /// **'Worked'**
+  String get hourWorked;
+
+  /// No description provided for @hourCurrent.
+  ///
+  /// In en, this message translates to:
+  /// **'Current hour'**
+  String get hourCurrent;
+
+  /// No description provided for @hourUpcoming.
+  ///
+  /// In en, this message translates to:
+  /// **'Upcoming'**
+  String get hourUpcoming;
+
+  /// No description provided for @hourBreak.
+  ///
+  /// In en, this message translates to:
+  /// **'Break'**
+  String get hourBreak;
+
+  /// No description provided for @addHour.
+  ///
+  /// In en, this message translates to:
+  /// **'+ 1 hour'**
+  String get addHour;
+
+  /// No description provided for @removeHour.
+  ///
+  /// In en, this message translates to:
+  /// **'- 1 hour'**
+  String get removeHour;
+
+  /// No description provided for @noScheduleForDay.
+  ///
+  /// In en, this message translates to:
+  /// **'No schedule for this day'**
+  String get noScheduleForDay;
+
+  /// No description provided for @registeredBreak.
+  ///
+  /// In en, this message translates to:
+  /// **'Registered break: {minutes} min'**
+  String registeredBreak(Object minutes);
+
+  /// No description provided for @breakHoursCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Break: {count}h'**
+  String breakHoursCount(Object count);
+
+  /// No description provided for @timeFormatSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Time format'**
+  String get timeFormatSection;
+
+  /// No description provided for @timeFormatSystem.
+  ///
+  /// In en, this message translates to:
+  /// **'Follow device'**
+  String get timeFormatSystem;
+
+  /// No description provided for @timeFormat24.
+  ///
+  /// In en, this message translates to:
+  /// **'24-hour'**
+  String get timeFormat24;
+
+  /// No description provided for @timeFormat12.
+  ///
+  /// In en, this message translates to:
+  /// **'12-hour'**
+  String get timeFormat12;
+
+  /// No description provided for @confirmDeleteBlock.
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to delete the block?'**
+  String get confirmDeleteBlock;
+
+  /// No description provided for @confirmAddBlock.
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to add the block?'**
+  String get confirmAddBlock;
 }
 
 class _AppLocalizationsDelegate

@@ -106,6 +106,10 @@ class UserSettings extends HiveObject {
   // --- Manual mart override (v27.9) ---
   @HiveField(45)
   bool martManual; // mart pinned by hand on the map — learning must not move it
+  // --- Time format (v27.12) ---
+  @HiveField(46)
+  int timeFormat; // 0=system (pre-v27.12 TimeOfDay.format behaviour),
+  // 1=24-hour, 2=12-hour. Default 0 preserves existing rendering.
 
   /// True once a mart location has been learned and saved.
   bool get hasMart => martLat != null && martLng != null;
@@ -174,6 +178,7 @@ class UserSettings extends HiveObject {
     this.martCandidateLng,
     this.martCandidateCount = 0,
     this.martManual = false,
+    this.timeFormat = 0,
   })  : readNotificationIds = readNotificationIds ?? [],
         dismissedNotificationIds = dismissedNotificationIds ?? [],
         distanceBonusWeekOverrides = distanceBonusWeekOverrides ?? {};
@@ -225,6 +230,7 @@ class UserSettings extends HiveObject {
         'martCandidateLng': martCandidateLng,
         'martCandidateCount': martCandidateCount,
         'martManual': martManual,
+        'timeFormat': timeFormat,
         'schemaVersion': kSchemaVersion,
       };
 
@@ -301,6 +307,7 @@ class UserSettings extends HiveObject {
         martCandidateCount:
             (json['martCandidateCount'] as num?)?.toInt() ?? 0,
         martManual: (json['martManual'] as bool?) ?? false,
+        timeFormat: (json['timeFormat'] as num?)?.toInt() ?? 0,
       );
 }
 
@@ -363,13 +370,14 @@ class UserSettingsAdapter extends TypeAdapter<UserSettings> {
       martCandidateLng: (fields[43] as num?)?.toDouble(),
       martCandidateCount: (fields[44] as int?) ?? 0,
       martManual: (fields[45] as bool?) ?? false,
+      timeFormat: (fields[46] as int?) ?? 0,
     );
   }
 
   @override
   void write(BinaryWriter writer, UserSettings obj) {
     writer
-      ..writeByte(46)
+      ..writeByte(47)
       ..writeByte(0)
       ..write(obj.displayName)
       ..writeByte(1)
@@ -461,7 +469,9 @@ class UserSettingsAdapter extends TypeAdapter<UserSettings> {
       ..writeByte(44)
       ..write(obj.martCandidateCount)
       ..writeByte(45)
-      ..write(obj.martManual);
+      ..write(obj.martManual)
+      ..writeByte(46)
+      ..write(obj.timeFormat);
   }
 }
 
@@ -483,6 +493,11 @@ class DailySchedule extends HiveObject {
   int breakDurationMinutes;
   @HiveField(5)
   String notes;
+  // --- Per-hour break blocks (v27.12) ---
+  @HiveField(6)
+  List<int> breakHourStarts; // extended start-minutes of break blocks
+  // (see hour_blocks.dart). Empty for old records: their legacy
+  // breakDurationMinutes keeps applying exactly as before.
 
   DailySchedule({
     required this.dateKey,
@@ -491,7 +506,8 @@ class DailySchedule extends HiveObject {
     this.endMinutes = 17 * 60,
     this.breakDurationMinutes = 30,
     this.notes = '',
-  });
+    List<int>? breakHourStarts,
+  }) : breakHourStarts = breakHourStarts ?? [];
 
   /// Net planned minutes for this day (0 when it is a day off).
   int get netPlannedMinutes {
@@ -520,13 +536,14 @@ class DailyScheduleAdapter extends TypeAdapter<DailySchedule> {
       endMinutes: (fields[3] as int?) ?? 17 * 60,
       breakDurationMinutes: (fields[4] as int?) ?? 30,
       notes: (fields[5] as String?) ?? '',
+      breakHourStarts: (fields[6] as List?)?.cast<int>() ?? [],
     );
   }
 
   @override
   void write(BinaryWriter writer, DailySchedule obj) {
     writer
-      ..writeByte(6)
+      ..writeByte(7)
       ..writeByte(0)
       ..write(obj.dateKey)
       ..writeByte(1)
@@ -538,7 +555,9 @@ class DailyScheduleAdapter extends TypeAdapter<DailySchedule> {
       ..writeByte(4)
       ..write(obj.breakDurationMinutes)
       ..writeByte(5)
-      ..write(obj.notes);
+      ..write(obj.notes)
+      ..writeByte(6)
+      ..write(obj.breakHourStarts);
   }
 }
 
