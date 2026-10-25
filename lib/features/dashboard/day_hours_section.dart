@@ -29,17 +29,25 @@ import '../../theme/design_system.dart';
 ///   path per mutation, and no gesture can fire two of them.
 ///   Exception: tapping a PROTECTED block shows the protection
 ///   explanation (it changes nothing, it only explains the lock).
-/// - SWIPE (v27.13): each block is horizontally draggable and snaps
-///   open to reveal its actions — swipe LEFT reveals a red Delete
-///   action, swipe RIGHT reveals a Break action (a break block's
-///   right action is Restore instead, since it is already a break;
-///   a break block has no Delete action — there is no work left in
-///   it to delete). Swiping alone changes NOTHING: only tapping a
-///   revealed action opens the Yes/No confirmation dialog, and only
-///   Yes invokes the callback. No / dismiss changes nothing. The
-///   reveal is a plain drag + snap (no slidable dependency was
-///   added; the widget is a small custom horizontal-drag reveal,
-///   smooth standard motion, no looping animation).
+/// - SWIPE (v27.13, reveal fixed in v27.14): each block is
+///   horizontally draggable and snaps open to reveal its actions —
+///   swipe LEFT reveals a red Delete action, swipe RIGHT reveals a
+///   Break action (a break block's right action is Restore instead,
+///   since it is already a break; a break block has no Delete action
+///   — there is no work left in it to delete). Swiping alone changes
+///   NOTHING: only tapping a revealed action opens the Yes/No
+///   confirmation dialog, and only Yes invokes the callback. No /
+///   dismiss changes nothing. The reveal is a plain drag + snap (no
+///   slidable dependency was added; the widget is a small custom
+///   horizontal-drag reveal, smooth standard motion, no looping
+///   animation). v27.14 fix: at rest NO action widget is rendered at
+///   all (v27.13 rendered both actions full-width behind the
+///   translucent block, so they peeked through on both sides at
+///   once); while dragging, only the dragged side's action exists
+///   and its width is exactly the drag distance, so it grows out
+///   from behind the block with no overlap of the block's labels.
+///   Releasing below half the action width animates the block back
+///   to rest (~200ms) and removes the action completely.
 ///   In the start/end + break model, "deleting" a work hour and
 ///   "breaking" it are the same stored change (the hour becomes a
 ///   break block, so the header range stays coherent); both swipe
@@ -424,20 +432,30 @@ class DayHoursSection extends StatelessWidget {
   }
 }
 
-/// v27.13 custom horizontal-drag reveal (no new dependency:
+/// v27.14 custom horizontal-drag reveal (no new dependency:
 /// flutter_slidable is not in pubspec.yaml, and a full slidable
 /// package would be heavy for one row type).
 ///
-/// The block sits over its actions in a [Stack]; dragging it
-/// sideways translates it and exposes the action underneath, and
-/// releasing snaps it fully open (past half the action width) or
-/// closed. Swiping alone never mutates anything — only tapping a
-/// revealed action runs its handler (which itself asks for
-/// confirmation in the parent widget).
+/// Geometry guarantee (the v27.13 bug fix): the action strip's width
+/// is EXACTLY the drag distance, and only the dragged side's action
+/// is rendered at all. At rest (_offset == 0) no action widget
+/// exists, so nothing can peek through the translucent block. While
+/// dragging, the block is translated by [_offset] and the strip
+/// occupies exactly the vacated strip on that side, so the block
+/// never overlaps the action and the action label — centred in its
+/// own strip, overflow clipped — never collides with the block's
+/// time/status text. The block itself stays inside the outer
+/// [ClipRRect], so its content is clipped to the block's own bounds
+/// while sliding. Releasing snaps open (past half the action width)
+/// or closed, animated over ~200ms (never an instant jump).
+/// Swiping alone never mutates anything — only tapping a revealed
+/// action runs its handler (which itself asks for confirmation in
+/// the parent widget).
 ///
-/// - Work block: left reveal = Delete (red), right reveal = Break.
-/// - Break block: right reveal = Restore; no left action (there is
-///   no work left in it to delete), so left drags are ignored.
+/// - Work block: drag LEFT reveals Delete (red, right side) only;
+///   drag RIGHT reveals Break (orange, left side) only.
+/// - Break block: drag RIGHT reveals Restore; no left action (there
+///   is no work left in it to delete), so left drags reveal nothing.
 /// - Protected block: no drag at all — it cannot be opened, so no
 ///   Delete/Break action can ever be tapped for it.
 class _SwipeableBlock extends StatefulWidget {
@@ -466,115 +484,162 @@ class _SwipeableBlock extends StatefulWidget {
   State<_SwipeableBlock> createState() => _SwipeableBlockState();
 }
 
-class _SwipeableBlockState extends State<_SwipeableBlock> {
+class _SwipeableBlockState extends State<_SwipeableBlock>
+    with SingleTickerProviderStateMixin {
   static const double _actionWidth = 96;
+  static const Duration _snapDuration = Duration(milliseconds: 200);
   double _offset = 0;
+
+  // Snap animation: from [_snapFrom] to [_snapTo] over [_snapDuration].
+  late final AnimationController _snapController;
+  double _snapFrom = 0;
+  double _snapTo = 0;
 
   double get _minOffset => widget.isBreak ? 0 : -_actionWidth;
   double get _maxOffset => _actionWidth;
 
-  void _close() => setState(() => _offset = 0);
+  @override
+  void initState() {
+    super.initState();
+    _snapController = AnimationController(
+      vsync: this,
+      duration: _snapDuration,
+    )..addListener(() {
+        setState(() {
+          _offset = _snapFrom +
+              (_snapTo - _snapFrom) *
+                  Curves.easeOut.transform(_snapController.value);
+        });
+      });
+  }
+
+  @override
+  void dispose() {
+    _snapController.dispose();
+    super.dispose();
+  }
+
+  void _animateTo(double target) {
+    if (_offset == target) return;
+    _snapFrom = _offset;
+    _snapTo = target;
+    _snapController.forward(from: 0);
+  }
+
+  void _close() => _animateTo(0);
+
+  /// One action strip, exactly [width] wide, with its label centred
+  /// inside the strip and overflow clipped — the label can never
+  /// spill onto the block's text.
+  Widget _actionStrip({
+    required Color color,
+    required Key key,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: color,
+      child: InkWell(
+        key: key,
+        onTap: () {
+          _close();
+          onTap();
+        },
+        child: Center(
+          child: ClipRect(
+            child: Text(
+              label,
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.clip,
+              style: const TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.w800),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(14),
-      child: Stack(
-        children: [
-          // Actions underneath (only the sides this block allows).
-          // Forced LTR: in the Arabic RTL locale a plain Row would
-          // mirror, putting Delete on the left and breaking the
-          // spec mapping (swipe LEFT reveals Delete on the right).
-          Positioned.fill(
-            child: Directionality(
-              textDirection: TextDirection.ltr,
-              child: Row(
-                children: [
-                  // Right swipe reveals this (left side).
-                  SizedBox(
-                    width: _actionWidth,
-                    child: Material(
-                      color: Colors.orange,
-                      child: InkWell(
-                        key:
-                            ValueKey('block-action-break-${widget.blockStart}'),
-                        onTap: () {
-                          _close();
-                          widget.onBreak();
-                        },
-                        child: Center(
-                          child: Text(widget.breakLabel,
-                              style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w800)),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const Spacer(),
-                  // Left swipe reveals this (right side), work only.
-                  if (!widget.isBreak)
-                    SizedBox(
-                      width: _actionWidth,
-                      child: Material(
-                        color: Colors.red,
-                        child: InkWell(
-                          key: ValueKey(
-                              'block-action-delete-${widget.blockStart}'),
-                          onTap: () {
-                            _close();
-                            widget.onDelete();
-                          },
-                          child: Center(
-                            child: Text(widget.deleteLabel,
-                                style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w800)),
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
+      child: Directionality(
+        // Forced LTR: in the Arabic RTL locale, left/right would
+        // otherwise mirror, putting Delete on the left and breaking
+        // the spec mapping (swipe LEFT reveals Delete on the right).
+        textDirection: TextDirection.ltr,
+        child: Stack(
+          children: [
+            // At rest there is NO action widget at all. While
+            // dragging, only the dragged side's strip exists, and
+            // its width is exactly the drag distance — so it grows
+            // out from behind the block and never overlaps it.
+            if (_offset > 0)
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                width: _offset,
+                child: _actionStrip(
+                  color: Colors.orange,
+                  key: ValueKey('block-action-break-${widget.blockStart}'),
+                  label: widget.breakLabel,
+                  onTap: widget.onBreak,
+                ),
+              ),
+            if (_offset < 0 && !widget.isBreak)
+              Positioned(
+                right: 0,
+                top: 0,
+                bottom: 0,
+                width: -_offset,
+                child: _actionStrip(
+                  color: Colors.red,
+                  key: ValueKey('block-action-delete-${widget.blockStart}'),
+                  label: widget.deleteLabel,
+                  onTap: widget.onDelete,
+                ),
+              ),
+            // The block itself, translated by the drag. The Transform
+            // MUST wrap the GestureDetector (not the other way round):
+            // a detector outside the transform keeps its full-width
+            // hit area over the revealed actions, so they could never
+            // be tapped. With the transform outside, the hit area moves
+            // with the block and the exposed action receives the tap.
+            Transform.translate(
+              offset: Offset(_offset, 0),
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onHorizontalDragUpdate: widget.isProtected
+                    ? null
+                    : (details) {
+                        _snapController.stop();
+                        setState(() {
+                          _offset = (_offset + details.delta.dx)
+                              .clamp(_minOffset, _maxOffset);
+                        });
+                      },
+                onHorizontalDragEnd: widget.isProtected
+                    ? null
+                    : (_) {
+                        if (_offset.abs() > _actionWidth / 2) {
+                          _animateTo(
+                              _offset < 0 ? _minOffset : _maxOffset);
+                        } else {
+                          _animateTo(0);
+                        }
+                      },
+                // Tapping an open block just closes it; tapping a closed
+                // block is handled by the child's own tap (no-op, or the
+                // protection explanation).
+                onTap: _offset != 0 ? _close : null,
+                child: widget.child,
               ),
             ),
-          ),
-          // The block itself, translated by the drag. The Transform
-          // MUST wrap the GestureDetector (not the other way round):
-          // a detector outside the transform keeps its full-width
-          // hit area over the revealed actions, so they could never
-          // be tapped. With the transform outside, the hit area moves
-          // with the block and the exposed action receives the tap.
-          Transform.translate(
-            offset: Offset(_offset, 0),
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onHorizontalDragUpdate: widget.isProtected
-                  ? null
-                  : (details) {
-                      setState(() {
-                        _offset = (_offset + details.delta.dx)
-                            .clamp(_minOffset, _maxOffset);
-                      });
-                    },
-              onHorizontalDragEnd: widget.isProtected
-                  ? null
-                  : (_) {
-                      setState(() {
-                        if (_offset.abs() > _actionWidth / 2) {
-                          _offset = _offset < 0 ? _minOffset : _maxOffset;
-                        } else {
-                          _offset = 0;
-                        }
-                      });
-                    },
-              // Tapping an open block just closes it; tapping a closed
-              // block is handled by the child's own tap (no-op, or the
-              // protection explanation).
-              onTap: _offset != 0 ? _close : null,
-              child: widget.child,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -259,6 +259,126 @@ void main() {
     });
   });
 
+  group('v27.14 at-rest clean + progressive reveal', () {
+    testWidgets('at rest NO action widget exists for any block',
+        (tester) async {
+      await pumpSection(tester, day: workDay());
+      // The v27.13 bug: both actions were always rendered behind the
+      // translucent block, so these keys existed (and peeked through)
+      // at rest. At rest they must not exist at all.
+      for (final start in [660, 840, 1260]) {
+        expect(deleteKey(start), findsNothing);
+        expect(breakKey(start), findsNothing);
+      }
+    });
+
+    testWidgets('drag left reveals ONLY Delete, growing with drag distance',
+        (tester) async {
+      await pumpSection(tester, day: workDay());
+      final gesture =
+          await tester.startGesture(tester.getCenter(blockKey(840)));
+      await gesture.moveBy(const Offset(-10, 0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(-10, 0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(-10, 0));
+      await tester.pump();
+      expect(deleteKey(840), findsOneWidget);
+      expect(breakKey(840), findsNothing);
+      final small = tester.getSize(deleteKey(840)).width;
+      await gesture.moveBy(const Offset(-20, 0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(-20, 0));
+      await tester.pump();
+      expect(deleteKey(840), findsOneWidget);
+      expect(breakKey(840), findsNothing);
+      final big = tester.getSize(deleteKey(840)).width;
+      expect(big, greaterThan(small));
+      await gesture.up();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('drag right reveals ONLY Break, never Delete',
+        (tester) async {
+      await pumpSection(tester, day: workDay());
+      final gesture =
+          await tester.startGesture(tester.getCenter(blockKey(840)));
+      await gesture.moveBy(const Offset(10, 0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(10, 0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(20, 0));
+      await tester.pump();
+      expect(breakKey(840), findsOneWidget);
+      expect(deleteKey(840), findsNothing);
+      await gesture.up();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('drag right on a break block reveals ONLY Restore',
+        (tester) async {
+      final day = workDay()..breakHourStarts = [840];
+      await pumpSection(tester, day: day);
+      final gesture =
+          await tester.startGesture(tester.getCenter(blockKey(840)));
+      await gesture.moveBy(const Offset(-10, 0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(-10, 0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(-20, 0));
+      await tester.pump();
+      // A break block has no Delete: a left drag reveals nothing.
+      expect(deleteKey(840), findsNothing);
+      expect(breakKey(840), findsNothing);
+      await gesture.moveBy(const Offset(20, 0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(20, 0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(40, 0));
+      await tester.pump();
+      expect(breakKey(840), findsOneWidget);
+      expect(deleteKey(840), findsNothing);
+      await gesture.up();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('release below threshold snaps fully back and hides action',
+        (tester) async {
+      await pumpSection(tester, day: workDay());
+      await tester.timedDrag(blockKey(840), const Offset(-30, 0),
+          const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      expect(deleteKey(840), findsNothing);
+      expect(breakKey(840), findsNothing);
+      // The block is back at rest: a tap still does nothing.
+      await tester.tap(find.text('14:00'));
+      await tester.pumpAndSettle();
+      expect(find.text('هل أنت متأكد من حذف البلوكاية؟'), findsNothing);
+    });
+
+    testWidgets('protected block drag reveals no action on either side',
+        (tester) async {
+      await pumpSection(tester,
+          day: workDay(), protected: {840});
+      final gesture =
+          await tester.startGesture(tester.getCenter(blockKey(840)));
+      await gesture.moveBy(const Offset(-10, 0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(-30, 0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(20, 0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(20, 0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(40, 0));
+      await tester.pump();
+      expect(deleteKey(840), findsNothing);
+      expect(breakKey(840), findsNothing);
+      await gesture.up();
+      await tester.pumpAndSettle();
+    });
+  });
+
   group('protection', () {
     testWidgets('protected block shows a lock; tap explains, changes nothing',
         (tester) async {
