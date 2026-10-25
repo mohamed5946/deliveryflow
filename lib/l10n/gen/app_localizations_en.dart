@@ -1479,12 +1479,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get hourBreak => 'Break';
 
   @override
-  String get addHour => '+ 1 hour';
-
-  @override
-  String get removeHour => '- 1 hour';
-
-  @override
   String get noScheduleForDay => 'No schedule for this day';
 
   @override
@@ -1514,4 +1508,23 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get confirmAddBlock => 'Are you sure you want to add the block?';
+
+  @override
+  String get assign => 'Assign';
+
+  @override
+  String get assignHourTitle => 'Choose an hour to add';
+
+  @override
+  String get blockBreak => 'Break';
+
+  @override
+  String get blockRestore => 'Restore';
+
+  @override
+  String get blockProtected => 'Protected';
+
+  @override
+  String get blockProtectedHasOrders =>
+      'This block cannot be deleted because it contains orders';
 }

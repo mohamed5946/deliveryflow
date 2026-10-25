@@ -389,11 +389,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     );
   }
 
-  /// v27.12: hour blocks for the selected day. The section itself
+  /// v27.13: hour blocks for the selected day. The section itself
   /// owns the confirmation dialogs; these callbacks only run after an
   /// explicit Yes, and every edit saves through the schedule save
   /// chokepoint ([DatabaseService.saveSchedule], which normalizes)
   /// and is logged under the schedule diagnostics category.
+  /// Protected blocks are computed here (never in the widget) from
+  /// the selected day's order record, excluding countOnly entries.
   Widget _dayHoursSection(
       BuildContext context, DatabaseService db, UserSettings settings) {
     final selectedKey = WeekCalendar.dateKey(_selectedDay);
@@ -405,24 +407,29 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       }
     }
     final current = day;
+    final record = db.orderRecord(selectedKey);
+    final protected = current == null
+        ? <int>{}
+        : protectedBlockStarts(
+            day: current, entries: record?.entries ?? const []);
     return DayHoursSection(
       day: current,
       selectedDay: _selectedDay,
       now: DateTime.now(),
       timeFormat: timeFormatModeFromStored(settings.timeFormat),
       arabic: settings.languageCode == 'ar',
+      protectedBlockStarts: protected,
       onToggleBreak: (start) {
         if (current != null) {
           _saveDayHours(db, toggleBreakHour(current, start), 'toggle-break');
         }
       },
-      onAddHour: () {
-        if (current != null) _saveDayHours(db, addHour(current), 'add-hour');
-      },
-      onRemoveHour: () {
-        if (current == null) return;
-        final next = removeLastHour(current);
-        if (next != null) _saveDayHours(db, next, 'remove-hour');
+      onAssignHour: (hour) {
+        // assignHour handles no-day / day-off creation itself; the
+        // save below inserts the day when the week (or the day in
+        // it) does not exist yet, so Assign works from any state.
+        _saveDayHours(
+            db, assignHour(current, hour, selectedKey), 'assign-hour');
       },
     );
   }
@@ -430,14 +437,50 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   Future<void> _saveDayHours(
       DatabaseService db, DailySchedule updated, String action) async {
     final week = db.scheduleForWeek(_selectedDay);
-    if (week == null) return;
+    if (week == null) {
+      // No week at all (e.g. Assign on a fresh week): create a week
+      // whose only working day is the assigned one; other days are
+      // day off, never invented shifts.
+      final start = WeekCalendar.weekStart(_selectedDay);
+      final nowMillis = DateTime.now().millisecondsSinceEpoch;
+      final days = WeekCalendar.weekDays(_selectedDay)
+          .map((d) => WeekCalendar.dateKey(d) == updated.dateKey
+              ? updated
+              : DailySchedule(
+                  dateKey: WeekCalendar.dateKey(d),
+                  isWorkingDay: false,
+                  breakDurationMinutes: db.settings.defaultBreakDurationMinutes,
+                ))
+          .toList();
+      await db.saveSchedule(WorkSchedule(
+        id: 'sch_${WeekCalendar.dateKey(start)}',
+        weekStartKey: WeekCalendar.dateKey(start),
+        weekEndKey: WeekCalendar.dateKey(WeekCalendar.addDays(start, 6)),
+        dailySchedules: days,
+        createdAtMillis: nowMillis,
+        updatedAtMillis: nowMillis,
+      ));
+      ref.read(appLogServiceProvider).info(
+            AppLogCategory.schedule,
+            'Day hours edited ($action)',
+            detail: '${updated.dateKey}: (new week) -> '
+                '${updated.startMinutes}-${updated.endMinutes} '
+                'breaks=${updated.breakHourStarts}',
+          );
+      bumpDataVersion(ref);
+      if (mounted) setState(() {});
+      return;
+    }
     DailySchedule? old;
     for (final d in week.dailySchedules) {
       if (d.dateKey == updated.dateKey) old = d;
     }
+    // Replace the day, or append it if the week somehow lacks it
+    // (the save chokepoint normalizes the week afterwards).
     final days = [
       for (final d in week.dailySchedules)
         if (d.dateKey == updated.dateKey) updated else d,
+      if (old == null) updated,
     ];
     await db.saveSchedule(WorkSchedule(
       id: week.id,
@@ -448,14 +491,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       updatedAtMillis: DateTime.now().millisecondsSinceEpoch,
     ));
     ref.read(appLogServiceProvider).info(
-      AppLogCategory.schedule,
-      'Day hours edited ($action)',
-      detail: '${updated.dateKey}: '
-          '${old?.startMinutes}-${old?.endMinutes} '
-          'breaks=${old?.breakHourStarts} -> '
-          '${updated.startMinutes}-${updated.endMinutes} '
-          'breaks=${updated.breakHourStarts}',
-    );
+          AppLogCategory.schedule,
+          'Day hours edited ($action)',
+          detail: '${updated.dateKey}: '
+              '${old?.startMinutes}-${old?.endMinutes} '
+              'breaks=${old?.breakHourStarts} -> '
+              '${updated.startMinutes}-${updated.endMinutes} '
+              'breaks=${updated.breakHourStarts}',
+        );
     bumpDataVersion(ref);
     if (mounted) setState(() {});
   }

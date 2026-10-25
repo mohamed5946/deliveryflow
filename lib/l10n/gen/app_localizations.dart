@@ -2882,18 +2882,6 @@ abstract class AppLocalizations {
   /// **'Break'**
   String get hourBreak;
 
-  /// No description provided for @addHour.
-  ///
-  /// In en, this message translates to:
-  /// **'+ 1 hour'**
-  String get addHour;
-
-  /// No description provided for @removeHour.
-  ///
-  /// In en, this message translates to:
-  /// **'- 1 hour'**
-  String get removeHour;
-
   /// No description provided for @noScheduleForDay.
   ///
   /// In en, this message translates to:
@@ -2947,6 +2935,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Are you sure you want to add the block?'**
   String get confirmAddBlock;
+
+  /// No description provided for @assign.
+  ///
+  /// In en, this message translates to:
+  /// **'Assign'**
+  String get assign;
+
+  /// No description provided for @assignHourTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose an hour to add'**
+  String get assignHourTitle;
+
+  /// No description provided for @blockBreak.
+  ///
+  /// In en, this message translates to:
+  /// **'Break'**
+  String get blockBreak;
+
+  /// No description provided for @blockRestore.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore'**
+  String get blockRestore;
+
+  /// No description provided for @blockProtected.
+  ///
+  /// In en, this message translates to:
+  /// **'Protected'**
+  String get blockProtected;
+
+  /// No description provided for @blockProtectedHasOrders.
+  ///
+  /// In en, this message translates to:
+  /// **'This block cannot be deleted because it contains orders'**
+  String get blockProtectedHasOrders;
 }
 
 class _AppLocalizationsDelegate

@@ -270,7 +270,7 @@
   "setSalaryHint": "حدد سعر الأوردر والثابت اليومي من الإعدادات عشان يتحسب المرتب الأسبوعي",
   "egpUnit": "جنيه",
   "orderDetails": "تفاصيل الأوردر",
-  "statusPending": "في الانتظار",
+  "statusPending": "إشعارات مجدولة حاليًا",
   "statusToCustomer": "في الطريق للعميل",
   "statusToMart": "راجع للمارت",
   "statusCompleted": "مكتمل",
@@ -435,7 +435,6 @@
   "statusExactAlarm": "إذن المنبه الدقيق",
   "statusBattery": "استثناء تحسين البطارية",
   "statusChannel": "أولوية قناة التذكيرات",
-  "statusPending": "إشعارات مجدولة حاليًا",
   "statusOk": "تمام",
   "statusProblem": "في مشكلة",
   "statusUnknown": "غير معروف",
@@ -498,8 +497,6 @@
   "hourCurrent": "الساعة الحالية",
   "hourUpcoming": "جاية",
   "hourBreak": "استراحة",
-  "addHour": "+ ساعة",
-  "removeHour": "- ساعة",
   "noScheduleForDay": "مفيش جدول لليوم ده",
   "registeredBreak": "استراحة مسجلة: {minutes} دقيقة",
   "breakHoursCount": "استراحة: {count} ساعة",
@@ -508,5 +505,11 @@
   "timeFormat24": "24 ساعة",
   "timeFormat12": "12 ساعة",
   "confirmDeleteBlock": "هل أنت متأكد من حذف البلوكاية؟",
-  "confirmAddBlock": "هل أنت متأكد من إضافة البلوكاية؟"
+  "confirmAddBlock": "هل أنت متأكد من إضافة البلوكاية؟",
+  "assign": "تسجيل",
+  "assignHourTitle": "اختر ساعة لإضافتها",
+  "blockBreak": "بريك",
+  "blockRestore": "استعادة",
+  "blockProtected": "محمي",
+  "blockProtectedHasOrders": "لا يمكن حذف هذه البلوكاية لأنها تحتوي على أوردرات"
 }

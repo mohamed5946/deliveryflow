@@ -143,16 +143,166 @@ HourBlockState classifyBlock({
 }
 
 DailySchedule _copyDay(DailySchedule day,
-        {int? endMinutes, List<int>? breakHourStarts}) =>
+        {int? startMinutes,
+        int? endMinutes,
+        bool? isWorkingDay,
+        List<int>? breakHourStarts}) =>
     DailySchedule(
       dateKey: day.dateKey,
-      isWorkingDay: day.isWorkingDay,
-      startMinutes: day.startMinutes,
+      isWorkingDay: isWorkingDay ?? day.isWorkingDay,
+      startMinutes: startMinutes ?? day.startMinutes,
       endMinutes: endMinutes ?? day.endMinutes,
       breakDurationMinutes: day.breakDurationMinutes,
       notes: day.notes,
       breakHourStarts: breakHourStarts ?? List.of(day.breakHourStarts),
     );
+
+/// Wall-clock hour (0..23) of an extended block start.
+int _wallHour(int extendedStart) => (extendedStart % (24 * 60)) ~/ 60;
+
+/// v27.13 Assign picker: the wall-clock hours of [day] that are NOT
+/// already a block, so picking one can never duplicate a block.
+///
+/// - No day / day off: all 24 hours are available (picking one
+///   creates a one-hour shift, see [assignHour]).
+/// - Working day: every block's wall hour is excluded — work blocks
+///   AND break blocks alike. A break hour is already a block in the
+///   shift, so it is not "available" as a new block; restoring it is
+///   the swipe-restore path, not Assign. A protected (order-bearing)
+///   hour is a work block, so it is excluded here by the same rule.
+/// - Partial hours: only full-hour blocks exclude their wall hour, so
+///   a trailing partial hour's wall hour stays available (picking it
+///   extends the end past it, see [assignHour]).
+List<int> availableHoursForAssign(DailySchedule? day) {
+  if (day == null || !day.isWorkingDay) {
+    return [for (var h = 0; h < 24; h++) h];
+  }
+  final taken = {for (final s in hourBlockStarts(day)) _wallHour(s)};
+  return [
+    for (var h = 0; h < 24; h++)
+      if (!taken.contains(h)) h
+  ];
+}
+
+/// v27.13 Assign: add [hour] (wall-clock 0..23) as a NEW WORK block.
+///
+/// The model stays start/end + breakHourStarts; no second
+/// representation is introduced:
+/// - Inside-range pick: unreachable from the picker (the hour would
+///   already be a block) — guarded to a no-op — except a trailing
+///   partial hour, whose wall hour is available: the end extends to
+///   the end of that hour and it becomes a work block, no breaks.
+/// - Outside, after the end: end extends to hour+60 and every
+///   intermediate full hour between the old end and the picked hour
+///   becomes a break, so the header stays coherent (e.g. 8–11 +
+///   14:00 => ends 15:00, work 8,9,10,14, break 11,12,13).
+/// - Outside, before the start: symmetric — start moves back to the
+///   hour, intermediate hours between it and the old start become
+///   breaks, and old break marks are carried over by wall hour (the
+///   new start re-anchors block positions, so a wall-hour carry is
+///   the only mapping that survives a non-hour-aligned old start).
+/// - No day / day off: a one-hour working shift at that hour
+///   (isWorkingDay flips to true for a day off).
+/// - Overnight: the candidate extended start nearest the shift
+///   interval wins (e.g. a 22:00–02:00 shift picking 03:00 extends
+///   to 04:00, not backwards to 03:00 the previous morning), and
+///   stored start/end wrap mod 1440 per the overnight convention.
+/// Returns [day] unchanged for an already-blocked hour, an invalid
+/// hour, or a day that already spans 24 hours.
+DailySchedule assignHour(DailySchedule? day, int hour, String dateKey) {
+  if (hour < 0 || hour > 23) {
+    throw ArgumentError.value(hour, 'hour', 'must be 0..23');
+  }
+  if (day == null || !day.isWorkingDay) {
+    return DailySchedule(
+      dateKey: day?.dateKey ?? dateKey,
+      isWorkingDay: true,
+      startMinutes: hour * 60,
+      endMinutes: (hour + 1) * 60 % (24 * 60),
+      breakDurationMinutes: 0,
+    );
+  }
+  final start = day.startMinutes;
+  final end = effectiveEndMinutes(day);
+  if (end - start >= 24 * 60) return day;
+  if ({for (final s in hourBlockStarts(day)) _wallHour(s)}.contains(hour)) {
+    return day;
+  }
+  // Nearest extended start for this wall hour to the shift interval.
+  var best = hour * 60;
+  var bestDist = 1 << 30;
+  for (var k = -1; k <= 2; k++) {
+    final c = hour * 60 + k * 24 * 60;
+    final dist = c < start ? start - c : (c >= end ? c - end : 0);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = c;
+    }
+  }
+  if (best >= start && best < end) {
+    // Trailing partial hour: it fits only once the end moves past
+    // it. Any other inside candidate would already be a block (the
+    // wall-hour guard above), so anything else here is a no-op
+    // rather than a shrink.
+    if (best + 60 <= end) return day;
+    return _copyDay(day, endMinutes: (best + 60) % (24 * 60));
+  }
+  if (best < start) {
+    final newEnd = end;
+    final newBlocks = [
+      for (var s = best; s + 60 <= newEnd; s += 60) s,
+    ];
+    final oldBreakWalls = {
+      for (final b in breakBlockStarts(day)) _wallHour(b),
+    };
+    final breaks = {
+      for (final s in newBlocks)
+        if (oldBreakWalls.contains(_wallHour(s)) ||
+            (s >= best + 60 && s < start))
+          s,
+    }.toList()
+      ..sort();
+    return _copyDay(day,
+        startMinutes: best % (24 * 60),
+        endMinutes: newEnd % (24 * 60),
+        breakHourStarts: breaks);
+  }
+  // best >= end: extend the end, intermediate blocks become breaks.
+  final newEnd = best + 60;
+  final breaks = {
+    ...breakBlockStarts(day),
+    for (var s = start; s + 60 <= newEnd; s += 60)
+      if (s >= end && s < best) s,
+  }.toList()
+    ..sort();
+  return _copyDay(day, endMinutes: newEnd % (24 * 60), breakHourStarts: breaks);
+}
+
+/// v27.13 protection grouping (pure): the extended block starts of
+/// [day] that contain at least one REAL order entry.
+///
+/// Matching is by wall-clock hour: an entry's local timestamp hour
+/// against a block's wall hour (block start % 1440 / 60), so
+/// overnight blocks (e.g. 1500 = 01:00 next day) match 01:00 orders.
+/// countOnly entries are EXCLUDED — they carry no real timestamp
+/// (born at local noon) and must never protect an hour.
+Set<int> protectedBlockStarts({
+  required DailySchedule day,
+  required Iterable<OrderEntry> entries,
+}) {
+  final byWallHour = <int, int>{};
+  for (final s in hourBlockStarts(day)) {
+    byWallHour[_wallHour(s)] = s;
+  }
+  final protected = <int>{};
+  for (final e in entries) {
+    if (e.countOnly) continue;
+    final hour = DateTime.fromMillisecondsSinceEpoch(e.timestampMillis).hour;
+    final block = byWallHour[hour];
+    if (block != null) protected.add(block);
+  }
+  return protected;
+}
 
 /// Toggle [blockStart] between work and break. The block stays in its
 /// position, the day's end time is unchanged, and the legacy break

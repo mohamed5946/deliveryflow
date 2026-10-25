@@ -318,7 +318,7 @@
   "setSalaryHint": "Set the order price and daily fixed pay in Settings to calculate the weekly salary",
   "egpUnit": "EGP",
   "orderDetails": "Order details",
-  "statusPending": "Pending",
+  "statusPending": "Currently scheduled notifications",
   "statusToCustomer": "On the way to customer",
   "statusToMart": "Returning to mart",
   "statusCompleted": "Completed",
@@ -483,7 +483,6 @@
   "statusExactAlarm": "Exact alarm permission",
   "statusBattery": "Battery optimization exemption",
   "statusChannel": "Reminders channel priority",
-  "statusPending": "Currently scheduled notifications",
   "statusOk": "OK",
   "statusProblem": "Problem",
   "statusUnknown": "Unknown",
@@ -553,8 +552,6 @@
   "hourCurrent": "Current hour",
   "hourUpcoming": "Upcoming",
   "hourBreak": "Break",
-  "addHour": "+ 1 hour",
-  "removeHour": "- 1 hour",
   "noScheduleForDay": "No schedule for this day",
   "registeredBreak": "Registered break: {minutes} min",
   "breakHoursCount": "Break: {count}h",
@@ -563,5 +560,11 @@
   "timeFormat24": "24-hour",
   "timeFormat12": "12-hour",
   "confirmDeleteBlock": "Are you sure you want to delete the block?",
-  "confirmAddBlock": "Are you sure you want to add the block?"
+  "confirmAddBlock": "Are you sure you want to add the block?",
+  "assign": "Assign",
+  "assignHourTitle": "Choose an hour to add",
+  "blockBreak": "Break",
+  "blockRestore": "Restore",
+  "blockProtected": "Protected",
+  "blockProtectedHasOrders": "This block cannot be deleted because it contains orders"
 }

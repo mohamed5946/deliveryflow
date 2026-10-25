@@ -17,10 +17,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hive/hive.dart';
 
-/// v27.12: confirmation-dialog flow for block edits, and schedule
-/// view-mode times. No block change happens without an explicit Yes:
-/// dialog appears on tap, Yes applies it, No (or dismiss) leaves the
-/// schedule unchanged.
+/// v27.13: swipe actions + Assign picker + protection, and schedule
+/// view-mode times. Tap on a block does nothing (tap-vs-swipe
+/// resolution); mutations go through swipe actions or Assign, and no
+/// change happens without an explicit Yes in the confirmation dialog.
+/// A protected block can neither be deleted nor broken.
 void main() {
   late Directory tmp;
   late DatabaseService db;
@@ -38,8 +39,8 @@ void main() {
     DailySchedule? day,
     DateTime? now,
     ValueChanged<int>? onToggle,
-    VoidCallback? onAdd,
-    VoidCallback? onRemove,
+    ValueChanged<int>? onAssign,
+    Set<int>? protected,
   }) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -61,8 +62,8 @@ void main() {
               timeFormat: TimeFormatMode.h24,
               arabic: true,
               onToggleBreak: onToggle ?? (_) {},
-              onAddHour: onAdd ?? () {},
-              onRemoveHour: onRemove ?? () {},
+              onAssignHour: onAssign ?? (_) {},
+              protectedBlockStarts: protected ?? const {},
             ),
           ),
         ),
@@ -71,8 +72,15 @@ void main() {
     await tester.pump();
   }
 
-  group('confirmation dialogs', () {
-    testWidgets('work block tap asks delete; Yes toggles, No does not',
+  Finder blockKey(int start) =>
+      find.byKey(ValueKey('day-hour-block-2026-10-25-$start'));
+  Finder deleteKey(int start) =>
+      find.byKey(ValueKey('block-action-delete-$start'));
+  Finder breakKey(int start) =>
+      find.byKey(ValueKey('block-action-break-$start'));
+
+  group('tap vs swipe', () {
+    testWidgets('tap on a block does nothing (no tap-toggle any more)',
         (tester) async {
       var toggled = <int>[];
       await pumpSection(tester,
@@ -84,30 +92,76 @@ void main() {
       expect(find.text('22:00'), findsNothing);
 
       await tester.tap(find.text('14:00'));
-      await tester.pump();
-      expect(find.text('هل أنت متأكد من حذف البلوكاية؟'), findsOneWidget);
-
-      await tester.tap(find.text('لا'));
       await tester.pumpAndSettle();
       expect(toggled, isEmpty);
       expect(find.text('هل أنت متأكد من حذف البلوكاية؟'), findsNothing);
+    });
 
-      // Tap again, this time Yes.
-      await tester.tap(find.text('14:00'));
+    testWidgets('swipe alone changes nothing; revealed Delete + Yes toggles',
+        (tester) async {
+      var toggled = <int>[];
+      await pumpSection(tester,
+          day: workDay(), onToggle: (s) => toggled.add(s));
+
+      await tester.timedDrag(blockKey(840), const Offset(-150, 0),
+          const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      // Swiping only revealed the action: no dialog, no callback.
+      expect(toggled, isEmpty);
+      expect(find.text('هل أنت متأكد من حذف البلوكاية؟'), findsNothing);
+
+      await tester.tap(deleteKey(840));
       await tester.pump();
+      expect(find.text('هل أنت متأكد من حذف البلوكاية؟'), findsOneWidget);
       await tester.tap(find.text('نعم'));
       await tester.pumpAndSettle();
       expect(toggled, [840]);
     });
 
-    testWidgets('break block tap asks add (restore); No leaves it',
+    testWidgets('swipe left Delete + No leaves the block unchanged',
+        (tester) async {
+      var toggled = <int>[];
+      await pumpSection(tester,
+          day: workDay(), onToggle: (s) => toggled.add(s));
+
+      await tester.timedDrag(blockKey(840), const Offset(-150, 0),
+          const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      await tester.tap(deleteKey(840));
+      await tester.pump();
+      await tester.tap(find.text('لا'));
+      await tester.pumpAndSettle();
+      expect(toggled, isEmpty);
+    });
+
+    testWidgets('swipe right Break on a work block asks delete; Yes toggles',
+        (tester) async {
+      var toggled = <int>[];
+      await pumpSection(tester,
+          day: workDay(), onToggle: (s) => toggled.add(s));
+
+      await tester.timedDrag(blockKey(840), const Offset(150, 0),
+          const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      await tester.tap(breakKey(840));
+      await tester.pump();
+      expect(find.text('هل أنت متأكد من حذف البلوكاية؟'), findsOneWidget);
+      await tester.tap(find.text('نعم'));
+      await tester.pumpAndSettle();
+      expect(toggled, [840]);
+    });
+
+    testWidgets('swipe right Restore on a break block asks add; No leaves it',
         (tester) async {
       var toggled = <int>[];
       final day = workDay()..breakHourStarts = [840];
       await pumpSection(tester, day: day, onToggle: (s) => toggled.add(s));
 
       expect(find.text('استراحة'), findsWidgets);
-      await tester.tap(find.text('14:00'));
+      await tester.timedDrag(blockKey(840), const Offset(150, 0),
+          const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      await tester.tap(breakKey(840));
       await tester.pump();
       expect(find.text('هل أنت متأكد من إضافة البلوكاية؟'), findsOneWidget);
       await tester.tap(find.text('لا'));
@@ -115,44 +169,146 @@ void main() {
       expect(toggled, isEmpty);
     });
 
-    testWidgets('+ hour asks add, - hour asks delete; Yes fires each',
+    testWidgets('+1/-1 buttons are gone; Assign button is present',
         (tester) async {
-      var added = 0;
-      var removed = 0;
-      await pumpSection(tester,
-          day: workDay(),
-          onAdd: () => added++,
-          onRemove: () => removed++);
+      await pumpSection(tester, day: workDay());
+      expect(find.text('+ ساعة'), findsNothing);
+      expect(find.text('- ساعة'), findsNothing);
+      expect(find.text('تسجيل'), findsOneWidget);
+    });
+  });
 
-      await tester.ensureVisible(find.text('+ ساعة'));
+  group('Assign button', () {
+    testWidgets('picker excludes existing hours (8 AM example) + Yes assigns',
+        (tester) async {
+      var assigned = <int>[];
+      await pumpSection(tester,
+          day: workDay(start: 8 * 60, end: 11 * 60),
+          onAssign: (h) => assigned.add(h));
+
+      await tester.tap(find.text('تسجيل'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('+ ساعة'));
+      expect(find.text('اختر ساعة لإضافتها'), findsOneWidget);
+      // Existing blocks 8, 9, 10 are not offered; 11 is (the picker
+      // list is lazily built, so scroll until 11 appears to prove it).
+      expect(find.byKey(const ValueKey('assign-hour-8')), findsNothing);
+      expect(find.byKey(const ValueKey('assign-hour-9')), findsNothing);
+      expect(find.byKey(const ValueKey('assign-hour-10')), findsNothing);
+      await tester.drag(find.byType(ListView), const Offset(0, -400));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('assign-hour-11')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('assign-hour-11')));
       await tester.pump();
       expect(find.text('هل أنت متأكد من إضافة البلوكاية؟'), findsOneWidget);
       await tester.tap(find.text('نعم'));
       await tester.pumpAndSettle();
-      expect(added, 1);
-
-      await tester.ensureVisible(find.text('- ساعة'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('- ساعة'));
-      await tester.pump();
-      expect(find.text('هل أنت متأكد من حذف البلوكاية؟'), findsOneWidget);
-      await tester.tap(find.text('لا'));
-      await tester.pumpAndSettle();
-      expect(removed, 0);
+      expect(assigned, [11]);
     });
 
-    testWidgets('day off shows Day off only; no schedule is neutral',
-        (tester) async {
+    testWidgets('Assign picker + No assigns nothing', (tester) async {
+      var assigned = <int>[];
       await pumpSection(tester,
-          day: workDay()..isWorkingDay = false);
-      expect(find.text('يوم إجازة'), findsOneWidget);
-      expect(find.text('11:00'), findsNothing);
+          day: workDay(start: 8 * 60, end: 11 * 60),
+          onAssign: (h) => assigned.add(h));
 
-      await pumpSection(tester, day: null);
+      await tester.tap(find.text('تسجيل'));
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(ListView), const Offset(0, -400));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('assign-hour-14')));
+      await tester.pump();
+      await tester.tap(find.text('لا'));
+      await tester.pumpAndSettle();
+      expect(assigned, isEmpty);
+    });
+
+    testWidgets('day off: Assign offers all hours and creates a shift',
+        (tester) async {
+      var assigned = <int>[];
+      await pumpSection(tester,
+          day: workDay()..isWorkingDay = false,
+          onAssign: (h) => assigned.add(h));
+      expect(find.text('يوم إجازة'), findsOneWidget);
+
+      await tester.tap(find.text('تسجيل'));
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(ListView), const Offset(0, -400));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('assign-hour-8')));
+      await tester.pump();
+      await tester.tap(find.text('نعم'));
+      await tester.pumpAndSettle();
+      expect(assigned, [8]);
+    });
+
+    testWidgets('no schedule: Assign is shown and picks an hour',
+        (tester) async {
+      var assigned = <int>[];
+      await pumpSection(tester, day: null, onAssign: (h) => assigned.add(h));
       expect(find.text('مفيش جدول لليوم ده'), findsOneWidget);
-      expect(find.text('11:00'), findsNothing);
+
+      await tester.tap(find.text('تسجيل'));
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(ListView), const Offset(0, -400));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('assign-hour-8')));
+      await tester.pump();
+      await tester.tap(find.text('نعم'));
+      await tester.pumpAndSettle();
+      expect(assigned, [8]);
+    });
+  });
+
+  group('protection', () {
+    testWidgets('protected block shows a lock; tap explains, changes nothing',
+        (tester) async {
+      var toggled = <int>[];
+      await pumpSection(tester,
+          day: workDay(), onToggle: (s) => toggled.add(s), protected: {840});
+      expect(find.text('محمي'), findsOneWidget);
+
+      await tester.tap(find.text('14:00'));
+      await tester.pump();
+      expect(find.text('لا يمكن حذف هذه البلوكاية لأنها تحتوي على أوردرات'),
+          findsOneWidget);
+      await tester.tap(find.text('حسناً'));
+      await tester.pumpAndSettle();
+      expect(toggled, isEmpty);
+    });
+
+    testWidgets('protected block cannot be swiped open or toggled',
+        (tester) async {
+      var toggled = <int>[];
+      await pumpSection(tester,
+          day: workDay(), onToggle: (s) => toggled.add(s), protected: {840});
+
+      // Drags in both directions: no dialog, no callback — the block
+      // never opens, so neither swipe action can fire.
+      await tester.timedDrag(blockKey(840), const Offset(-150, 0),
+          const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      await tester.timedDrag(blockKey(840), const Offset(150, 0),
+          const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      expect(toggled, isEmpty);
+      expect(find.text('هل أنت متأكد من حذف البلوكاية؟'), findsNothing);
+      expect(find.text('هل أنت متأكد من إضافة البلوكاية؟'), findsNothing);
+    });
+
+    testWidgets('unprotected block next to a protected one still toggles',
+        (tester) async {
+      var toggled = <int>[];
+      await pumpSection(tester,
+          day: workDay(), onToggle: (s) => toggled.add(s), protected: {840});
+
+      await tester.timedDrag(blockKey(900), const Offset(-150, 0),
+          const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      await tester.tap(deleteKey(900));
+      await tester.pump();
+      await tester.tap(find.text('نعم'));
+      await tester.pumpAndSettle();
+      expect(toggled, [900]);
     });
   });
 

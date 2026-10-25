@@ -1475,12 +1475,6 @@ class AppLocalizationsAr extends AppLocalizations {
   String get hourBreak => 'استراحة';
 
   @override
-  String get addHour => '+ ساعة';
-
-  @override
-  String get removeHour => '- ساعة';
-
-  @override
   String get noScheduleForDay => 'مفيش جدول لليوم ده';
 
   @override
@@ -1510,4 +1504,23 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get confirmAddBlock => 'هل أنت متأكد من إضافة البلوكاية؟';
+
+  @override
+  String get assign => 'تسجيل';
+
+  @override
+  String get assignHourTitle => 'اختر ساعة لإضافتها';
+
+  @override
+  String get blockBreak => 'بريك';
+
+  @override
+  String get blockRestore => 'استعادة';
+
+  @override
+  String get blockProtected => 'محمي';
+
+  @override
+  String get blockProtectedHasOrders =>
+      'لا يمكن حذف هذه البلوكاية لأنها تحتوي على أوردرات';
 }

@@ -31,8 +31,8 @@ void main() {
 
   group('hour-block generation (end-exclusive)', () {
     test('8:00-11:00 => blocks 8, 9, 10 (no 11 block)', () {
-      expect(hourBlockStarts(day(start: 8 * 60, end: 11 * 60)),
-          [480, 540, 600]);
+      expect(
+          hourBlockStarts(day(start: 8 * 60, end: 11 * 60)), [480, 540, 600]);
     });
 
     test('11:00-22:00 => 11 blocks 11..21 (no 22 block)', () {
@@ -120,27 +120,22 @@ void main() {
     test('today: past = worked, containing hour = current, later = upcoming',
         () {
       expect(
-          classifyBlock(
-              day: today, now: now, blockStart: 660, isBreak: false),
+          classifyBlock(day: today, now: now, blockStart: 660, isBreak: false),
           HourBlockState.worked);
       expect(
-          classifyBlock(
-              day: today, now: now, blockStart: 720, isBreak: false),
+          classifyBlock(day: today, now: now, blockStart: 720, isBreak: false),
           HourBlockState.worked);
       expect(
-          classifyBlock(
-              day: today, now: now, blockStart: 780, isBreak: false),
+          classifyBlock(day: today, now: now, blockStart: 780, isBreak: false),
           HourBlockState.current);
       expect(
-          classifyBlock(
-              day: today, now: now, blockStart: 900, isBreak: false),
+          classifyBlock(day: today, now: now, blockStart: 900, isBreak: false),
           HourBlockState.upcoming);
     });
 
     test('break blocks are onBreak regardless of the clock', () {
       expect(
-          classifyBlock(
-              day: today, now: now, blockStart: 840, isBreak: true),
+          classifyBlock(day: today, now: now, blockStart: 840, isBreak: true),
           HourBlockState.onBreak);
     });
 
@@ -151,22 +146,16 @@ void main() {
       expect(s.worked + s.remaining, 10); // 11 blocks - 1 break
     });
 
-    test('past days: all work hours worked; future days: all upcoming',
-        () {
-      final past = summarizeBlocks(
-          day: d,
-          dayDate: DateTime(2026, 10, 24),
-          now: now);
+    test('past days: all work hours worked; future days: all upcoming', () {
+      final past =
+          summarizeBlocks(day: d, dayDate: DateTime(2026, 10, 24), now: now);
       expect((past.worked, past.remaining), (10, 0));
-      final future = summarizeBlocks(
-          day: d,
-          dayDate: DateTime(2026, 10, 26),
-          now: now);
+      final future =
+          summarizeBlocks(day: d, dayDate: DateTime(2026, 10, 26), now: now);
       expect((future.worked, future.remaining), (0, 10));
     });
 
-    test('overnight spill at 23:00: next-day 01:00 block is upcoming',
-        () {
+    test('overnight spill at 23:00: next-day 01:00 block is upcoming', () {
       final night = day(start: 22 * 60, end: 2 * 60);
       expect(hourBlockStarts(night), [1320, 1380, 1440, 1500]);
       expect(
@@ -279,6 +268,146 @@ void main() {
       expect(reloaded.breakHourStarts, [720]);
       expect(reloaded.breakDurationMinutes, 30);
       expect(blockNetMinutes(reloaded), 9 * 60 - 60);
+    });
+
+    group('assign: available hours', () {
+      test('8 AM example: an existing 8:00 block is never offered again', () {
+        final d = day(start: 8 * 60, end: 11 * 60);
+        final avail = availableHoursForAssign(d);
+        expect(avail, isNot(contains(8)));
+        expect(avail, isNot(contains(9)));
+        expect(avail, isNot(contains(10)));
+        expect(avail, contains(11));
+        expect(avail.length, 21);
+      });
+
+      test('break hours are excluded too (restore is the swipe path)', () {
+        final d = toggleBreakHour(day(start: 8 * 60, end: 11 * 60), 540);
+        expect(availableHoursForAssign(d), isNot(contains(9)));
+      });
+
+      test('no day / day off: all 24 hours available', () {
+        expect(availableHoursForAssign(null).length, 24);
+        expect(availableHoursForAssign(day(working: false)).length, 24);
+      });
+
+      test('overnight blocks exclude their wall hours', () {
+        final d = day(start: 22 * 60, end: 2 * 60);
+        final avail = availableHoursForAssign(d);
+        for (final h in [22, 23, 0, 1]) {
+          expect(avail, isNot(contains(h)));
+        }
+        expect(avail, contains(2));
+      });
+    });
+
+    group('assign: adding a new work hour', () {
+      test('outside, after: 8-11 + 14:00 => ends 15:00, 11,12,13 break', () {
+        final d =
+            assignHour(day(start: 8 * 60, end: 11 * 60), 14, '2026-10-25');
+        expect(d.startMinutes, 8 * 60);
+        expect(d.endMinutes, 15 * 60);
+        expect(d.breakHourStarts, [660, 720, 780]);
+        expect(hourBlockStarts(d), [480, 540, 600, 660, 720, 780, 840]);
+        expect(blockNetMinutes(d), 4 * 60);
+      });
+
+      test('outside, before: 11-22 + 8:00 => starts 8:00, 9,10 break', () {
+        final d = assignHour(day(), 8, '2026-10-25');
+        expect(d.startMinutes, 8 * 60);
+        expect(d.endMinutes, 22 * 60);
+        expect(d.breakHourStarts, [540, 600]);
+        expect(hourBlockStarts(d).first, 480);
+      });
+
+      test('inside pick is a no-op (unreachable from the picker)', () {
+        final d = day(start: 8 * 60, end: 11 * 60);
+        expect(identical(assignHour(d, 9, '2026-10-25'), d), isTrue);
+      });
+
+      test('no day: creates a one-hour working shift', () {
+        final d = assignHour(null, 8, '2026-10-25');
+        expect(d.isWorkingDay, isTrue);
+        expect((d.startMinutes, d.endMinutes), (480, 540));
+        expect(hourBlockStarts(d), [480]);
+      });
+
+      test('day off: flips to working with a one-hour shift', () {
+        final d = assignHour(day(working: false), 14, '2026-10-25');
+        expect(d.isWorkingDay, isTrue);
+        expect((d.startMinutes, d.endMinutes), (840, 900));
+      });
+
+      test('overnight: 22-02 + 03:00 extends forward, 02:00 becomes break', () {
+        final d = assignHour(day(start: 22 * 60, end: 2 * 60), 3, '2026-10-25');
+        expect(d.startMinutes, 22 * 60);
+        expect(d.endMinutes, 4 * 60);
+        expect(d.breakHourStarts, [1560]);
+        expect(hourBlockStarts(d), [1320, 1380, 1440, 1500, 1560, 1620]);
+      });
+
+      test('partial trailing hour: 8:00-11:30 + 11:00 extends to 12:00', () {
+        final d =
+            assignHour(day(start: 8 * 60, end: 11 * 60 + 30), 11, '2026-10-25');
+        expect(d.endMinutes, 12 * 60);
+        expect(hourBlockStarts(d), [480, 540, 600, 660]);
+        expect(d.breakHourStarts, isEmpty);
+      });
+
+      test('assign never touches orders: helpers operate on DailySchedule only',
+          () {
+        // By construction assignHour takes no order input at all; the
+        // schedule it returns carries no order fields to mutate.
+        final d =
+            assignHour(day(start: 8 * 60, end: 11 * 60), 14, '2026-10-25');
+        expect(d.dateKey, '2026-10-25');
+        expect(d.breakHourStarts, [660, 720, 780]);
+      });
+    });
+
+    group('protection grouping', () {
+      OrderEntry entry(String id, DateTime ts, {bool countOnly = false}) =>
+          OrderEntry(
+              id: id,
+              dateKey: '2026-10-25',
+              timestampMillis: ts.millisecondsSinceEpoch,
+              status: 3,
+              countOnly: countOnly);
+
+      test('real order protects its hour; other hours unprotected', () {
+        final d = day();
+        final p = protectedBlockStarts(day: d, entries: [
+          entry('a', DateTime(2026, 10, 25, 14, 20)),
+          entry('b', DateTime(2026, 10, 25, 20, 5)),
+        ]);
+        expect(p, {840, 1200});
+      });
+
+      test('countOnly entries (born at noon) protect nothing', () {
+        final d = day();
+        final p = protectedBlockStarts(day: d, entries: [
+          entry('c', DateTime(2026, 10, 25, 12, 0), countOnly: true),
+        ]);
+        expect(p, isEmpty);
+      });
+
+      test('overnight: 01:00 order protects the 1500 extended block', () {
+        final d = day(start: 22 * 60, end: 2 * 60);
+        final p = protectedBlockStarts(day: d, entries: [
+          entry('n', DateTime(2026, 10, 26, 1, 10)),
+        ]);
+        expect(p, {1500});
+      });
+
+      test('a protected hour is already a work block, so Assign excludes it',
+          () {
+        final d = day();
+        final p = protectedBlockStarts(day: d, entries: [
+          entry('a', DateTime(2026, 10, 25, 14, 20)),
+        ]);
+        expect(p, {840});
+        expect(availableHoursForAssign(d), isNot(contains(14)));
+      });
     });
   });
 }
