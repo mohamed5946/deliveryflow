@@ -259,20 +259,41 @@ void main() {
     });
   });
 
-  group('v27.14 at-rest clean + progressive reveal', () {
+  group('v27.14 panel build/eat (block stays put)', () {
     testWidgets('at rest NO action widget exists for any block',
         (tester) async {
       await pumpSection(tester, day: workDay());
       // The v27.13 bug: both actions were always rendered behind the
       // translucent block, so these keys existed (and peeked through)
-      // at rest. At rest they must not exist at all.
+      // at rest. At rest the panel width is exactly zero: no widget.
       for (final start in [660, 840, 1260]) {
         expect(deleteKey(start), findsNothing);
         expect(breakKey(start), findsNothing);
       }
     });
 
-    testWidgets('drag left reveals ONLY Delete, growing with drag distance',
+    testWidgets('block itself does NOT move while its panel builds',
+        (tester) async {
+      await pumpSection(tester, day: workDay());
+      final atRest = tester.getCenter(find.text('14:00'));
+      final gesture =
+          await tester.startGesture(tester.getCenter(blockKey(840)));
+      await gesture.moveBy(const Offset(-10, 0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(-10, 0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(-20, 0));
+      await tester.pump();
+      // Panel built, but the block's time label is exactly where it
+      // was at rest: no slide/translate away, no uncovering.
+      expect(tester.getCenter(find.text('14:00')), atRest);
+      expect(deleteKey(840), findsOneWidget);
+      await gesture.up();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets(
+        'drag left builds ONLY the Delete panel, width = drag distance',
         (tester) async {
       await pumpSection(tester, day: workDay());
       final gesture =
@@ -298,7 +319,7 @@ void main() {
       await tester.pumpAndSettle();
     });
 
-    testWidgets('drag right reveals ONLY Break, never Delete',
+    testWidgets('drag right builds ONLY the Break panel, never Delete',
         (tester) async {
       await pumpSection(tester, day: workDay());
       final gesture =
@@ -315,7 +336,7 @@ void main() {
       await tester.pumpAndSettle();
     });
 
-    testWidgets('drag right on a break block reveals ONLY Restore',
+    testWidgets('drag right on a break block builds ONLY Restore',
         (tester) async {
       final day = workDay()..breakHourStarts = [840];
       await pumpSection(tester, day: day);
@@ -327,7 +348,7 @@ void main() {
       await tester.pump();
       await gesture.moveBy(const Offset(-20, 0));
       await tester.pump();
-      // A break block has no Delete: a left drag reveals nothing.
+      // A break block has no Delete: a left drag builds nothing.
       expect(deleteKey(840), findsNothing);
       expect(breakKey(840), findsNothing);
       await gesture.moveBy(const Offset(20, 0));
@@ -342,7 +363,8 @@ void main() {
       await tester.pumpAndSettle();
     });
 
-    testWidgets('release below threshold snaps fully back and hides action',
+    testWidgets(
+        'release below threshold shrinks the panel smoothly back to zero',
         (tester) async {
       await pumpSection(tester, day: workDay());
       await tester.timedDrag(blockKey(840), const Offset(-30, 0),
@@ -356,7 +378,73 @@ void main() {
       expect(find.text('هل أنت متأكد من حذف البلوكاية؟'), findsNothing);
     });
 
-    testWidgets('protected block drag reveals no action on either side',
+    testWidgets(
+        'a fresh drag starting ON a fully built panel eats it back',
+        (tester) async {
+      await pumpSection(tester, day: workDay());
+      // Snap the Delete panel fully open, then start a NEW drag on
+      // the panel itself (right edge of the row) and drag back.
+      await tester.timedDrag(blockKey(840), const Offset(-150, 0),
+          const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      expect(tester.getSize(deleteKey(840)).width, 96);
+      final panelPoint =
+          tester.getTopRight(blockKey(840)) + const Offset(-48, 24);
+      final gesture = await tester.startGesture(panelPoint);
+      await gesture.moveBy(const Offset(20, 0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(20, 0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(20, 0));
+      await tester.pump();
+      // Eaten piece by piece: narrower than the full 96, still only
+      // Delete, and the block has not moved.
+      final shrunk = tester.getSize(deleteKey(840)).width;
+      expect(shrunk, lessThan(96));
+      expect(shrunk, greaterThan(0));
+      expect(breakKey(840), findsNothing);
+      // Drag back past the threshold (total 80, well clear of touch
+      // slop), release: panel gone entirely.
+      await gesture.moveBy(const Offset(20, 0));
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(deleteKey(840), findsNothing);
+      expect(breakKey(840), findsNothing);
+    });
+
+    testWidgets(
+        'a fresh drag starting ON a fully built Break panel eats it back',
+        (tester) async {
+      await pumpSection(tester, day: workDay());
+      await tester.timedDrag(blockKey(840), const Offset(150, 0),
+          const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      expect(tester.getSize(breakKey(840)).width, 96);
+      final panelPoint =
+          tester.getTopLeft(blockKey(840)) + const Offset(48, 24);
+      final gesture = await tester.startGesture(panelPoint);
+      await gesture.moveBy(const Offset(-20, 0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(-20, 0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(-20, 0));
+      await tester.pump();
+      final shrunk = tester.getSize(breakKey(840)).width;
+      expect(shrunk, lessThan(96));
+      expect(shrunk, greaterThan(0));
+      expect(deleteKey(840), findsNothing);
+      // Drag back past the threshold (total 80, well clear of touch
+      // slop), release: panel gone entirely.
+      await gesture.moveBy(const Offset(-20, 0));
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(breakKey(840), findsNothing);
+      expect(deleteKey(840), findsNothing);
+    });
+
+    testWidgets('protected block drag builds no panel on either side',
         (tester) async {
       await pumpSection(tester,
           day: workDay(), protected: {840});

@@ -30,24 +30,26 @@ import '../../theme/design_system.dart';
 ///   Exception: tapping a PROTECTED block shows the protection
 ///   explanation (it changes nothing, it only explains the lock).
 /// - SWIPE (v27.13, reveal fixed in v27.14): each block is
-///   horizontally draggable and snaps open to reveal its actions —
-///   swipe LEFT reveals a red Delete action, swipe RIGHT reveals a
-///   Break action (a break block's right action is Restore instead,
-///   since it is already a break; a break block has no Delete action
-///   — there is no work left in it to delete). Swiping alone changes
-///   NOTHING: only tapping a revealed action opens the Yes/No
-///   confirmation dialog, and only Yes invokes the callback. No /
-///   dismiss changes nothing. The reveal is a plain drag + snap (no
-///   slidable dependency was added; the widget is a small custom
+///   horizontally draggable and grows its action panel as it is
+///   dragged — swipe LEFT grows a red Delete panel from the right
+///   edge, swipe RIGHT grows a Break panel from the left edge (a
+///   break block's right action is Restore instead, since it is
+///   already a break; a break block has no Delete action — there is
+///   no work left in it to delete). Swiping alone changes NOTHING:
+///   only tapping a fully built action opens the Yes/No confirmation
+///   dialog, and only Yes invokes the callback. No / dismiss changes
+///   nothing. The reveal is a plain drag + snap (no slidable
+///   dependency was added; the widget is a small custom
 ///   horizontal-drag reveal, smooth standard motion, no looping
 ///   animation). v27.14 fix: at rest NO action widget is rendered at
 ///   all (v27.13 rendered both actions full-width behind the
 ///   translucent block, so they peeked through on both sides at
-///   once); while dragging, only the dragged side's action exists
-///   and its width is exactly the drag distance, so it grows out
-///   from behind the block with no overlap of the block's labels.
-///   Releasing below half the action width animates the block back
-///   to rest (~200ms) and removes the action completely.
+///   once); while dragging, only the dragged side's panel exists,
+///   its width is exactly the drag distance, and THE BLOCK ITSELF
+///   DOES NOT MOVE — the growing/shrinking opaque panel, anchored
+///   at the dragged edge, IS the animation. Releasing below half
+///   the panel width shrinks the panel smoothly back to zero
+///   (~200ms); past it, it grows smoothly to full width.
 ///   In the start/end + break model, "deleting" a work hour and
 ///   "breaking" it are the same stored change (the hour becomes a
 ///   break block, so the header range stays coherent); both swipe
@@ -432,32 +434,39 @@ class DayHoursSection extends StatelessWidget {
   }
 }
 
-/// v27.14 custom horizontal-drag reveal (no new dependency:
+/// v27.14 custom horizontal-drag panel (no new dependency:
 /// flutter_slidable is not in pubspec.yaml, and a full slidable
 /// package would be heavy for one row type).
 ///
-/// Geometry guarantee (the v27.13 bug fix): the action strip's width
-/// is EXACTLY the drag distance, and only the dragged side's action
-/// is rendered at all. At rest (_offset == 0) no action widget
-/// exists, so nothing can peek through the translucent block. While
-/// dragging, the block is translated by [_offset] and the strip
-/// occupies exactly the vacated strip on that side, so the block
-/// never overlaps the action and the action label — centred in its
-/// own strip, overflow clipped — never collides with the block's
-/// time/status text. The block itself stays inside the outer
-/// [ClipRRect], so its content is clipped to the block's own bounds
-/// while sliding. Releasing snaps open (past half the action width)
-/// or closed, animated over ~200ms (never an instant jump).
-/// Swiping alone never mutates anything — only tapping a revealed
-/// action runs its handler (which itself asks for confirmation in
-/// the parent widget).
+/// This is NOT a slide-to-uncover reveal: nothing is pre-rendered
+/// underneath the block, and the block itself NEVER translates.
+/// The action panel is BUILT piece by piece as the user drags: it
+/// is anchored at the dragged edge, its width is EXACTLY the drag
+/// distance (a wipe/clip reveal growing from that edge), and it is
+/// opaque, so it covers the block content underneath instead of
+/// colliding with it. Dragging back EATS the panel piece by piece
+/// in reverse, shrinking it smoothly back to zero. The label is
+/// centred in the panel and clipped to the panel's CURRENT width
+/// (ClipRect), so the label itself builds/eats piece by piece and
+/// never overflows into the block. At rest (_offset == 0) no panel
+/// widget exists at all, so nothing can peek through the
+/// translucent block. Releasing snaps open (past half the panel
+/// width) or closed, animated over ~200ms (never an instant jump).
+/// Swiping alone never mutates anything — only tapping a fully
+/// built panel runs its handler (which itself asks for confirmation
+/// in the parent widget).
 ///
-/// - Work block: drag LEFT reveals Delete (red, right side) only;
-///   drag RIGHT reveals Break (orange, left side) only.
-/// - Break block: drag RIGHT reveals Restore; no left action (there
-///   is no work left in it to delete), so left drags reveal nothing.
+/// - Work block: drag LEFT builds Delete (red, right edge) only;
+///   drag RIGHT builds Break (orange, left edge) only.
+/// - Break block: drag RIGHT builds Restore; no left panel (there
+///   is no work left in it to delete), so left drags build nothing.
 /// - Protected block: no drag at all — it cannot be opened, so no
-///   Delete/Break action can ever be tapped for it.
+///   Delete/Break panel can ever be tapped for it.
+///
+/// Drag handling lives on BOTH the block and the panel (shared
+/// handlers): a reverse drag may start on the panel itself, and the
+/// panel — painted above the block — is what the pointer hits
+/// there, so the panel needs its own drag recognizer to shrink.
 class _SwipeableBlock extends StatefulWidget {
   final int blockStart;
   final Widget child;
@@ -528,32 +537,68 @@ class _SwipeableBlockState extends State<_SwipeableBlock>
 
   void _close() => _animateTo(0);
 
-  /// One action strip, exactly [width] wide, with its label centred
-  /// inside the strip and overflow clipped — the label can never
-  /// spill onto the block's text.
-  Widget _actionStrip({
+  void _onDragUpdate(DragUpdateDetails details) {
+    _snapController.stop();
+    setState(() {
+      _offset =
+          (_offset + details.delta.dx).clamp(_minOffset, _maxOffset);
+    });
+  }
+
+  void _onDragEnd(DragEndDetails _) {
+    if (_offset.abs() > _actionWidth / 2) {
+      _animateTo(_offset < 0 ? _minOffset : _maxOffset);
+    } else {
+      _animateTo(0);
+    }
+  }
+
+  /// One action panel, exactly [width] wide, anchored at the dragged
+  /// edge and painted ABOVE the (stationary) block. Opaque, so it
+  /// covers block content rather than colliding with it; its label
+  /// is centred in the panel and clipped to the panel's current
+  /// width, so the label builds/eats piece by piece with the panel
+  /// and never overflows into the block. The panel carries its own
+  /// drag recognizer so a reverse drag starting on the panel itself
+  /// still shrinks it.
+  Widget _actionPanel({
+    required double width,
+    required bool leftEdge,
     required Color color,
     required Key key,
     required String label,
     required VoidCallback onTap,
   }) {
-    return Material(
-      color: color,
-      child: InkWell(
-        key: key,
-        onTap: () {
-          _close();
-          onTap();
-        },
-        child: Center(
-          child: ClipRect(
-            child: Text(
-              label,
-              maxLines: 1,
-              softWrap: false,
-              overflow: TextOverflow.clip,
-              style: const TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.w800),
+    return Positioned(
+      left: leftEdge ? 0 : null,
+      right: leftEdge ? null : 0,
+      top: 0,
+      bottom: 0,
+      width: width,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onHorizontalDragUpdate:
+            widget.isProtected ? null : _onDragUpdate,
+        onHorizontalDragEnd: widget.isProtected ? null : _onDragEnd,
+        child: Material(
+          color: color,
+          child: InkWell(
+            key: key,
+            onTap: () {
+              _close();
+              onTap();
+            },
+            child: Center(
+              child: ClipRect(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.clip,
+                  style: const TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.w800),
+                ),
+              ),
             ),
           ),
         ),
@@ -568,76 +613,45 @@ class _SwipeableBlockState extends State<_SwipeableBlock>
       child: Directionality(
         // Forced LTR: in the Arabic RTL locale, left/right would
         // otherwise mirror, putting Delete on the left and breaking
-        // the spec mapping (swipe LEFT reveals Delete on the right).
+        // the spec mapping (swipe LEFT builds Delete on the right).
         textDirection: TextDirection.ltr,
         child: Stack(
           children: [
-            // At rest there is NO action widget at all. While
-            // dragging, only the dragged side's strip exists, and
-            // its width is exactly the drag distance — so it grows
-            // out from behind the block and never overlaps it.
+            // The block itself: NEVER translated. It stays put; the
+            // growing/shrinking panel above it IS the animation.
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onHorizontalDragUpdate:
+                  widget.isProtected ? null : _onDragUpdate,
+              onHorizontalDragEnd:
+                  widget.isProtected ? null : _onDragEnd,
+              // Tapping a panel-open block just closes it; tapping a
+              // closed block is handled by the child's own tap
+              // (no-op, or the protection explanation).
+              onTap: _offset != 0 ? _close : null,
+              child: widget.child,
+            ),
+            // At rest there is NO panel widget at all. While
+            // dragging, only the dragged side's panel exists, and
+            // its width is exactly the drag distance.
             if (_offset > 0)
-              Positioned(
-                left: 0,
-                top: 0,
-                bottom: 0,
+              _actionPanel(
                 width: _offset,
-                child: _actionStrip(
-                  color: Colors.orange,
-                  key: ValueKey('block-action-break-${widget.blockStart}'),
-                  label: widget.breakLabel,
-                  onTap: widget.onBreak,
-                ),
+                leftEdge: true,
+                color: Colors.orange,
+                key: ValueKey('block-action-break-${widget.blockStart}'),
+                label: widget.breakLabel,
+                onTap: widget.onBreak,
               ),
             if (_offset < 0 && !widget.isBreak)
-              Positioned(
-                right: 0,
-                top: 0,
-                bottom: 0,
+              _actionPanel(
                 width: -_offset,
-                child: _actionStrip(
-                  color: Colors.red,
-                  key: ValueKey('block-action-delete-${widget.blockStart}'),
-                  label: widget.deleteLabel,
-                  onTap: widget.onDelete,
-                ),
+                leftEdge: false,
+                color: Colors.red,
+                key: ValueKey('block-action-delete-${widget.blockStart}'),
+                label: widget.deleteLabel,
+                onTap: widget.onDelete,
               ),
-            // The block itself, translated by the drag. The Transform
-            // MUST wrap the GestureDetector (not the other way round):
-            // a detector outside the transform keeps its full-width
-            // hit area over the revealed actions, so they could never
-            // be tapped. With the transform outside, the hit area moves
-            // with the block and the exposed action receives the tap.
-            Transform.translate(
-              offset: Offset(_offset, 0),
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onHorizontalDragUpdate: widget.isProtected
-                    ? null
-                    : (details) {
-                        _snapController.stop();
-                        setState(() {
-                          _offset = (_offset + details.delta.dx)
-                              .clamp(_minOffset, _maxOffset);
-                        });
-                      },
-                onHorizontalDragEnd: widget.isProtected
-                    ? null
-                    : (_) {
-                        if (_offset.abs() > _actionWidth / 2) {
-                          _animateTo(
-                              _offset < 0 ? _minOffset : _maxOffset);
-                        } else {
-                          _animateTo(0);
-                        }
-                      },
-                // Tapping an open block just closes it; tapping a closed
-                // block is handled by the child's own tap (no-op, or the
-                // protection explanation).
-                onTap: _offset != 0 ? _close : null,
-                child: widget.child,
-              ),
-            ),
           ],
         ),
       ),
