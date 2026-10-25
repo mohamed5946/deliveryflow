@@ -272,10 +272,10 @@ void main() {
       }
     });
 
-    testWidgets('block itself does NOT move while its panel builds',
+    testWidgets('block leading edge stays put while its panel builds',
         (tester) async {
       await pumpSection(tester, day: workDay());
-      final atRest = tester.getCenter(find.text('14:00'));
+      final atRest = tester.getTopLeft(find.text('14:00'));
       final gesture =
           await tester.startGesture(tester.getCenter(blockKey(840)));
       await gesture.moveBy(const Offset(-10, 0));
@@ -284,9 +284,10 @@ void main() {
       await tester.pump();
       await gesture.moveBy(const Offset(-20, 0));
       await tester.pump();
-      // Panel built, but the block's time label is exactly where it
-      // was at rest: no slide/translate away, no uncovering.
-      expect(tester.getCenter(find.text('14:00')), atRest);
+      // v27.15: the block yields its DRAGGED edge, never its leading
+      // edge — the time label's top-left is exactly where it was at
+      // rest, so nothing is ever clipped off the block.
+      expect(tester.getTopLeft(find.text('14:00')), atRest);
       expect(deleteKey(840), findsOneWidget);
       await gesture.up();
       await tester.pumpAndSettle();
@@ -464,6 +465,172 @@ void main() {
       expect(breakKey(840), findsNothing);
       await gesture.up();
       await tester.pumpAndSettle();
+    });
+  });
+
+  group('v27.15 panel under raised card (one continuous bar)', () {
+    Finder cardKey(int start) =>
+        find.byKey(ValueKey('block-card-material-$start'));
+
+    /// Element-tree order under the block row, depth-first: the
+    /// panel must come BEFORE the card (Stack paints first child
+    /// first, i.e. the panel is UNDER the block).
+    List<Element> walk(Element root) {
+      final out = <Element>[];
+      void visit(Element e) {
+        out.add(e);
+        e.visitChildElements(visit);
+      }
+
+      visit(root);
+      return out;
+    }
+
+    int indexOf(List<Element> els, Finder finder) {
+      final el = finder.evaluate().single;
+      return els.indexOf(el);
+    }
+
+    testWidgets('at rest the block card is full width, no panel',
+        (tester) async {
+      await pumpSection(tester, day: workDay());
+      expect(deleteKey(840), findsNothing);
+      expect(breakKey(840), findsNothing);
+      final cardRect = tester.getRect(cardKey(840));
+      final rowRect = tester.getRect(blockKey(840));
+      expect(cardRect.width, moreOrLessEquals(rowRect.width, epsilon: 1));
+      expect(cardRect.height, greaterThan(0));
+    });
+
+    testWidgets('block card is raised: elevation + shadow present',
+        (tester) async {
+      await pumpSection(tester, day: workDay());
+      final material = tester.widget<Material>(cardKey(840));
+      expect(material.elevation, greaterThan(0));
+      expect(material.shadowColor, isNotNull);
+      // The panel itself is flat (no elevation): only the card is
+      // raised, so only the card reads 3D.
+      await tester.timedDrag(blockKey(840), const Offset(-150, 0),
+          const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      final panelMaterials = tester
+          .widgetList<Material>(
+            find.descendant(
+                of: blockKey(840), matching: find.byType(Material)),
+          )
+          .where((m) => m.color == Colors.red);
+      expect(panelMaterials.single.elevation, 0);
+    });
+
+    testWidgets(
+        'left drag: Delete panel under the block, same height, zero gap, '
+        'block text never covered', (tester) async {
+      await pumpSection(tester, day: workDay());
+      final gesture =
+          await tester.startGesture(tester.getCenter(blockKey(840)));
+      await gesture.moveBy(const Offset(-30, 0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(-30, 0));
+      await tester.pump();
+      expect(deleteKey(840), findsOneWidget);
+      expect(breakKey(840), findsNothing);
+
+      // Layered UNDER: panel subtree precedes card subtree.
+      final els = walk(tester.element(blockKey(840)));
+      expect(indexOf(els, deleteKey(840)),
+          lessThan(indexOf(els, cardKey(840))));
+
+      final panelRect = tester.getRect(deleteKey(840));
+      final cardRect = tester.getRect(cardKey(840));
+      final rowRect = tester.getRect(blockKey(840));
+      // Same height, vertically aligned.
+      expect(panelRect.height, moreOrLessEquals(cardRect.height, epsilon: 1));
+      expect(panelRect.top, moreOrLessEquals(cardRect.top, epsilon: 1));
+      // Contiguous: panel's inner edge IS the card's edge, zero gap.
+      expect(panelRect.left,
+          moreOrLessEquals(cardRect.right, epsilon: 1));
+      // One continuous bar: card + panel exactly fill the row.
+      expect(cardRect.left, moreOrLessEquals(rowRect.left, epsilon: 1));
+      expect(panelRect.right, moreOrLessEquals(rowRect.right, epsilon: 1));
+      // No overlap at all: panel never covers block content.
+      expect(panelRect.overlaps(cardRect), isFalse);
+      final timeRect = tester.getRect(find.text('14:00'));
+      expect(panelRect.overlaps(timeRect), isFalse);
+      // Time label fully inside the card.
+      expect(timeRect.left, greaterThanOrEqualTo(cardRect.left - 1));
+      expect(timeRect.right, lessThanOrEqualTo(cardRect.right + 1));
+      await gesture.up();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets(
+        'right drag: Break panel under the block, same height, zero gap, '
+        'block text never covered', (tester) async {
+      await pumpSection(tester, day: workDay());
+      final gesture =
+          await tester.startGesture(tester.getCenter(blockKey(840)));
+      await gesture.moveBy(const Offset(30, 0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(30, 0));
+      await tester.pump();
+      expect(breakKey(840), findsOneWidget);
+      expect(deleteKey(840), findsNothing);
+
+      final els = walk(tester.element(blockKey(840)));
+      expect(indexOf(els, breakKey(840)),
+          lessThan(indexOf(els, cardKey(840))));
+
+      final panelRect = tester.getRect(breakKey(840));
+      final cardRect = tester.getRect(cardKey(840));
+      final rowRect = tester.getRect(blockKey(840));
+      expect(panelRect.height, moreOrLessEquals(cardRect.height, epsilon: 1));
+      expect(panelRect.top, moreOrLessEquals(cardRect.top, epsilon: 1));
+      // Contiguous on the left: card's left edge IS the panel's
+      // inner edge, zero gap.
+      expect(cardRect.left, moreOrLessEquals(panelRect.right, epsilon: 1));
+      expect(panelRect.left, moreOrLessEquals(rowRect.left, epsilon: 1));
+      expect(cardRect.right, moreOrLessEquals(rowRect.right, epsilon: 1));
+      expect(panelRect.overlaps(cardRect), isFalse);
+      final timeRect = tester.getRect(find.text('14:00'));
+      expect(panelRect.overlaps(timeRect), isFalse);
+      expect(timeRect.left, greaterThanOrEqualTo(cardRect.left - 1));
+      expect(timeRect.right, lessThanOrEqualTo(cardRect.right + 1));
+      await gesture.up();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('drag-back shrinks the panel piece by piece to zero',
+        (tester) async {
+      await pumpSection(tester, day: workDay());
+      final gesture =
+          await tester.startGesture(tester.getCenter(blockKey(840)));
+      await gesture.moveBy(const Offset(-20, 0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(-20, 0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(-30, 0));
+      await tester.pump();
+      expect(deleteKey(840), findsOneWidget);
+      final wide = tester.getSize(deleteKey(840)).width;
+      expect(wide, greaterThan(0));
+      // Drag back: narrower, still only Delete.
+      await gesture.moveBy(const Offset(20, 0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(20, 0));
+      await tester.pump();
+      final narrow = tester.getSize(deleteKey(840)).width;
+      expect(narrow, lessThan(wide));
+      expect(breakKey(840), findsNothing);
+      // Drag all the way back: Delete panel gone entirely.
+      await gesture.moveBy(const Offset(20, 0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(20, 0));
+      await tester.pump();
+      expect(deleteKey(840), findsNothing);
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(deleteKey(840), findsNothing);
+      expect(breakKey(840), findsNothing);
     });
   });
 

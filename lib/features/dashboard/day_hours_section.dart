@@ -29,27 +29,45 @@ import '../../theme/design_system.dart';
 ///   path per mutation, and no gesture can fire two of them.
 ///   Exception: tapping a PROTECTED block shows the protection
 ///   explanation (it changes nothing, it only explains the lock).
-/// - SWIPE (v27.13, reveal fixed in v27.14): each block is
-///   horizontally draggable and grows its action panel as it is
-///   dragged — swipe LEFT grows a red Delete panel from the right
-///   edge, swipe RIGHT grows a Break panel from the left edge (a
-///   break block's right action is Restore instead, since it is
-///   already a break; a break block has no Delete action — there is
-///   no work left in it to delete). Swiping alone changes NOTHING:
-///   only tapping a fully built action opens the Yes/No confirmation
-///   dialog, and only Yes invokes the callback. No / dismiss changes
-///   nothing. The reveal is a plain drag + snap (no slidable
-///   dependency was added; the widget is a small custom
+/// - SWIPE (v27.13, reveal fixed in v27.14, layering redesigned in
+///   v27.15): each block is horizontally draggable and grows its
+///   action panel as it is dragged — swipe LEFT grows a red Delete
+///   panel from the right edge, swipe RIGHT grows a Break panel from
+///   the left edge (a break block's right action is Restore instead,
+///   since it is already a break; a break block has no Delete action
+///   — there is no work left in it to delete). Swiping alone changes
+///   NOTHING: only tapping a fully built action opens the Yes/No
+///   confirmation dialog, and only Yes invokes the callback. No /
+///   dismiss changes nothing. The reveal is a plain drag + snap (no
+///   slidable dependency was added; the widget is a small custom
 ///   horizontal-drag reveal, smooth standard motion, no looping
 ///   animation). v27.14 fix: at rest NO action widget is rendered at
 ///   all (v27.13 rendered both actions full-width behind the
 ///   translucent block, so they peeked through on both sides at
 ///   once); while dragging, only the dragged side's panel exists,
-///   its width is exactly the drag distance, and THE BLOCK ITSELF
-///   DOES NOT MOVE — the growing/shrinking opaque panel, anchored
-///   at the dragged edge, IS the animation. Releasing below half
-///   the panel width shrinks the panel smoothly back to zero
-///   (~200ms); past it, it grows smoothly to full width.
+///   its width is exactly the drag distance, and the panel was
+///   opaque and painted OVER the block. v27.15 redesign (user
+///   complaint 2026-10-25: the v27.14 panel sat flat ON TOP of the
+///   block and the two did not read as one piece): the panel is now
+///   UNDER the hour block. The block is the top layer, a raised card
+///   with real Material elevation + shadow so it reads 3D, and the
+///   panel emerges from underneath its dragged edge. Block and panel
+///   share exactly the same height, are vertically aligned, and
+///   touch with zero spacing: the outer corners stay rounded, the
+///   touching inner edges are square, so the pair joins into one
+///   continuous bar with no gap, no seam, and no overlapping text.
+///   The block's time/status (and lock/Protected label) stay fully
+///   readable at all times — the panel never paints over block
+///   content. To achieve that with a fixed full-width bar, the block
+///   yields its dragged edge as the panel grows (its leading edge
+///   and content never move, so nothing is ever clipped off — a
+///   whole-block translation would push the time label off the
+///   leading edge); the panel stays attached to that edge, so the
+///   pair stays one continuous bar. The panel still builds piece by
+///   piece with drag distance, eats piece by piece on drag-back, is
+///   exactly zero-width (and unrendered) at rest, and snaps open
+///   past half the panel width or closed below it (~200ms easeOut;
+///   full width 96px, unchanged from v27.14).
 ///   In the start/end + break model, "deleting" a work hour and
 ///   "breaking" it are the same stored change (the hour becomes a
 ///   break block, so the header range stays coherent); both swipe
@@ -369,14 +387,12 @@ class DayHoursSection extends StatelessWidget {
         stateLabel = l10n.hourBreak;
     }
     final isProtected = protectedBlockStarts.contains(start);
-    final content = Container(
-      width: double.infinity,
+    // The card shell (raised Material + border + radius) is rendered
+    // by _SwipeableBlock so the inner edge can go square while a
+    // panel is attached (v27.15: one continuous bar, no seam). This
+    // is only the content: padding + icon + time + lock + status.
+    final content = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withValues(alpha: 0.55), width: 1.2),
-      ),
       child: Row(
         children: [
           Icon(
@@ -421,6 +437,8 @@ class DayHoursSection extends StatelessWidget {
       blockStart: start,
       isBreak: isBreak,
       isProtected: isProtected,
+      cardColor: color,
+      cardBg: bg,
       onDelete: () async {
         if (await _confirm(context, false)) onToggleBreak(start);
       },
@@ -434,27 +452,51 @@ class DayHoursSection extends StatelessWidget {
   }
 }
 
-/// v27.14 custom horizontal-drag panel (no new dependency:
+/// v27.15 custom horizontal-drag panel (no new dependency:
 /// flutter_slidable is not in pubspec.yaml, and a full slidable
 /// package would be heavy for one row type).
 ///
-/// This is NOT a slide-to-uncover reveal: nothing is pre-rendered
-/// underneath the block, and the block itself NEVER translates.
-/// The action panel is BUILT piece by piece as the user drags: it
-/// is anchored at the dragged edge, its width is EXACTLY the drag
-/// distance (a wipe/clip reveal growing from that edge), and it is
-/// opaque, so it covers the block content underneath instead of
-/// colliding with it. Dragging back EATS the panel piece by piece
-/// in reverse, shrinking it smoothly back to zero. The label is
+/// LAYERING (supersedes v27.14, where the panel painted OVER the
+/// block): the action panel is UNDER the hour block. In the Stack
+/// the panel is the first child (paints first) and the block is the
+/// top layer: a raised card — Material elevation 6 with a real
+/// shadow — so it reads 3D, and the panel emerges from underneath
+/// its dragged edge, its shadow falling onto the panel. The block
+/// NEVER gets painted over: the panel never overlaps block content.
+///
+/// CONTIGUOUS, NO GAP, NO SEAM: panel and block share exactly the
+/// same height (the panel is stretched top-to-bottom to the Stack
+/// height, which the block itself determines) and touch with zero
+/// spacing — the panel is anchored at the dragged edge and the
+/// block is padded on that side by exactly the panel width, so the
+/// panel's inner edge and the block's edge are the same line. The
+/// outer corners stay rounded (14px); the touching inner edges are
+/// square on BOTH pieces, and the block's border is omitted on the
+/// touching side, so the two pieces join into one continuous bar
+/// with no gap, no seam line, and no overlapping text.
+///
+/// WHY THE BLOCK YIELDS ITS EDGE INSTEAD OF TRANSLATING: the bar
+/// is fixed full-width, so a whole-block translation by the drag
+/// distance would push the time label off the leading edge and
+/// break the "fully readable at all times" rule. Instead the
+/// block's leading edge and content never move; only its dragged
+/// edge retreats as the panel grows, and the panel stays attached
+/// to that edge. The pair still reads as one bar, and the block's
+/// time, status, and lock/Protected label stay fully visible.
+///
+/// BUILD PIECE BY PIECE (unchanged from v27.14): at rest
+/// (_offset == 0) no panel widget exists at all, so nothing can
+/// peek through. While dragging, only the dragged side's panel
+/// exists, its width is EXACTLY the drag distance, and its label is
 /// centred in the panel and clipped to the panel's CURRENT width
 /// (ClipRect), so the label itself builds/eats piece by piece and
-/// never overflows into the block. At rest (_offset == 0) no panel
-/// widget exists at all, so nothing can peek through the
-/// translucent block. Releasing snaps open (past half the panel
-/// width) or closed, animated over ~200ms (never an instant jump).
-/// Swiping alone never mutates anything — only tapping a fully
-/// built panel runs its handler (which itself asks for confirmation
-/// in the parent widget).
+/// never overflows into the block. Dragging back EATS the panel
+/// piece by piece in reverse, shrinking it smoothly back to zero.
+/// Releasing snaps open (past half the panel width) or closed,
+/// animated over ~200ms easeOut (never an instant jump). Swiping
+/// alone never mutates anything — only tapping a fully built panel
+/// runs its handler (which itself asks for confirmation in the
+/// parent widget).
 ///
 /// - Work block: drag LEFT builds Delete (red, right edge) only;
 ///   drag RIGHT builds Break (orange, left edge) only.
@@ -465,13 +507,20 @@ class DayHoursSection extends StatelessWidget {
 ///
 /// Drag handling lives on BOTH the block and the panel (shared
 /// handlers): a reverse drag may start on the panel itself, and the
-/// panel — painted above the block — is what the pointer hits
-/// there, so the panel needs its own drag recognizer to shrink.
+/// panel — sitting beside the block in the row — is what the
+/// pointer hits there, so the panel needs its own drag recognizer
+/// to shrink.
 class _SwipeableBlock extends StatefulWidget {
   final int blockStart;
   final Widget child;
   final bool isBreak;
   final bool isProtected;
+
+  /// Accent/border colour of the hour block (state colour).
+  final Color cardColor;
+
+  /// Fill colour of the hour block.
+  final Color cardBg;
   final VoidCallback onDelete;
   final VoidCallback onBreak;
   final String deleteLabel;
@@ -483,6 +532,8 @@ class _SwipeableBlock extends StatefulWidget {
     required this.child,
     required this.isBreak,
     required this.isProtected,
+    required this.cardColor,
+    required this.cardBg,
     required this.onDelete,
     required this.onBreak,
     required this.deleteLabel,
@@ -497,6 +548,7 @@ class _SwipeableBlockState extends State<_SwipeableBlock>
     with SingleTickerProviderStateMixin {
   static const double _actionWidth = 96;
   static const Duration _snapDuration = Duration(milliseconds: 200);
+  static const double _cardRadius = 14;
   double _offset = 0;
 
   // Snap animation: from [_snapFrom] to [_snapTo] over [_snapDuration].
@@ -553,14 +605,67 @@ class _SwipeableBlockState extends State<_SwipeableBlock>
     }
   }
 
+  /// The block's corner radius: all corners rounded at rest; the
+  /// touching inner edge goes square while its panel is attached,
+  /// so block + panel join into one continuous bar.
+  BorderRadius get _blockRadius {
+    if (_offset < 0) {
+      // Panel on the right: square right edge.
+      return const BorderRadius.only(
+        topLeft: Radius.circular(_cardRadius),
+        bottomLeft: Radius.circular(_cardRadius),
+      );
+    }
+    if (_offset > 0) {
+      // Panel on the left: square left edge.
+      return const BorderRadius.only(
+        topRight: Radius.circular(_cardRadius),
+        bottomRight: Radius.circular(_cardRadius),
+      );
+    }
+    return BorderRadius.circular(_cardRadius);
+  }
+
+  /// The raised 3D card: Material elevation + shadow on top of the
+  /// panel layer, with the state fill and a border on every side
+  /// EXCEPT the touching side (a border there would draw a seam
+  /// line down the middle of the bar).
+  Widget _raisedBlock() {
+    final radius = _blockRadius;
+    final side =
+        BorderSide(color: widget.cardColor.withValues(alpha: 0.55), width: 1.2);
+    final border = _offset < 0
+        ? Border(left: side, top: side, bottom: side)
+        : _offset > 0
+            ? Border(right: side, top: side, bottom: side)
+            : Border.all(color: side.color, width: side.width);
+    return Material(
+      key: ValueKey('block-card-material-${widget.blockStart}'),
+      elevation: 6,
+      shadowColor: Colors.black.withValues(alpha: 0.35),
+      color: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: radius),
+      child: Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: widget.cardBg,
+          borderRadius: radius,
+          border: border,
+        ),
+        child: widget.child,
+      ),
+    );
+  }
+
   /// One action panel, exactly [width] wide, anchored at the dragged
-  /// edge and painted ABOVE the (stationary) block. Opaque, so it
-  /// covers block content rather than colliding with it; its label
-  /// is centred in the panel and clipped to the panel's current
-  /// width, so the label builds/eats piece by piece with the panel
-  /// and never overflows into the block. The panel carries its own
-  /// drag recognizer so a reverse drag starting on the panel itself
-  /// still shrinks it.
+  /// edge and painted UNDER the raised block (it is the Stack's
+  /// first child; the block's shadow falls onto it). Its outer
+  /// corners are rounded like the block's, its touching inner edge
+  /// is square, and its label is centred and clipped to the panel's
+  /// current width, so the label builds/eats piece by piece with
+  /// the panel and never overflows into the block. The panel carries
+  /// its own drag recognizer so a reverse drag starting on the panel
+  /// itself still shrinks it.
   Widget _actionPanel({
     required double width,
     required bool leftEdge,
@@ -569,6 +674,15 @@ class _SwipeableBlockState extends State<_SwipeableBlock>
     required String label,
     required VoidCallback onTap,
   }) {
+    final radius = leftEdge
+        ? const BorderRadius.only(
+            topLeft: Radius.circular(_cardRadius),
+            bottomLeft: Radius.circular(_cardRadius),
+          )
+        : const BorderRadius.only(
+            topRight: Radius.circular(_cardRadius),
+            bottomRight: Radius.circular(_cardRadius),
+          );
     return Positioned(
       left: leftEdge ? 0 : null,
       right: leftEdge ? null : 0,
@@ -580,23 +694,26 @@ class _SwipeableBlockState extends State<_SwipeableBlock>
         onHorizontalDragUpdate:
             widget.isProtected ? null : _onDragUpdate,
         onHorizontalDragEnd: widget.isProtected ? null : _onDragEnd,
-        child: Material(
-          color: color,
-          child: InkWell(
-            key: key,
-            onTap: () {
-              _close();
-              onTap();
-            },
-            child: Center(
-              child: ClipRect(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  softWrap: false,
-                  overflow: TextOverflow.clip,
-                  style: const TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.w800),
+        child: ClipRRect(
+          borderRadius: radius,
+          child: Material(
+            color: color,
+            child: InkWell(
+              key: key,
+              onTap: () {
+                _close();
+                onTap();
+              },
+              child: Center(
+                child: ClipRect(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.clip,
+                    style: const TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.w800),
+                  ),
                 ),
               ),
             ),
@@ -608,18 +725,52 @@ class _SwipeableBlockState extends State<_SwipeableBlock>
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(14),
-      child: Directionality(
-        // Forced LTR: in the Arabic RTL locale, left/right would
-        // otherwise mirror, putting Delete on the left and breaking
-        // the spec mapping (swipe LEFT builds Delete on the right).
-        textDirection: TextDirection.ltr,
-        child: Stack(
-          children: [
-            // The block itself: NEVER translated. It stays put; the
-            // growing/shrinking panel above it IS the animation.
-            GestureDetector(
+    return Directionality(
+      // Forced LTR: in the Arabic RTL locale, left/right would
+      // otherwise mirror, putting Delete on the left and breaking
+      // the spec mapping (swipe LEFT builds Delete on the right).
+      textDirection: TextDirection.ltr,
+      child: Stack(
+        // Clip.none: the raised card's shadow must be allowed to
+        // spill onto the panel beside it (that spill is what reads
+        // as "panel underneath the card"). Nothing else overflows:
+        // the panel and the padded block exactly fill the row.
+        clipBehavior: Clip.none,
+        children: [
+          // The panel UNDER the block: first child paints first.
+          // At rest there is NO panel widget at all. While
+          // dragging, only the dragged side's panel exists, and
+          // its width is exactly the drag distance.
+          if (_offset > 0)
+            _actionPanel(
+              width: _offset,
+              leftEdge: true,
+              color: Colors.orange,
+              key: ValueKey('block-action-break-${widget.blockStart}'),
+              label: widget.breakLabel,
+              onTap: widget.onBreak,
+            ),
+          if (_offset < 0 && !widget.isBreak)
+            _actionPanel(
+              width: -_offset,
+              leftEdge: false,
+              color: Colors.red,
+              key: ValueKey('block-action-delete-${widget.blockStart}'),
+              label: widget.deleteLabel,
+              onTap: widget.onDelete,
+            ),
+          // The block on top: padded on the dragged side by exactly
+          // the panel width, so the panel's inner edge and the
+          // block's edge are the same line — one continuous bar,
+          // same height (the panel stretches to this child's
+          // height), zero gap, and the block's content never moves
+          // or gets covered.
+          Padding(
+            padding: EdgeInsets.only(
+              left: _offset > 0 ? _offset : 0,
+              right: _offset < 0 ? -_offset : 0,
+            ),
+            child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               onHorizontalDragUpdate:
                   widget.isProtected ? null : _onDragUpdate,
@@ -629,31 +780,10 @@ class _SwipeableBlockState extends State<_SwipeableBlock>
               // closed block is handled by the child's own tap
               // (no-op, or the protection explanation).
               onTap: _offset != 0 ? _close : null,
-              child: widget.child,
+              child: _raisedBlock(),
             ),
-            // At rest there is NO panel widget at all. While
-            // dragging, only the dragged side's panel exists, and
-            // its width is exactly the drag distance.
-            if (_offset > 0)
-              _actionPanel(
-                width: _offset,
-                leftEdge: true,
-                color: Colors.orange,
-                key: ValueKey('block-action-break-${widget.blockStart}'),
-                label: widget.breakLabel,
-                onTap: widget.onBreak,
-              ),
-            if (_offset < 0 && !widget.isBreak)
-              _actionPanel(
-                width: -_offset,
-                leftEdge: false,
-                color: Colors.red,
-                key: ValueKey('block-action-delete-${widget.blockStart}'),
-                label: widget.deleteLabel,
-                onTap: widget.onDelete,
-              ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
