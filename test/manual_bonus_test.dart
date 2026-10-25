@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:deliveryflow/core/database/database_service.dart';
-import 'package:deliveryflow/core/database/models.dart';
 import 'package:deliveryflow/core/date_time/week_calendar.dart';
 import 'package:deliveryflow/features/weekly_reports/past_weeks_report.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -51,6 +50,14 @@ void main() {
       kmBack: 2,
     );
     await db.updateOrderEntry(dateKey: sunKey, entryId: e2.id, status: 3);
+
+    // v27.16: distance bonus is OFF by default — explicitly enable
+    // it from this Sunday so the 15 km order's +10 still applies in
+    // the expectations below (fresh-user zero-bonus behaviour is
+    // covered in bonus_periods_test.dart).
+    final settings = db.settings;
+    settings.applyDistanceToggle(true, sunKey);
+    await db.saveSettings(settings);
   });
 
   tearDown(() async {
@@ -98,8 +105,9 @@ void main() {
 
   test('manual bonus counts even when the week\'s distance bonus is off',
       () async {
-    await db.saveSettings(UserSettings()
-      ..distanceBonusWeekOverrides = {weekKey: false});
+    final settings = db.settings
+      ..distanceBonusWeekOverrides = {weekKey: false};
+    await db.saveSettings(settings);
     final r = db.buildWeeklyReport(DateTime.now());
     expect(r.totalDistanceBonus, 0);
     expect(r.totalManualBonus, 25);

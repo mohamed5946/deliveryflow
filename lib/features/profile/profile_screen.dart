@@ -16,6 +16,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/database/models.dart';
+import '../../core/date_time/week_calendar.dart';
 import '../../core/developer/developer_mode.dart';
 import '../../core/logging/app_log_service.dart';
 import '../../core/money_format.dart';
@@ -235,26 +236,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (!answered || amount == null) return;
     final km = fromKm!;
     final egp = amount!;
+    // v27.16: editing a tier starts a new distance period from
+    // TODAY with the new tiers when a period is open (orders before
+    // today keep the old tiers); when the bonus is off, the edit
+    // only updates the presets and creates no period.
     await ref.read(settingsProvider.notifier).update((s) {
-      if (index == 0) {
-        s
-          ..distanceBonusTier1Km = km
-          ..distanceBonusTier1Egp = egp;
-      } else if (index == 1) {
-        s
-          ..distanceBonusTier2Km = km
-          ..distanceBonusTier2Egp = egp;
-      } else {
-        s
-          ..distanceBonusTier3Km = km
-          ..distanceBonusTier3Egp = egp;
-      }
+      final tiers = List<DistanceBonusTier>.from(s.distanceBonusTiers);
+      tiers[index] = DistanceBonusTier(fromKm: km, bonusEgp: egp);
+      s.applyDistanceTiers(tiers, WeekCalendar.dateKey(DateTime.now()));
       return s;
     });
     ref.read(appLogServiceProvider).info(
           AppLogCategory.settings,
           'Distance bonus tier ${index + 1} updated: from ${km}km -> '
-          '$egp EGP',
+          '$egp EGP (effective today; earlier orders keep old tiers)',
         );
   }
 
@@ -790,12 +785,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       label: l10n.distanceBonusLabel,
                       value: settings.distanceBonusEnabled,
                       onChanged: (v) async {
-                        await notifier
-                            .update((s) => s..distanceBonusEnabled = v);
+                        // v27.16: enabling opens a distance period
+                        // from today; disabling closes it yesterday.
+                        // Orders before today keep the old state.
+                        await notifier.update((s) {
+                          s.applyDistanceToggle(
+                              v, WeekCalendar.dateKey(DateTime.now()));
+                          return s;
+                        });
                         ref.read(appLogServiceProvider).info(
                               AppLogCategory.settings,
-                              'Distance bonus global default -> '
-                              '${v ? 'ON' : 'OFF'}',
+                              'Distance bonus -> ${v ? 'ON' : 'OFF'} '
+                              '(effective today; earlier orders keep '
+                              'their period)',
                             );
                       },
                     ),
@@ -829,12 +831,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         onDone: (v) async {
                           final amount =
                               (v == null || v < 0) ? 0.0 : v;
-                          await notifier.update(
-                              (s) => s..flatOrderBonusEgp = amount);
+                          // v27.16: setting/deleting the flat bonus
+                          // opens/closes a period from today — past
+                          // orders keep whatever was active on their
+                          // own date, future orders get the new value
+                          // (or 0 after a deletion).
+                          await notifier.update((s) {
+                            s.applyFlatBonus(
+                                amount, WeekCalendar.dateKey(DateTime.now()));
+                            return s;
+                          });
                           ref.read(appLogServiceProvider).info(
                                 AppLogCategory.settings,
                                 'Flat order bonus -> $amount EGP per '
-                                'counted order',
+                                'counted order (effective today; '
+                                'earlier orders keep their period)',
                               );
                         },
                       ),

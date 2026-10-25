@@ -8,7 +8,6 @@ import 'package:intl/intl.dart' hide TextDirection;
 import 'package:latlong2/latlong.dart';
 
 import '../../core/database/models.dart';
-import '../../core/date_time/week_calendar.dart';
 import '../../core/logging/app_log_service.dart';
 import '../../core/money_format.dart';
 import '../../core/providers.dart';
@@ -1334,15 +1333,16 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
     final totalSec =
         entry.outgoingDurationSec + entry.returnDurationSec;
     final totalKm = entry.effectiveKmTotal;
-    // v27.5 distance bonus for this order: resolved against the
-    // CURRENT tiers and the effective flag of the order's own week —
-    // derived, exactly as the weekly report computes it.
-    final entryWeekKey = WeekCalendar.dateKey(WeekCalendar.weekStart(
-        WeekCalendar.parseDateKey(entry.dateKey)));
+    // v27.16 distance bonus for this order: resolved against the
+    // tiers active on the ORDER'S OWN date and the effective flag
+    // for that date (period coverage AND the week's override) —
+    // derived, exactly as the weekly report computes it, so the
+    // detail view can never disagree with the salary totals.
+    final distancePeriod = settings.distancePeriodForDate(entry.dateKey);
     final distanceBonus = distanceBonusFor(
       totalKm,
-      settings.distanceBonusTiers,
-      enabled: settings.distanceBonusEnabledForWeek(entryWeekKey),
+      distancePeriod?.tiers ?? const [],
+      enabled: settings.distanceBonusEnabledForDate(entry.dateKey),
     );
 
     return GlassCard(

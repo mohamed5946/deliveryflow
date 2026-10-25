@@ -69,7 +69,33 @@ class DatabaseService {
     _meta = await Hive.openBox(_metaBox);
     await _migrateIfNeeded();
     if (!_settings.containsKey('user')) {
-      await _settings.put('user', UserSettings());
+      // Fresh install on v27.16+: NO bonus periods at all (all
+      // bonuses default 0/off — nothing is calculated until the user
+      // explicitly sets/enables one). Mark migrated so a later run
+      // never invents a retroactive period for this fresh user.
+      await _settings.put(
+          'user', UserSettings(bonusPeriodsMigrated: true));
+    } else if (!settings.bonusPeriodsMigrated) {
+      // Pre-existing user: migrate the single stored values to
+      // periods starting TODAY (first run after the update) — no
+      // retroactive start date is invented, so past weeks stop
+      // getting the bonus retroactively (the reported bug). See
+      // UserSettings.migrateLegacyBonusPeriods for the full rule,
+      // including preserved per-week ON overrides.
+      final s = settings;
+      final hadFlat = s.flatOrderBonusEgp > 0;
+      final hadDistance = s.distanceBonusEnabled;
+      s.migrateLegacyBonusPeriods(
+          WeekCalendar.dateKey(DateTime.now()));
+      await _settings.put('user', s);
+      _log?.info(
+        AppLogCategory.settings,
+        'Bonus periods migrated: flat was '
+        '${hadFlat ? 'active' : 'off'}, distance was '
+        '${hadDistance ? 'active' : 'off'}; periods start '
+        '${WeekCalendar.dateKey(DateTime.now())}, past weeks '
+        'no longer get either bonus retroactively',
+      );
     }
     await _repairNonCanonicalSchedules();
   }
@@ -839,18 +865,19 @@ class DatabaseService {
     final schedByDay = <String, DailySchedule>{
       for (final d in schedule?.dailySchedules ?? []) d.dateKey: d
     };
-    // v27.5: bonuses resolve against the CURRENT settings — the
-    // distance bonus against this week's effective flag (per-week
-    // override ?? global default) and the current tiers; manual
-    // bonuses are read straight off the entries. Derived, never
-    // stored, so edits re-derive everywhere consistently.
+    // v27.16: bonuses resolve against the bonus active on EACH
+    // ORDER'S OWN calendar date — never the current settings value.
+    // Flat: the period covering that day. Distance: the period
+    // covering that day, gated by the day's week override (an ON
+    // override outside every period pays nothing — it cannot
+    // resurrect a bonus). Manual bonuses are read straight off the
+    // entries (already per-order by construction). Derived, never
+    // stored, so period edits re-derive everywhere consistently —
+    // and because every earnings surface (Home card, Report card,
+    // PDF) goes through this one WeeklyReport, they all agree.
     final settings = this.settings;
     final weekKey = WeekCalendar.dateKey(start);
     final distanceBonusOn = settings.distanceBonusEnabledForWeek(weekKey);
-    final bonusTiers = settings.distanceBonusTiers;
-    // v27.6: flat bonus paid on every counted order (0 = off),
-    // resolved from the current settings like the other bonuses.
-    final flatPerOrder = settings.flatOrderBonusEgp;
 
     var totalOrders = 0;
     var totalMinutes = 0;
@@ -902,13 +929,18 @@ class DatabaseService {
       // distance-bonus flag.
       var dayDistanceBonus = 0.0;
       var dayManualBonus = 0.0;
+      // v27.16: per-day resolution — the flat amount and distance
+      // tiers active on THIS day's own date, not today's settings.
+      final dayFlat = settings.flatBonusForDate(key);
+      final dayDistancePeriod = settings.distancePeriodForDate(key);
+      final dayDistanceOn = settings.distanceBonusEnabledForDate(key);
       for (final e in order?.entries ?? const <OrderEntry>[]) {
         if (e.status >= 1 && e.manualBonusEgp > 0) {
           dayManualBonus += e.manualBonusEgp;
         }
-        if (distanceBonusOn && e.isCompleted) {
-          dayDistanceBonus +=
-              distanceBonusFor(e.effectiveKmTotal, bonusTiers);
+        if (dayDistanceOn && e.isCompleted) {
+          dayDistanceBonus += distanceBonusFor(
+              e.effectiveKmTotal, dayDistancePeriod?.tiers ?? const []);
         }
       }
       totalDistanceBonus += dayDistanceBonus;
@@ -935,8 +967,11 @@ class DatabaseService {
         kmBack: kmBack,
         distanceBonus: dayDistanceBonus,
         manualBonus: dayManualBonus,
-        // v27.6: the day's counted orders each earn the flat amount.
-        flatBonus: (orders ?? 0) * flatPerOrder,
+        // v27.16: the day's counted orders each earn the flat amount
+        // active on THIS day (0 before the first set / after a
+        // deletion) — count-only orders earn flat too, exactly as
+        // before, but at their own day's rate.
+        flatBonus: (orders ?? 0) * dayFlat,
       ));
     }
 
@@ -980,7 +1015,10 @@ class DatabaseService {
       totalDistanceBonus: totalDistanceBonus,
       totalManualBonus: totalManualBonus,
       distanceBonusEnabled: distanceBonusOn,
-      flatOrderBonusEgp: flatPerOrder,
+      // Display-only: the flat amount active on the week's last day.
+      // Totals use the per-day sums (WeeklyReport.totalFlatBonus).
+      flatOrderBonusEgp: settings.flatBonusForDate(
+          WeekCalendar.dateKey(WeekCalendar.addDays(start, 6))),
     );
   }
 

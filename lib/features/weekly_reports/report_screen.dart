@@ -820,6 +820,14 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
   Widget _distanceBonusWeekCard(BuildContext context, WidgetRef ref,
       AppLocalizations l10n, WeeklyReport r, TextTheme text,
       ColorScheme scheme) {
+    // v27.16: the switch is only live for weeks inside an active
+    // distance period. For a week outside every period it is
+    // disabled (not a dead button — flipping it could never change
+    // any salary, because a per-week override must never resurrect
+    // a bonus for a week the bonus was never active in). To turn
+    // the bonus on for a week, enable it in Profile first.
+    final hasPeriod =
+        ref.watch(settingsProvider).hasDistancePeriodInWeek(r.weekStartKey);
     return GlassCard(
       child: Row(
         children: [
@@ -832,7 +840,9 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
           ),
           Switch(
             value: r.distanceBonusEnabled,
-            onChanged: (v) => _setWeekDistanceBonus(r.weekStartKey, v),
+            onChanged: hasPeriod
+                ? (v) => _setWeekDistanceBonus(r.weekStartKey, v)
+                : null,
           ),
         ],
       ),
@@ -844,19 +854,23 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
     await ref.read(settingsProvider.notifier).update((s) {
       final overrides =
           Map<String, bool>.from(s.distanceBonusWeekOverrides);
-      // Landing back on the global default clears the override instead
-      // of freezing today's default into the week forever.
-      if (value == s.distanceBonusEnabled) {
+      // v27.16: within a period-covered week, the override is a pure
+      // exception — ON means "back to the period default" (so the
+      // override is cleared, never frozen), OFF stores false for
+      // that week only. The override can never extend the bonus to
+      // a day outside a period: the per-day resolver ANDs it with
+      // period coverage.
+      if (value) {
         overrides.remove(weekStartKey);
       } else {
-        overrides[weekStartKey] = value;
+        overrides[weekStartKey] = false;
       }
       return s..distanceBonusWeekOverrides = overrides;
     });
     log.info(
       AppLogCategory.settings,
       'Distance bonus for week $weekStartKey -> ${value ? 'ON' : 'OFF'} '
-      '(per-week override)',
+      '(per-week override, within its active period only)',
     );
     bumpDataVersion(ref);
   }

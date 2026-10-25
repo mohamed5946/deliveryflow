@@ -1,5 +1,10 @@
 import 'package:hive/hive.dart';
 
+import '../date_time/week_calendar.dart';
+import 'bonus_periods.dart';
+
+export 'bonus_periods.dart';
+
 /// Schema version for migrations. Bump when a model changes shape.
 const int kSchemaVersion = 11;
 
@@ -71,7 +76,9 @@ class UserSettings extends HiveObject {
   bool developerModeUnlocked; // v27.4: diagnostics tools gate (asked once)
   // --- Distance bonus (v27.5) ---
   @HiveField(30)
-  bool distanceBonusEnabled; // global default; a week may override it
+  bool distanceBonusEnabled; // v27.16: CURRENT toggle state (display
+  // only for salary math — periods are the source of truth). A week
+  // may override the period outcome for that week only.
   @HiveField(31)
   double distanceBonusTier1Km;
   @HiveField(32)
@@ -110,6 +117,18 @@ class UserSettings extends HiveObject {
   @HiveField(46)
   int timeFormat; // 0=system (pre-v27.12 TimeOfDay.format behaviour),
   // 1=24-hour, 2=12-hour. Default 0 preserves existing rendering.
+  // --- Bonus effective-date periods (v27.16) ---
+  // JSON-encoded period lists (see bonus_periods.dart). Stored as
+  // strings so the Hive adapter gains plain fields only.
+  @HiveField(47)
+  String flatBonusPeriodsJson;
+  @HiveField(48)
+  String distanceBonusPeriodsJson;
+  @HiveField(49)
+  bool bonusPeriodsMigrated; // true once the v27.16 first-run
+  // migration has run (pre-existing values) or the settings were
+  // created fresh on v27.16+ (nothing to migrate). Fresh settings
+  // carry NO periods: all bonuses default to 0/off.
 
   /// True once a mart location has been learned and saved.
   bool get hasMart => martLat != null && martLng != null;
@@ -126,10 +145,199 @@ class UserSettings extends HiveObject {
             fromKm: distanceBonusTier3Km, bonusEgp: distanceBonusTier3Egp),
       ];
 
-  /// Effective distance-bonus flag for a week: the week's own override
-  /// when one is stored, else the global default.
-  bool distanceBonusEnabledForWeek(String weekStartKey) =>
-      distanceBonusWeekOverrides[weekStartKey] ?? distanceBonusEnabled;
+  // --- v27.16 bonus periods (decoded views of the JSON fields) ---
+  List<FlatBonusPeriod> get flatBonusPeriods =>
+      decodeFlatPeriods(flatBonusPeriodsJson);
+  set flatBonusPeriods(List<FlatBonusPeriod> v) =>
+      flatBonusPeriodsJson = encodeFlatPeriods(v);
+
+  List<DistanceBonusPeriod> get distanceBonusPeriods =>
+      decodeDistancePeriods(distanceBonusPeriodsJson);
+  set distanceBonusPeriods(List<DistanceBonusPeriod> v) =>
+      distanceBonusPeriodsJson = encodeDistancePeriods(v);
+
+  /// Flat amount active on an order's own calendar date (0 before
+  /// the first set and after a deletion closed the last period).
+  double flatBonusForDate(String dateKey) =>
+      resolveFlatBonusForDate(flatBonusPeriods, dateKey);
+
+  /// Distance period active on an order's own calendar date, or null.
+  DistanceBonusPeriod? distancePeriodForDate(String dateKey) =>
+      resolveDistancePeriodForDate(distanceBonusPeriods, dateKey);
+
+  /// Whether the distance bonus is effective on one calendar date:
+  /// a period must cover the date AND the week's override (when one
+  /// is stored) must not turn it off. An override of ON can never
+  /// resurrect a bonus for a date outside every period.
+  bool distanceBonusEnabledForDate(String dateKey) {
+    if (distancePeriodForDate(dateKey) == null) return false;
+    final weekKey = WeekCalendar.dateKey(
+        WeekCalendar.weekStart(WeekCalendar.parseDateKey(dateKey)));
+    return distanceBonusWeekOverrides[weekKey] ?? true;
+  }
+
+  /// Effective distance-bonus flag for a week (report screen switch
+  /// + WeeklyReport flag): true when the week has at least one
+  /// period-covered day and its override (when stored) is not OFF.
+  /// v27.16: the old "override ?? global default" rule is replaced —
+  /// an override ON outside every period resolves to OFF, never
+  /// resurrecting a bonus for a week the bonus was never active in.
+  bool distanceBonusEnabledForWeek(String weekStartKey) {
+    if (distanceBonusWeekOverrides[weekStartKey] == false) return false;
+    return hasDistancePeriodInWeek(weekStartKey);
+  }
+
+  /// True when any distance period covers any day of the week
+  /// starting [weekStartKey] — the report screen's per-week switch
+  /// is only enabled for such weeks (otherwise it would be a dead
+  /// control: flipping it could never change any salary).
+  bool hasDistancePeriodInWeek(String weekStartKey) =>
+      hasDistancePeriodInWeekFor(distanceBonusPeriods, weekStartKey);
+
+  /// v27.16: set/change/delete the flat bonus, effective [onDateKey]
+  /// (the user's local calendar date at the time of the change).
+  /// Setting an amount opens a period from that date; changing it
+  /// closes the open period the day before and opens a new one;
+  /// setting 0/empty (delete) closes the open period the day before
+  /// and opens nothing. Orders before the period keep 0, orders
+  /// inside it keep their amount forever, orders after a deletion
+  /// get 0. Also keeps the legacy current-value field in sync for
+  /// display (salary math NEVER reads it anymore).
+  void applyFlatBonus(double amount, String onDateKey) {
+    flatOrderBonusEgp = amount < 0 ? 0 : amount;
+    final periods = flatBonusPeriods;
+    final openIndex =
+        periods.indexWhere((p) => p.isOpen);
+    if (openIndex >= 0) {
+      final open = periods[openIndex];
+      if (open.startKey == onDateKey) {
+        // Period started today: mutate it in place (no inverted
+        // close-the-day-before, no zero-length period).
+        if (amount <= 0) {
+          periods.removeAt(openIndex);
+        } else {
+          periods[openIndex] = FlatBonusPeriod(
+              startKey: open.startKey, endKey: null, amount: amount);
+        }
+        flatBonusPeriods = periods;
+        return;
+      }
+      periods[openIndex] = open.closedOn(previousDayKey(onDateKey));
+    }
+    if (amount > 0) {
+      periods.add(FlatBonusPeriod(
+          startKey: onDateKey, endKey: null, amount: amount));
+    }
+    flatBonusPeriods = periods;
+  }
+
+  /// v27.16: enable/disable the distance bonus, effective
+  /// [onDateKey]. Enabling opens a period from that date with the
+  /// current tiers; disabling closes the open period the day
+  /// before. Enabling while a period is already open is a no-op
+  /// (the bonus was already being calculated).
+  void applyDistanceToggle(bool enabled, String onDateKey) {
+    distanceBonusEnabled = enabled;
+    final periods = distanceBonusPeriods;
+    final openIndex = periods.indexWhere((p) => p.isOpen);
+    if (!enabled) {
+      if (openIndex >= 0) {
+        final open = periods[openIndex];
+        if (open.startKey == onDateKey) {
+          periods.removeAt(openIndex);
+        } else {
+          periods[openIndex] = open.closedOn(previousDayKey(onDateKey));
+        }
+        distanceBonusPeriods = periods;
+      }
+      return;
+    }
+    if (openIndex < 0) {
+      periods.add(DistanceBonusPeriod(
+          startKey: onDateKey, endKey: null, tiers: distanceBonusTiers));
+      distanceBonusPeriods = periods;
+    }
+  }
+
+  /// v27.16: edit the distance tiers, effective [onDateKey]. The
+  /// legacy tier fields are always updated (they are the editable
+  /// presets). A new period with the new tiers starts on the edit
+  /// date ONLY when a period is currently open — editing tiers
+  /// while the bonus is off must not silently create a period (and
+  /// therefore must not start calculating a bonus the user never
+  /// enabled).
+  void applyDistanceTiers(
+      List<DistanceBonusTier> tiers, String onDateKey) {
+    if (tiers.length == 3) {
+      distanceBonusTier1Km = tiers[0].fromKm;
+      distanceBonusTier1Egp = tiers[0].bonusEgp;
+      distanceBonusTier2Km = tiers[1].fromKm;
+      distanceBonusTier2Egp = tiers[1].bonusEgp;
+      distanceBonusTier3Km = tiers[2].fromKm;
+      distanceBonusTier3Egp = tiers[2].bonusEgp;
+    }
+    final periods = distanceBonusPeriods;
+    final openIndex = periods.indexWhere((p) => p.isOpen);
+    if (openIndex < 0) return;
+    final open = periods[openIndex];
+    if (open.startKey == onDateKey) {
+      periods[openIndex] = DistanceBonusPeriod(
+          startKey: open.startKey, endKey: null, tiers: tiers);
+    } else {
+      periods[openIndex] = open.closedOn(previousDayKey(onDateKey));
+      periods.add(DistanceBonusPeriod(
+          startKey: onDateKey, endKey: null, tiers: tiers));
+    }
+    distanceBonusPeriods = periods;
+  }
+
+  /// v27.16 one-time migration for settings stored before periods
+  /// existed. A pre-existing single value has NO stored start date,
+  /// so no retroactive date is invented: an active value becomes a
+  /// period starting on [migrationDateKey] (first run after the
+  /// update), so past weeks stop getting it retroactively — exactly
+  /// the reported bug. An already-zero/off value creates no period
+  /// (it is NOT silently reset — it was already off — and it is not
+  /// silently turned on either). Weeks already carrying a per-week
+  /// override of ON additionally get a week-scoped period covering
+  /// exactly that week with the current tiers, so their stored
+  /// meaning is preserved rather than erased by the new
+  /// no-resurrection rule; overrides of OFF need no period (off is
+  /// already the default outside a period). Idempotent via
+  /// [bonusPeriodsMigrated].
+  void migrateLegacyBonusPeriods(String migrationDateKey) {
+    if (bonusPeriodsMigrated) return;
+    bonusPeriodsMigrated = true;
+    if (flatOrderBonusEgp > 0 && flatBonusPeriods.isEmpty) {
+      flatBonusPeriods = [
+        FlatBonusPeriod(
+            startKey: migrationDateKey,
+            endKey: null,
+            amount: flatOrderBonusEgp),
+      ];
+    }
+    if (distanceBonusPeriods.isEmpty) {
+      final periods = <DistanceBonusPeriod>[];
+      if (distanceBonusEnabled) {
+        periods.add(DistanceBonusPeriod(
+            startKey: migrationDateKey,
+            endKey: null,
+            tiers: distanceBonusTiers));
+      }
+      // Preserve week-scoped ON overrides exactly: a period covering
+      // just that week (Sunday..Saturday, constructor arithmetic).
+      for (final entry in distanceBonusWeekOverrides.entries) {
+        if (entry.value != true) continue;
+        final start = WeekCalendar.parseDateKey(entry.key);
+        periods.add(DistanceBonusPeriod(
+          startKey: entry.key,
+          endKey: WeekCalendar.dateKey(WeekCalendar.addDays(start, 6)),
+          tiers: distanceBonusTiers,
+        ));
+      }
+      if (periods.isNotEmpty) distanceBonusPeriods = periods;
+    }
+  }
 
   UserSettings({
     this.displayName = '',
@@ -162,7 +370,7 @@ class UserSettings extends HiveObject {
     this.autoNavMode = 1,
     this.shiftEndReminderEnabled = false,
     this.developerModeUnlocked = false,
-    this.distanceBonusEnabled = true,
+    this.distanceBonusEnabled = false,
     this.distanceBonusTier1Km = 12,
     this.distanceBonusTier1Egp = 5,
     this.distanceBonusTier2Km = 15,
@@ -179,7 +387,12 @@ class UserSettings extends HiveObject {
     this.martCandidateCount = 0,
     this.martManual = false,
     this.timeFormat = 0,
-  })  : readNotificationIds = readNotificationIds ?? [],
+    String? flatBonusPeriodsJson,
+    String? distanceBonusPeriodsJson,
+    this.bonusPeriodsMigrated = false,
+  })  : flatBonusPeriodsJson = flatBonusPeriodsJson ?? '',
+        distanceBonusPeriodsJson = distanceBonusPeriodsJson ?? '',
+        readNotificationIds = readNotificationIds ?? [],
         dismissedNotificationIds = dismissedNotificationIds ?? [],
         distanceBonusWeekOverrides = distanceBonusWeekOverrides ?? {};
 
@@ -231,6 +444,9 @@ class UserSettings extends HiveObject {
         'martCandidateCount': martCandidateCount,
         'martManual': martManual,
         'timeFormat': timeFormat,
+        'flatBonusPeriodsJson': flatBonusPeriodsJson,
+        'distanceBonusPeriodsJson': distanceBonusPeriodsJson,
+        'bonusPeriodsMigrated': bonusPeriodsMigrated,
         'schemaVersion': kSchemaVersion,
       };
 
@@ -279,7 +495,7 @@ class UserSettings extends HiveObject {
         developerModeUnlocked:
             (json['developerModeUnlocked'] as bool?) ?? false,
         distanceBonusEnabled:
-            (json['distanceBonusEnabled'] as bool?) ?? true,
+            (json['distanceBonusEnabled'] as bool?) ?? false,
         distanceBonusTier1Km:
             (json['distanceBonusTier1Km'] as num?)?.toDouble() ?? 12,
         distanceBonusTier1Egp:
@@ -308,6 +524,12 @@ class UserSettings extends HiveObject {
             (json['martCandidateCount'] as num?)?.toInt() ?? 0,
         martManual: (json['martManual'] as bool?) ?? false,
         timeFormat: (json['timeFormat'] as num?)?.toInt() ?? 0,
+        flatBonusPeriodsJson:
+            (json['flatBonusPeriodsJson'] as String?) ?? '',
+        distanceBonusPeriodsJson:
+            (json['distanceBonusPeriodsJson'] as String?) ?? '',
+        bonusPeriodsMigrated:
+            (json['bonusPeriodsMigrated'] as bool?) ?? false,
       );
 }
 
@@ -353,7 +575,7 @@ class UserSettingsAdapter extends TypeAdapter<UserSettings> {
       autoNavMode: (fields[27] as int?) ?? 1,
       shiftEndReminderEnabled: (fields[28] as bool?) ?? false,
       developerModeUnlocked: (fields[29] as bool?) ?? false,
-      distanceBonusEnabled: (fields[30] as bool?) ?? true,
+      distanceBonusEnabled: (fields[30] as bool?) ?? false,
       distanceBonusTier1Km: (fields[31] as num?)?.toDouble() ?? 12,
       distanceBonusTier1Egp: (fields[32] as num?)?.toDouble() ?? 5,
       distanceBonusTier2Km: (fields[33] as num?)?.toDouble() ?? 15,
@@ -371,13 +593,16 @@ class UserSettingsAdapter extends TypeAdapter<UserSettings> {
       martCandidateCount: (fields[44] as int?) ?? 0,
       martManual: (fields[45] as bool?) ?? false,
       timeFormat: (fields[46] as int?) ?? 0,
+      flatBonusPeriodsJson: (fields[47] as String?) ?? '',
+      distanceBonusPeriodsJson: (fields[48] as String?) ?? '',
+      bonusPeriodsMigrated: (fields[49] as bool?) ?? false,
     );
   }
 
   @override
   void write(BinaryWriter writer, UserSettings obj) {
     writer
-      ..writeByte(47)
+      ..writeByte(50)
       ..writeByte(0)
       ..write(obj.displayName)
       ..writeByte(1)
@@ -471,7 +696,13 @@ class UserSettingsAdapter extends TypeAdapter<UserSettings> {
       ..writeByte(45)
       ..write(obj.martManual)
       ..writeByte(46)
-      ..write(obj.timeFormat);
+      ..write(obj.timeFormat)
+      ..writeByte(47)
+      ..write(obj.flatBonusPeriodsJson)
+      ..writeByte(48)
+      ..write(obj.distanceBonusPeriodsJson)
+      ..writeByte(49)
+      ..write(obj.bonusPeriodsMigrated);
   }
 }
 
@@ -1343,39 +1574,9 @@ ScheduleDayChip scheduleDayChipFor({
   return ScheduleDayChip.notStarted;
 }
 
-/// One distance-bonus tier (v27.5): a completed order whose round-trip
-/// distance reaches [fromKm] earns [bonusEgp] on top of its order pay.
-class DistanceBonusTier {
-  final double fromKm;
-  final double bonusEgp;
-
-  const DistanceBonusTier({required this.fromKm, required this.bonusEgp});
-}
-
-/// Pure distance-bonus resolution (v27.5): the bonus of the HIGHEST
-/// tier whose threshold the round-trip distance reaches. Returns 0
-/// below the first threshold, when the distance is missing or zero
-/// (count-only entries and orders without a finalized distance earn
-/// no distance bonus), and when the feature is off for the week being
-/// computed. Tier order in [tiers] does not matter.
-double distanceBonusFor(
-  double? roundTripKm,
-  List<DistanceBonusTier> tiers, {
-  bool enabled = true,
-}) {
-  if (!enabled) return 0;
-  final km = roundTripKm ?? 0;
-  if (km <= 0) return 0;
-  var best = 0.0;
-  var bestFrom = double.negativeInfinity;
-  for (final t in tiers) {
-    if (km >= t.fromKm && t.fromKm >= bestFrom) {
-      bestFrom = t.fromKm;
-      best = t.bonusEgp;
-    }
-  }
-  return best;
-}
+/// DistanceBonusTier + distanceBonusFor moved to bonus_periods.dart
+/// in v27.16 (re-exported from this file, so existing imports keep
+/// working) — the period model owns the tier type now.
 
 class DayBreakdown {
   final String dateKey;
@@ -1447,8 +1648,10 @@ class WeeklyReport {
   /// so displays never disagree with the totals.
   final bool distanceBonusEnabled;
 
-  /// v27.6: the flat bonus paid per counted order (EGP), resolved
-  /// from the settings when the report was built (0 = off).
+  /// v27.16: the flat bonus active on the week's LAST day (EGP),
+  /// display-only. Totals NEVER use this: [totalFlatBonus] sums the
+  /// per-day amounts, because different days in one week can carry
+  /// different amounts (set/change/delete mid-week).
   final double flatOrderBonusEgp;
 
   const WeeklyReport({
@@ -1475,9 +1678,13 @@ class WeeklyReport {
 
   double get totalKm => totalKmOut + totalKmBack;
 
-  /// v27.6: Σ flat per-order bonuses — every counted order (detailed
-  /// completed AND count-only) earns the flat amount.
-  double get totalFlatBonus => totalOrders * flatOrderBonusEgp;
+  /// v27.16: Σ flat per-order bonuses — the sum of each day's
+  /// [DayBreakdown.flatBonus], each resolved against the flat amount
+  /// active on THAT day's own date. Multiplying totalOrders by any
+  /// single current amount would reintroduce the v27.16 bug (past
+  /// weeks paid at today's rate, deleted bonuses erased).
+  double get totalFlatBonus =>
+      days.fold(0.0, (sum, d) => sum + d.flatBonus);
 
   /// THE salary formula (v27.5, extended v27.6) — the single
   /// computation every earnings surface uses (weekly report card,

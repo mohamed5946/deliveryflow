@@ -57,13 +57,17 @@ void main() {
       await tmp.delete(recursive: true);
     });
 
-    test('defaults are the Gawab tiers, feature on, no overrides', () {
+    test('defaults are the Gawab tier presets, feature OFF, no periods',
+        () {
+      // v27.16 clarification: a fresh user gets NO bonus at all —
+      // distance off, no periods — until he explicitly enables it.
       final s = db.settings;
-      expect(s.distanceBonusEnabled, isTrue);
+      expect(s.distanceBonusEnabled, isFalse);
       expect(s.distanceBonusTiers.map((t) => t.fromKm), [12, 15, 20]);
       expect(s.distanceBonusTiers.map((t) => t.bonusEgp), [5, 10, 17]);
       expect(s.distanceBonusWeekOverrides, isEmpty);
-      expect(s.distanceBonusEnabledForWeek('2026-10-18'), isTrue);
+      expect(s.distanceBonusPeriods, isEmpty);
+      expect(s.distanceBonusEnabledForWeek('2026-10-18'), isFalse);
     });
 
     test('custom tiers + overrides survive a settings round-trip', () async {
@@ -82,14 +86,30 @@ void main() {
       expect(back.distanceBonusEnabled, isFalse);
       expect(back.distanceBonusTiers.map((t) => t.fromKm), [10, 18, 25]);
       expect(back.distanceBonusTiers.map((t) => t.bonusEgp), [4, 12, 20]);
-      // Override beats the global default for its week only.
-      expect(back.distanceBonusEnabledForWeek('2026-10-18'), isTrue);
+      // v27.16: an override ON alone cannot resurrect a bonus for a
+      // week outside every period — no period exists yet, so the
+      // week resolves OFF even with the override stored.
+      expect(back.distanceBonusEnabledForWeek('2026-10-18'), isFalse);
       expect(back.distanceBonusEnabledForWeek('2026-10-25'), isFalse);
 
+      // With a period covering that week, the same override resolves
+      // ON — the override is a week-scoped exception within a
+      // period, not a bonus of its own.
+      back.distanceBonusPeriods = [
+        DistanceBonusPeriod(
+            startKey: '2026-10-18',
+            endKey: '2026-10-24',
+            tiers: back.distanceBonusTiers),
+      ];
+      await db.saveSettings(back);
+      expect(db.settings.distanceBonusEnabledForWeek('2026-10-18'), isTrue);
+      expect(db.settings.distanceBonusEnabledForWeek('2026-10-25'), isFalse);
+
       // The JSON clone path (settings notifier + backup) keeps them too.
-      final clone = UserSettings.fromJson(back.toJson());
+      final clone = UserSettings.fromJson(db.settings.toJson());
       expect(clone.distanceBonusTier2Egp, 12);
       expect(clone.distanceBonusWeekOverrides, {'2026-10-18': true});
+      expect(clone.distanceBonusPeriods.length, 1);
     });
   });
 
@@ -142,6 +162,12 @@ void main() {
 
       // Last week, Sunday: one 15 km order (+10).
       await completeOrder(lastSunKey, kmOut: 8, kmBack: 7);
+
+      // v27.16: distance is OFF by default — explicitly enable it
+      // from last Sunday, so the period covers BOTH seeded weeks.
+      final settings = db.settings;
+      settings.applyDistanceToggle(true, lastWeekKey);
+      await db.saveSettings(settings);
     });
 
     tearDown(() async {
@@ -161,8 +187,9 @@ void main() {
     });
 
     test('per-week override off zeroes only that week', () async {
-      await db.saveSettings(UserSettings()
-        ..distanceBonusWeekOverrides = {currentWeekKey: false});
+      final settings = db.settings
+        ..distanceBonusWeekOverrides = {currentWeekKey: false};
+      await db.saveSettings(settings);
 
       final off = db.buildWeeklyReport(DateTime.now());
       expect(off.distanceBonusEnabled, isFalse);
@@ -176,10 +203,23 @@ void main() {
       expect(other.totalDistanceBonus, 10);
     });
 
-    test('override on beats a global off, for that week only', () async {
-      await db.saveSettings(UserSettings()
-        ..distanceBonusEnabled = false
-        ..distanceBonusWeekOverrides = {lastWeekKey: true});
+    test('override on does NOT resurrect a bonus outside a period',
+        () async {
+      // v27.16 reconciliation: replace the period with one covering
+      // LAST week only, then store an override ON for the current
+      // week. The current week must still pay 0 — the override is
+      // an exception within a period, never a bonus of its own —
+      // while last week keeps its +10.
+      final settings = db.settings;
+      final tiers = settings.distanceBonusTiers;
+      final lastEnd = WeekCalendar.dateKey(
+          WeekCalendar.addDays(WeekCalendar.parseDateKey(lastWeekKey), 6));
+      settings.distanceBonusPeriods = [
+        DistanceBonusPeriod(
+            startKey: lastWeekKey, endKey: lastEnd, tiers: tiers),
+      ];
+      settings.distanceBonusWeekOverrides = {currentWeekKey: true};
+      await db.saveSettings(settings);
 
       final on =
           db.buildWeeklyReport(WeekCalendar.parseDateKey(lastWeekKey));
@@ -189,6 +229,21 @@ void main() {
       final off = db.buildWeeklyReport(DateTime.now());
       expect(off.distanceBonusEnabled, isFalse);
       expect(off.totalDistanceBonus, 0);
+    });
+
+    test('override off inside a period zeroes that week only', () async {
+      // The period covers both weeks; turning the current week OFF
+      // via its override leaves last week untouched.
+      final settings = db.settings
+        ..distanceBonusWeekOverrides = {currentWeekKey: false};
+      await db.saveSettings(settings);
+      expect(
+          db.buildWeeklyReport(DateTime.now()).totalDistanceBonus, 0);
+      expect(
+          db
+              .buildWeeklyReport(WeekCalendar.parseDateKey(lastWeekKey))
+              .totalDistanceBonus,
+          10);
     });
   });
 }
