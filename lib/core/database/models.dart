@@ -760,6 +760,17 @@ class DailySchedule extends HiveObject {
   List<int> breakHourStarts; // extended start-minutes of break blocks
   // (see hour_blocks.dart). Empty for old records: their legacy
   // breakDurationMinutes keeps applying exactly as before.
+  // --- Per-hour DELETED blocks (v27.19) ---
+  // v27.19: Delete is finally a real deletion, not a break. A middle
+  // hour removed with swipe-left lives here (extended start-minutes,
+  // same encoding as breakHourStarts) and is skipped everywhere a
+  // block list is derived (see hour_blocks.dart). Edge deletions
+  // instead shrink start/end and are NOT recorded here, so the
+  // range math can never double-count them. A deleted hour is
+  // never a break hour: deleting a break block removes its break
+  // mark and records the deletion (middle) or shrinks (edge).
+  @HiveField(7)
+  List<int> deletedHourStarts;
 
   DailySchedule({
     required this.dateKey,
@@ -769,15 +780,29 @@ class DailySchedule extends HiveObject {
     this.breakDurationMinutes = 30,
     this.notes = '',
     List<int>? breakHourStarts,
-  }) : breakHourStarts = breakHourStarts ?? [];
+    List<int>? deletedHourStarts,
+  })  : breakHourStarts = breakHourStarts ?? [],
+        deletedHourStarts = deletedHourStarts ?? [];
 
   /// Net planned minutes for this day (0 when it is a day off).
+  ///
+  /// v27.19: deleted hours inside the span are subtracted (a deleted
+  /// hour is no longer part of the shift), so weekly planned totals
+  /// and the no-session work credit (effectiveWorkMinutes) never
+  /// count them. Break blocks keep their pre-v27.19 treatment here
+  /// (legacy breakDurationMinutes only); the Home block summary is
+  /// what excludes break blocks, via blockNetMinutes.
   int get netPlannedMinutes {
     if (!isWorkingDay) return 0;
     var end = endMinutes;
     if (end <= startMinutes) end += 24 * 60;
     final gross = end - startMinutes;
-    return gross - breakDurationMinutes.clamp(0, gross);
+    var deleted = 0;
+    for (var s = startMinutes; s + 60 <= end; s += 60) {
+      if (deletedHourStarts.contains(s)) deleted++;
+    }
+    return (gross - deleted * 60 - breakDurationMinutes.clamp(0, gross))
+        .clamp(0, gross);
   }
 }
 
@@ -799,13 +824,14 @@ class DailyScheduleAdapter extends TypeAdapter<DailySchedule> {
       breakDurationMinutes: (fields[4] as int?) ?? 30,
       notes: (fields[5] as String?) ?? '',
       breakHourStarts: (fields[6] as List?)?.cast<int>() ?? [],
+      deletedHourStarts: (fields[7] as List?)?.cast<int>() ?? [],
     );
   }
 
   @override
   void write(BinaryWriter writer, DailySchedule obj) {
     writer
-      ..writeByte(7)
+      ..writeByte(8)
       ..writeByte(0)
       ..write(obj.dateKey)
       ..writeByte(1)
@@ -819,7 +845,9 @@ class DailyScheduleAdapter extends TypeAdapter<DailySchedule> {
       ..writeByte(5)
       ..write(obj.notes)
       ..writeByte(6)
-      ..write(obj.breakHourStarts);
+      ..write(obj.breakHourStarts)
+      ..writeByte(7)
+      ..write(obj.deletedHourStarts);
   }
 }
 

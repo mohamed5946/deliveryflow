@@ -189,7 +189,9 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
         _days[i].breakDurationMinutes = src.breakDurationMinutes;
         // v27.12: copy-day must carry the break blocks too, or the
         // copied day silently loses its break marks.
+        // v27.19: same for deleted hours.
         _days[i].breakHourStarts = List.of(src.breakHourStarts);
+        _days[i].deletedHourStarts = List.of(src.deletedHourStarts);
       }
     });
   }

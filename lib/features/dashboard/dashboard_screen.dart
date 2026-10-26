@@ -424,6 +424,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
           _saveDayHours(db, toggleBreakHour(current, start), 'toggle-break');
         }
       },
+      // v27.19: true Delete — removes the hour from the day
+      // completely (edge: range shrinks; middle: deleted-hour
+      // record; last block: day off). Protection is enforced by
+      // the widget (protected blocks cannot be swiped open).
+      onDelete: (start) {
+        if (current != null) {
+          _saveDayHours(db, deleteHour(current, start), 'delete-hour');
+        }
+      },
       onAssignHour: (hour) {
         // assignHour handles no-day / day-off creation itself; the
         // save below inserts the day when the week (or the day in
@@ -465,7 +474,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
             'Day hours edited ($action)',
             detail: '${updated.dateKey}: (new week) -> '
                 '${updated.startMinutes}-${updated.endMinutes} '
-                'breaks=${updated.breakHourStarts}',
+                'breaks=${updated.breakHourStarts} '
+                'deleted=${updated.deletedHourStarts}',
           );
       bumpDataVersion(ref);
       if (mounted) setState(() {});
@@ -495,9 +505,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
           'Day hours edited ($action)',
           detail: '${updated.dateKey}: '
               '${old?.startMinutes}-${old?.endMinutes} '
-              'breaks=${old?.breakHourStarts} -> '
+              'breaks=${old?.breakHourStarts} '
+              'deleted=${old?.deletedHourStarts} -> '
               '${updated.startMinutes}-${updated.endMinutes} '
-              'breaks=${updated.breakHourStarts}',
+              'breaks=${updated.breakHourStarts} '
+              'deleted=${updated.deletedHourStarts}',
         );
     bumpDataVersion(ref);
     if (mounted) setState(() {});

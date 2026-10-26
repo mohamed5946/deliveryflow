@@ -185,6 +185,8 @@ class ScheduleNormalizer {
         notes: d.notes,
         // v27.12: break blocks must survive normalization, or a
         // repaired week would silently lose the user's break marks.
+        // v27.19: same for deleted hours.
         breakHourStarts: List.of(d.breakHourStarts),
+        deletedHourStarts: List.of(d.deletedHourStarts),
       );
 }

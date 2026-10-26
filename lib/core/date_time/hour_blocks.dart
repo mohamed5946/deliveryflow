@@ -21,6 +21,26 @@ import 'week_calendar.dart';
 /// when blocks are toggled — once blocks exist they ARE the break
 /// record, so the legacy minutes stop being subtracted to avoid
 /// double-counting the same break.
+///
+/// v27.19 TRUE DELETE: Delete and Break are finally different
+/// stored changes. Break still records the hour in breakHourStarts.
+/// Delete removes the hour from the day:
+/// - Edge (first/last visible block): start/end shrink past it, so
+///   the range itself no longer contains it; it is NOT recorded in
+///   [DailySchedule.deletedHourStarts] (recording it too would
+///   double-count the shrink in every total).
+/// - Middle: the hour is recorded in deletedHourStarts and skipped
+///   by [hourBlockStarts] — neighbours keep their exact times, no
+///   hour ever shifts to fill the gap. A deleted hour is not a
+///   block at all: it counts in no summary, no net total, and no
+///   protection set, and the Assign picker offers it again (picking
+///   it clears the deletion and restores it as a work block).
+/// - Last remaining block: the day becomes a day off (start == end
+///   would mean a 24h overnight shift under the end <= start
+///   convention, so it is never used as "empty").
+/// Stale deleted entries (outside the current span, e.g. after the
+/// schedule screen moved start/end) are ignored by
+/// [deletedBlockStarts] and pruned by [deleteHour]/[assignHour].
 enum HourBlockState {
   /// A work hour already finished (past day, or earlier today).
   worked,
@@ -42,11 +62,11 @@ int effectiveEndMinutes(DailySchedule day) {
   return day.endMinutes;
 }
 
-/// End-exclusive block starts for [day] (extended minutes, see the
-/// file doc). Empty for a day off. A day whose gross span is 0 or
-/// negative can only arise from corrupt data; it yields no blocks
-/// rather than an unbounded list.
-List<int> hourBlockStarts(DailySchedule day) {
+/// Full-hour starts of [day]'s span (extended minutes, see the file
+/// doc), BEFORE deleted hours are removed. Empty for a day off. A
+/// day whose gross span is 0 or negative can only arise from corrupt
+/// data; it yields no blocks rather than an unbounded list.
+List<int> spanBlockStarts(DailySchedule day) {
   if (!day.isWorkingDay) return const [];
   final end = effectiveEndMinutes(day);
   final gross = end - day.startMinutes;
@@ -57,6 +77,26 @@ List<int> hourBlockStarts(DailySchedule day) {
   // normal case — are unaffected and stay exactly end-exclusive.
   return [
     for (var s = day.startMinutes; s + 60 <= end; s += 60) s,
+  ];
+}
+
+/// Deleted hours of [day] that still lie inside its span, as
+/// extended start-minutes. Stale entries outside the span are
+/// ignored here; saves prune them (see [deleteHour]/[assignHour]).
+Set<int> deletedBlockStarts(DailySchedule day) {
+  final span = spanBlockStarts(day).toSet();
+  return day.deletedHourStarts.where(span.contains).toSet();
+}
+
+/// End-exclusive block starts for [day] (extended minutes): the
+/// span's blocks MINUS deleted hours. A deleted hour is gone from
+/// the day — it renders nowhere, counts in no summary, and is
+/// offered again by the Assign picker. Empty for a day off.
+List<int> hourBlockStarts(DailySchedule day) {
+  final deleted = deletedBlockStarts(day);
+  return [
+    for (final s in spanBlockStarts(day))
+      if (!deleted.contains(s)) s,
   ];
 }
 
@@ -71,6 +111,8 @@ Set<int> breakBlockStarts(DailySchedule day) {
 
 /// Net work minutes for the Home summary.
 ///
+/// - Deleted hours are subtracted first: a deleted hour is no
+///   longer part of the shift at all (v27.19).
 /// - No block breaks: the legacy formula, unchanged —
 ///   gross − breakDurationMinutes (clamped), so old records keep
 ///   exactly the net they always had.
@@ -80,11 +122,13 @@ Set<int> breakBlockStarts(DailySchedule day) {
 int blockNetMinutes(DailySchedule day) {
   if (!day.isWorkingDay) return 0;
   final gross = effectiveEndMinutes(day) - day.startMinutes;
+  final deleted = deletedBlockStarts(day).length;
   final breaks = breakBlockStarts(day);
   if (breaks.isEmpty) {
-    return gross - day.breakDurationMinutes.clamp(0, gross);
+    return (gross - deleted * 60 - day.breakDurationMinutes.clamp(0, gross))
+        .clamp(0, gross);
   }
-  return gross - breaks.length * 60;
+  return (gross - deleted * 60 - breaks.length * 60).clamp(0, gross);
 }
 
 /// Classification of one block for the summary and its colour.
@@ -146,7 +190,8 @@ DailySchedule _copyDay(DailySchedule day,
         {int? startMinutes,
         int? endMinutes,
         bool? isWorkingDay,
-        List<int>? breakHourStarts}) =>
+        List<int>? breakHourStarts,
+        List<int>? deletedHourStarts}) =>
     DailySchedule(
       dateKey: day.dateKey,
       isWorkingDay: isWorkingDay ?? day.isWorkingDay,
@@ -155,7 +200,19 @@ DailySchedule _copyDay(DailySchedule day,
       breakDurationMinutes: day.breakDurationMinutes,
       notes: day.notes,
       breakHourStarts: breakHourStarts ?? List.of(day.breakHourStarts),
+      deletedHourStarts:
+          deletedHourStarts ?? List.of(day.deletedHourStarts),
     );
+
+/// [day] with break and deleted marks pruned to its current span
+/// and visible blocks (used after a range shrink, where marks on
+/// hours that left the span must not linger in storage).
+DailySchedule _pruneMarksToSpan(DailySchedule day) {
+  final breaks = breakBlockStarts(day).toList()..sort();
+  final deleted = deletedBlockStarts(day).toList()..sort();
+  return _copyDay(day,
+      breakHourStarts: breaks, deletedHourStarts: deleted);
+}
 
 /// Wall-clock hour (0..23) of an extended block start.
 int _wallHour(int extendedStart) => (extendedStart % (24 * 60)) ~/ 60;
@@ -170,6 +227,9 @@ int _wallHour(int extendedStart) => (extendedStart % (24 * 60)) ~/ 60;
 ///   shift, so it is not "available" as a new block; restoring it is
 ///   the swipe-restore path, not Assign. A protected (order-bearing)
 ///   hour is a work block, so it is excluded here by the same rule.
+/// - v27.19: a DELETED hour is not a block, so it IS offered again
+///   (hourBlockStarts already excludes it). Picking it restores it
+///   as a work block and clears the deletion (see [assignHour]).
 /// - Partial hours: only full-hour blocks exclude their wall hour, so
 ///   a trailing partial hour's wall hour stays available (picking it
 ///   extends the end past it, see [assignHour]).
@@ -240,12 +300,22 @@ DailySchedule assignHour(DailySchedule? day, int hour, String dateKey) {
     }
   }
   if (best >= start && best < end) {
-    // Trailing partial hour: it fits only once the end moves past
-    // it. Any other inside candidate would already be a block (the
-    // wall-hour guard above), so anything else here is a no-op
-    // rather than a shrink.
+    // v27.19: a deleted hour inside the span is NOT a block, so the
+    // picker offers it — picking it restores it as a work block by
+    // clearing the deletion (and any stray break mark), with the
+    // range untouched. Anything else inside that is not a deleted
+    // hour would already be a block (the wall-hour guard above), so
+    // it is a no-op — except a trailing partial hour, which fits
+    // only once the end moves past it.
+    if (deletedBlockStarts(day).contains(best)) {
+      final deleted = deletedBlockStarts(day).toList()..remove(best);
+      final breaks = breakBlockStarts(day).toList()..remove(best);
+      return _copyDay(day,
+          breakHourStarts: breaks, deletedHourStarts: deleted);
+    }
     if (best + 60 <= end) return day;
-    return _copyDay(day, endMinutes: (best + 60) % (24 * 60));
+    return _pruneMarksToSpan(
+        _copyDay(day, endMinutes: (best + 60) % (24 * 60)));
   }
   if (best < start) {
     final newEnd = end;
@@ -255,27 +325,81 @@ DailySchedule assignHour(DailySchedule? day, int hour, String dateKey) {
     final oldBreakWalls = {
       for (final b in breakBlockStarts(day)) _wallHour(b),
     };
+    // v27.19: intermediate hours that are deleted stay deleted —
+    // they must not be resurrected as breaks by the extension.
+    final deletedWalls = {
+      for (final d in deletedBlockStarts(day)) _wallHour(d),
+    };
     final breaks = {
       for (final s in newBlocks)
-        if (oldBreakWalls.contains(_wallHour(s)) ||
-            (s >= best + 60 && s < start))
+        if ((oldBreakWalls.contains(_wallHour(s)) ||
+                (s >= best + 60 && s < start)) &&
+            !deletedWalls.contains(_wallHour(s)))
           s,
     }.toList()
       ..sort();
-    return _copyDay(day,
+    return _pruneMarksToSpan(_copyDay(day,
         startMinutes: best % (24 * 60),
         endMinutes: newEnd % (24 * 60),
-        breakHourStarts: breaks);
+        breakHourStarts: breaks));
   }
-  // best >= end: extend the end, intermediate blocks become breaks.
+  // best >= end: extend the end, intermediate blocks become breaks
+  // (except deleted ones, which stay deleted — see above).
   final newEnd = best + 60;
+  final deletedWalls = {
+    for (final d in deletedBlockStarts(day)) _wallHour(d),
+  };
   final breaks = {
     ...breakBlockStarts(day),
     for (var s = start; s + 60 <= newEnd; s += 60)
-      if (s >= end && s < best) s,
+      if (s >= end && s < best && !deletedWalls.contains(_wallHour(s))) s,
   }.toList()
     ..sort();
-  return _copyDay(day, endMinutes: newEnd % (24 * 60), breakHourStarts: breaks);
+  return _pruneMarksToSpan(
+      _copyDay(day, endMinutes: newEnd % (24 * 60), breakHourStarts: breaks));
+}
+
+/// v27.19 TRUE DELETE: remove [blockStart] from [day] completely.
+///
+/// This is NOT [toggleBreakHour]: the hour stops being a block at
+/// all — it renders nowhere, counts in no summary or net total, and
+/// is offered again by the Assign picker.
+///
+/// - Not a visible block (already deleted, or never a block):
+///   unchanged.
+/// - Only visible block: the day becomes a day off (break and
+///   deleted marks cleared; start/end kept so the schedule screen
+///   still shows the old times if the day is re-enabled there).
+/// - First visible block: start moves past it.
+/// - Last visible block: end moves back to it (dropping a trailing
+///   partial hour with it, if the span had one).
+/// - Middle block: recorded in deletedHourStarts; every other block
+///   keeps its exact time — nothing shifts to fill the gap.
+/// A break mark on the deleted hour is always removed with it:
+/// deleting a break block removes it, it never restores it.
+/// The caller (dashboard) owns the Yes/No confirmation and the
+/// order-protection gate; this function is pure.
+DailySchedule deleteHour(DailySchedule day, int blockStart) {
+  if (!day.isWorkingDay) return day;
+  final visible = hourBlockStarts(day);
+  if (!visible.contains(blockStart)) return day;
+  final breaks = breakBlockStarts(day).toList()..remove(blockStart);
+  if (visible.length == 1) {
+    return _copyDay(day,
+        isWorkingDay: false, breakHourStarts: [], deletedHourStarts: []);
+  }
+  if (blockStart == visible.first) {
+    return _pruneMarksToSpan(_copyDay(day,
+        startMinutes: (blockStart + 60) % (24 * 60),
+        breakHourStarts: breaks));
+  }
+  if (blockStart == visible.last) {
+    return _pruneMarksToSpan(_copyDay(day,
+        endMinutes: blockStart % (24 * 60), breakHourStarts: breaks));
+  }
+  final deleted = {...deletedBlockStarts(day), blockStart}.toList()..sort();
+  return _copyDay(day,
+      breakHourStarts: breaks, deletedHourStarts: deleted);
 }
 
 /// v27.13 protection grouping (pure): the extended block starts of
@@ -307,7 +431,8 @@ Set<int> protectedBlockStarts({
 /// Toggle [blockStart] between work and break. The block stays in its
 /// position, the day's end time is unchanged, and the legacy break
 /// duration is untouched. Returns the day unchanged when
-/// [blockStart] is not one of its blocks.
+/// [blockStart] is not one of its blocks — a deleted hour is not a
+/// block, so it can never be toggled (Assign restores it instead).
 DailySchedule toggleBreakHour(DailySchedule day, int blockStart) {
   final blocks = hourBlockStarts(day).toSet();
   if (!blocks.contains(blockStart)) return day;
@@ -335,13 +460,14 @@ DailySchedule addHour(DailySchedule day) {
 
 /// Remove the last hour (endMinutes − 60). Returns null when the day
 /// would drop below one hour — the end never goes below (or onto)
-/// the start. A break mark on the removed hour is pruned with it.
+/// the start. A break mark on the removed hour is pruned with it,
+/// as is a deleted mark that falls outside the shrunken span.
 DailySchedule? removeLastHour(DailySchedule day) {
   if (!day.isWorkingDay) return null;
   final end = effectiveEndMinutes(day);
   if (end - day.startMinutes <= 60) return null;
   final removedStart = end - 60;
   final breaks = breakBlockStarts(day).toList()..remove(removedStart);
-  return _copyDay(day,
-      endMinutes: (end - 60) % (24 * 60), breakHourStarts: breaks);
+  return _pruneMarksToSpan(_copyDay(day,
+      endMinutes: (end - 60) % (24 * 60), breakHourStarts: breaks));
 }

@@ -30,48 +30,48 @@ import '../../theme/design_system.dart';
 ///   Exception: tapping a PROTECTED block shows the protection
 ///   explanation (it changes nothing, it only explains the lock).
 /// - SWIPE (v27.13, reveal fixed in v27.14, layering redesigned in
-///   v27.15): each block is horizontally draggable and grows its
-///   action panel as it is dragged — swipe LEFT grows a red Delete
-///   panel from the right edge, swipe RIGHT grows a Break panel from
-///   the left edge (a break block's right action is Restore instead,
-///   since it is already a break; a break block has no Delete action
-///   — there is no work left in it to delete). Swiping alone changes
-///   NOTHING: only tapping a fully built action opens the Yes/No
-///   confirmation dialog, and only Yes invokes the callback. No /
-///   dismiss changes nothing. The reveal is a plain drag + snap (no
-///   slidable dependency was added; the widget is a small custom
-///   horizontal-drag reveal, smooth standard motion, no looping
-///   animation). v27.14 fix: at rest NO action widget is rendered at
-///   all (v27.13 rendered both actions full-width behind the
-///   translucent block, so they peeked through on both sides at
-///   once); while dragging, only the dragged side's panel exists,
-///   its width is exactly the drag distance, and the panel was
-///   opaque and painted OVER the block. v27.15 redesign (user
-///   complaint 2026-10-25: the v27.14 panel sat flat ON TOP of the
-///   block and the two did not read as one piece): the panel is now
-///   UNDER the hour block. The block is the top layer, a raised card
-///   with real Material elevation + shadow so it reads 3D, and the
-///   panel emerges from underneath its dragged edge. Block and panel
-///   share exactly the same height, are vertically aligned, and
-///   touch with zero spacing: the outer corners stay rounded, the
-///   touching inner edges are square, so the pair joins into one
-///   continuous bar with no gap, no seam, and no overlapping text.
-///   The block's time/status (and lock/Protected label) stay fully
-///   readable at all times — the panel never paints over block
-///   content. To achieve that with a fixed full-width bar, the block
-///   yields its dragged edge as the panel grows (its leading edge
-///   and content never move, so nothing is ever clipped off — a
-///   whole-block translation would push the time label off the
-///   leading edge); the panel stays attached to that edge, so the
-///   pair stays one continuous bar. The panel still builds piece by
-///   piece with drag distance, eats piece by piece on drag-back, is
-///   exactly zero-width (and unrendered) at rest, and snaps open
-///   past half the panel width or closed below it (~200ms easeOut;
-///   full width 96px, unchanged from v27.14).
-///   In the start/end + break model, "deleting" a work hour and
-///   "breaking" it are the same stored change (the hour becomes a
-///   break block, so the header range stays coherent); both swipe
-///   actions are offered per spec and both are confirmation-gated.
+///   v27.15, true Delete in v27.19): each block is horizontally
+///   draggable and grows its action panel as it is dragged — swipe
+///   LEFT grows a red Delete panel from the right edge, swipe RIGHT
+///   grows a Break panel from the left edge (a break block's right
+///   action is Restore instead, since it is already a break).
+///   v27.19: Delete is a REAL deletion now ([onDelete]), offered on
+///   work blocks AND break blocks alike — deleting a break block
+///   removes it completely, it does NOT restore it. Break/Restore
+///   ([onToggleBreak]) is unchanged: work -> orange break,
+///   break -> work. Swiping alone changes NOTHING: only tapping a
+///   fully built action opens the Yes/No confirmation dialog, and
+///   only Yes invokes the callback. No / dismiss changes nothing.
+///   The reveal is a plain drag + snap (no slidable dependency was
+///   added; the widget is a small custom horizontal-drag reveal,
+///   smooth standard motion, no looping animation). v27.14 fix: at
+///   rest NO action widget is rendered at all (v27.13 rendered both
+///   actions full-width behind the translucent block, so they peeked
+///   through on both sides at once); while dragging, only the
+///   dragged side's panel exists, its width is exactly the drag
+///   distance, and the panel was opaque and painted OVER the block.
+///   v27.15 redesign (user complaint 2026-10-25: the v27.14 panel
+///   sat flat ON TOP of the block and the two did not read as one
+///   piece): the panel is now UNDER the hour block. The block is
+///   the top layer, a raised card with real Material elevation +
+///   shadow so it reads 3D, and the panel emerges from underneath
+///   its dragged edge. Block and panel share exactly the same
+///   height, are vertically aligned, and touch with zero spacing:
+///   the outer corners stay rounded, the touching inner edges are
+///   square, so the pair joins into one continuous bar with no gap,
+///   no seam, and no overlapping text. The block's time/status (and
+///   lock/Protected label) stay fully readable at all times — the
+///   panel never paints over block content. To achieve that with a
+///   fixed full-width bar, the block yields its dragged edge as the
+///   panel grows (its leading edge and content never move, so
+///   nothing is ever clipped off — a whole-block translation would
+///   push the time label off the leading edge); the panel stays
+///   attached to that edge, so the pair stays one continuous bar.
+///   The panel still builds piece by piece with drag distance, eats
+///   piece by piece on drag-back, is exactly zero-width (and
+///   unrendered) at rest, and snaps open past half the panel width
+///   or closed below it (~200ms easeOut; full width 96px, unchanged
+///   from v27.14).
 /// - ASSIGN (v27.13, replaces the v27.12 + / − hour buttons, which
 ///   are deleted): one full-width button below the blocks, same
 ///   size/shape as a block, labelled Assign / تسجيل. It opens a
@@ -108,6 +108,11 @@ class DayHoursSection extends StatelessWidget {
   /// Fired (after Yes) when a block is toggled work <-> break.
   final ValueChanged<int> onToggleBreak;
 
+  /// Fired (after Yes) when a block is deleted outright (v27.19).
+  /// Unlike [onToggleBreak], this removes the hour from the day
+  /// completely — work blocks and break blocks alike.
+  final ValueChanged<int> onDelete;
+
   /// Fired (after Yes) when an hour picked in the Assign picker is
   /// added as a new work block (wall-clock hour 0..23).
   final ValueChanged<int> onAssignHour;
@@ -124,6 +129,7 @@ class DayHoursSection extends StatelessWidget {
     required this.timeFormat,
     required this.arabic,
     required this.onToggleBreak,
+    required this.onDelete,
     required this.onAssignHour,
     this.protectedBlockStarts = const {},
   });
@@ -440,7 +446,7 @@ class DayHoursSection extends StatelessWidget {
       cardColor: color,
       cardBg: bg,
       onDelete: () async {
-        if (await _confirm(context, false)) onToggleBreak(start);
+        if (await _confirm(context, false)) onDelete(start);
       },
       onBreak: () async {
         if (await _confirm(context, isBreak)) onToggleBreak(start);
@@ -500,8 +506,9 @@ class DayHoursSection extends StatelessWidget {
 ///
 /// - Work block: drag LEFT builds Delete (red, right edge) only;
 ///   drag RIGHT builds Break (orange, left edge) only.
-/// - Break block: drag RIGHT builds Restore; no left panel (there
-///   is no work left in it to delete), so left drags build nothing.
+/// - Break block (v27.19): drag RIGHT builds Restore; drag LEFT
+///   builds Delete too — deleting a break block removes it
+///   completely, it does not restore it.
 /// - Protected block: no drag at all — it cannot be opened, so no
 ///   Delete/Break panel can ever be tapped for it.
 ///
@@ -556,7 +563,9 @@ class _SwipeableBlockState extends State<_SwipeableBlock>
   double _snapFrom = 0;
   double _snapTo = 0;
 
-  double get _minOffset => widget.isBreak ? 0 : -_actionWidth;
+  // v27.19: both work and break blocks can be deleted, so the left
+  // (Delete) direction is open for every unprotected block.
+  double get _minOffset => -_actionWidth;
   double get _maxOffset => _actionWidth;
 
   @override
@@ -750,7 +759,7 @@ class _SwipeableBlockState extends State<_SwipeableBlock>
               label: widget.breakLabel,
               onTap: widget.onBreak,
             ),
-          if (_offset < 0 && !widget.isBreak)
+          if (_offset < 0)
             _actionPanel(
               width: -_offset,
               leftEdge: false,

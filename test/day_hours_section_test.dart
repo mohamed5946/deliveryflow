@@ -39,6 +39,7 @@ void main() {
     DailySchedule? day,
     DateTime? now,
     ValueChanged<int>? onToggle,
+    ValueChanged<int>? onDelete,
     ValueChanged<int>? onAssign,
     Set<int>? protected,
   }) async {
@@ -62,6 +63,7 @@ void main() {
               timeFormat: TimeFormatMode.h24,
               arabic: true,
               onToggleBreak: onToggle ?? (_) {},
+              onDelete: onDelete ?? (_) {},
               onAssignHour: onAssign ?? (_) {},
               protectedBlockStarts: protected ?? const {},
             ),
@@ -97,17 +99,23 @@ void main() {
       expect(find.text('هل أنت متأكد من حذف البلوكاية؟'), findsNothing);
     });
 
-    testWidgets('swipe alone changes nothing; revealed Delete + Yes toggles',
+    testWidgets(
+        'swipe alone changes nothing; revealed Delete + Yes deletes '
+        '(v27.19: Delete is NOT a break toggle)',
         (tester) async {
       var toggled = <int>[];
+      var deleted = <int>[];
       await pumpSection(tester,
-          day: workDay(), onToggle: (s) => toggled.add(s));
+          day: workDay(),
+          onToggle: (s) => toggled.add(s),
+          onDelete: (s) => deleted.add(s));
 
       await tester.timedDrag(blockKey(840), const Offset(-150, 0),
           const Duration(milliseconds: 300));
       await tester.pumpAndSettle();
       // Swiping only revealed the action: no dialog, no callback.
       expect(toggled, isEmpty);
+      expect(deleted, isEmpty);
       expect(find.text('هل أنت متأكد من حذف البلوكاية؟'), findsNothing);
 
       await tester.tap(deleteKey(840));
@@ -115,7 +123,8 @@ void main() {
       expect(find.text('هل أنت متأكد من حذف البلوكاية؟'), findsOneWidget);
       await tester.tap(find.text('نعم'));
       await tester.pumpAndSettle();
-      expect(toggled, [840]);
+      expect(deleted, [840]);
+      expect(toggled, isEmpty);
     });
 
     testWidgets('swipe left Delete + No leaves the block unchanged',
@@ -166,6 +175,28 @@ void main() {
       expect(find.text('هل أنت متأكد من إضافة البلوكاية؟'), findsOneWidget);
       await tester.tap(find.text('لا'));
       await tester.pumpAndSettle();
+      expect(toggled, isEmpty);
+    });
+
+    testWidgets('swipe left Delete on a break block + Yes deletes it',
+        (tester) async {
+      var toggled = <int>[];
+      var deleted = <int>[];
+      final day = workDay()..breakHourStarts = [840];
+      await pumpSection(tester,
+          day: day,
+          onToggle: (s) => toggled.add(s),
+          onDelete: (s) => deleted.add(s));
+
+      await tester.timedDrag(blockKey(840), const Offset(-150, 0),
+          const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      await tester.tap(deleteKey(840));
+      await tester.pump();
+      expect(find.text('هل أنت متأكد من حذف البلوكاية؟'), findsOneWidget);
+      await tester.tap(find.text('نعم'));
+      await tester.pumpAndSettle();
+      expect(deleted, [840]);
       expect(toggled, isEmpty);
     });
 
@@ -337,10 +368,14 @@ void main() {
       await tester.pumpAndSettle();
     });
 
-    testWidgets('drag right on a break block builds ONLY Restore',
+    testWidgets(
+        'break block: left drag builds Delete (v27.19), right builds '
+        'ONLY Restore',
         (tester) async {
       final day = workDay()..breakHourStarts = [840];
-      await pumpSection(tester, day: day);
+      var deleted = <int>[];
+      await pumpSection(tester,
+          day: day, onDelete: (s) => deleted.add(s));
       final gesture =
           await tester.startGesture(tester.getCenter(blockKey(840)));
       await gesture.moveBy(const Offset(-10, 0));
@@ -349,8 +384,9 @@ void main() {
       await tester.pump();
       await gesture.moveBy(const Offset(-20, 0));
       await tester.pump();
-      // A break block has no Delete: a left drag builds nothing.
-      expect(deleteKey(840), findsNothing);
+      // v27.19: a break block HAS a Delete — deleting it removes
+      // it completely, it does not restore it.
+      expect(deleteKey(840), findsOneWidget);
       expect(breakKey(840), findsNothing);
       await gesture.moveBy(const Offset(20, 0));
       await tester.pump();
@@ -670,11 +706,17 @@ void main() {
       expect(find.text('هل أنت متأكد من إضافة البلوكاية؟'), findsNothing);
     });
 
-    testWidgets('unprotected block next to a protected one still toggles',
+    testWidgets(
+        'unprotected block next to a protected one still deletes '
+        '(v27.19: Delete calls onDelete, not the break toggle)',
         (tester) async {
       var toggled = <int>[];
+      var deleted = <int>[];
       await pumpSection(tester,
-          day: workDay(), onToggle: (s) => toggled.add(s), protected: {840});
+          day: workDay(),
+          onToggle: (s) => toggled.add(s),
+          onDelete: (s) => deleted.add(s),
+          protected: {840});
 
       await tester.timedDrag(blockKey(900), const Offset(-150, 0),
           const Duration(milliseconds: 300));
@@ -683,7 +725,8 @@ void main() {
       await tester.pump();
       await tester.tap(find.text('نعم'));
       await tester.pumpAndSettle();
-      expect(toggled, [900]);
+      expect(deleted, [900]);
+      expect(toggled, isEmpty);
     });
   });
 
