@@ -1333,16 +1333,19 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
     final totalSec =
         entry.outgoingDurationSec + entry.returnDurationSec;
     final totalKm = entry.effectiveKmTotal;
-    // v27.16 distance bonus for this order: resolved against the
-    // tiers active on the ORDER'S OWN date and the effective flag
-    // for that date (period coverage AND the week's override) —
-    // derived, exactly as the weekly report computes it, so the
-    // detail view can never disagree with the salary totals.
-    final distancePeriod = settings.distancePeriodForDate(entry.dateKey);
+    // v27.17 distance bonus for this order: resolved against the
+    // tiers active at the ORDER'S OWN CREATION instant and the
+    // effective flag for that instant (period coverage AND the
+    // order week's override) — derived, exactly as the weekly
+    // report computes it, so the detail view can never disagree
+    // with the salary totals.
+    final distancePeriod = settings.distancePeriodAt(
+        entry.bonusInstantMillis);
     final distanceBonus = distanceBonusFor(
       totalKm,
       distancePeriod?.tiers ?? const [],
-      enabled: settings.distanceBonusEnabledForDate(entry.dateKey),
+      enabled: settings.distanceBonusEnabledForOrder(
+          entry.bonusInstantMillis, entry.dateKey),
     );
 
     return GlassCard(

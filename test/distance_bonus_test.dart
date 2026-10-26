@@ -97,8 +97,8 @@ void main() {
       // period, not a bonus of its own.
       back.distanceBonusPeriods = [
         DistanceBonusPeriod(
-            startKey: '2026-10-18',
-            endKey: '2026-10-24',
+            startMillis: startOfDayMillis('2026-10-18'),
+            endMillis: startOfDayMillis('2026-10-25'),
             tiers: back.distanceBonusTiers),
       ];
       await db.saveSettings(back);
@@ -126,9 +126,17 @@ void main() {
       required double kmOut,
       required double kmBack,
     }) async {
+      // v27.17: the order's bonus moment is its creation instant,
+      // so seed it at noon of its own dateKey week (not "now") —
+      // otherwise a "last week" order would resolve as a
+      // current-week-moment order.
+      final noon = WeekCalendar.parseDateKey(dateKey);
+      final createdAt =
+          DateTime(noon.year, noon.month, noon.day, 12).millisecondsSinceEpoch;
       final e = await db.addOrderEntry(
         dateKey: dateKey,
-        timestampMillis: DateTime.now().millisecondsSinceEpoch,
+        timestampMillis: createdAt,
+        createdAtMillis: createdAt,
         kmOut: kmOut,
         kmBack: kmBack,
       );
@@ -163,10 +171,11 @@ void main() {
       // Last week, Sunday: one 15 km order (+10).
       await completeOrder(lastSunKey, kmOut: 8, kmBack: 7);
 
-      // v27.16: distance is OFF by default — explicitly enable it
-      // from last Sunday, so the period covers BOTH seeded weeks.
+      // v27.17: distance is OFF by default — explicitly enable it
+      // from epoch 0, so the period predates BOTH seeded weeks'
+      // creation instants.
       final settings = db.settings;
-      settings.applyDistanceToggle(true, lastWeekKey);
+      settings.applyDistanceToggle(true, 0);
       await db.saveSettings(settings);
     });
 
@@ -205,18 +214,19 @@ void main() {
 
     test('override on does NOT resurrect a bonus outside a period',
         () async {
-      // v27.16 reconciliation: replace the period with one covering
-      // LAST week only, then store an override ON for the current
-      // week. The current week must still pay 0 — the override is
-      // an exception within a period, never a bonus of its own —
-      // while last week keeps its +10.
+      // v27.17 reconciliation: replace the period with one covering
+      // LAST week only (instant window: last Sunday start-of-day
+      // through this Sunday start-of-day), then store an override
+      // ON for the current week. The current week must still pay
+      // 0 — the override is an exception within a period, never a
+      // bonus of its own — while last week keeps its +10.
       final settings = db.settings;
       final tiers = settings.distanceBonusTiers;
-      final lastEnd = WeekCalendar.dateKey(
-          WeekCalendar.addDays(WeekCalendar.parseDateKey(lastWeekKey), 6));
       settings.distanceBonusPeriods = [
         DistanceBonusPeriod(
-            startKey: lastWeekKey, endKey: lastEnd, tiers: tiers),
+            startMillis: startOfDayMillis(lastWeekKey),
+            endMillis: startOfDayMillis(currentWeekKey),
+            tiers: tiers),
       ];
       settings.distanceBonusWeekOverrides = {currentWeekKey: true};
       await db.saveSettings(settings);

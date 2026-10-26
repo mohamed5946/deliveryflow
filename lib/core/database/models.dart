@@ -117,18 +117,20 @@ class UserSettings extends HiveObject {
   @HiveField(46)
   int timeFormat; // 0=system (pre-v27.12 TimeOfDay.format behaviour),
   // 1=24-hour, 2=12-hour. Default 0 preserves existing rendering.
-  // --- Bonus effective-date periods (v27.16) ---
+  // --- Bonus effective-instant periods (v27.16 date-based,
+  // v27.17 instant-based) ---
   // JSON-encoded period lists (see bonus_periods.dart). Stored as
-  // strings so the Hive adapter gains plain fields only.
+  // strings so the Hive adapter gains plain fields only. v27.16
+  // date JSON is converted honestly to instants by the decoders.
   @HiveField(47)
   String flatBonusPeriodsJson;
   @HiveField(48)
   String distanceBonusPeriodsJson;
   @HiveField(49)
-  bool bonusPeriodsMigrated; // true once the v27.16 first-run
-  // migration has run (pre-existing values) or the settings were
-  // created fresh on v27.16+ (nothing to migrate). Fresh settings
-  // carry NO periods: all bonuses default to 0/off.
+  bool bonusPeriodsMigrated; // true once the first-run migration
+  // has run (pre-existing values) or the settings were created
+  // fresh on v27.16+ (nothing to migrate). Fresh settings carry NO
+  // periods: all bonuses default to 0/off.
 
   /// True once a mart location has been learned and saved.
   bool get hasMart => martLat != null && martLng != null;
@@ -145,7 +147,9 @@ class UserSettings extends HiveObject {
             fromKm: distanceBonusTier3Km, bonusEgp: distanceBonusTier3Egp),
       ];
 
-  // --- v27.16 bonus periods (decoded views of the JSON fields) ---
+  // --- v27.17 bonus periods (decoded views of the JSON fields) ---
+  // The stored JSON may still be v27.16 date-based; the decoders
+  // convert it honestly to instants on read (see bonus_periods.dart).
   List<FlatBonusPeriod> get flatBonusPeriods =>
       decodeFlatPeriods(flatBonusPeriodsJson);
   set flatBonusPeriods(List<FlatBonusPeriod> v) =>
@@ -156,118 +160,132 @@ class UserSettings extends HiveObject {
   set distanceBonusPeriods(List<DistanceBonusPeriod> v) =>
       distanceBonusPeriodsJson = encodeDistancePeriods(v);
 
-  /// Flat amount active on an order's own calendar date (0 before
-  /// the first set and after a deletion closed the last period).
-  double flatBonusForDate(String dateKey) =>
-      resolveFlatBonusForDate(flatBonusPeriods, dateKey);
+  /// Flat amount active at an order's own CREATION instant (0
+  /// before the first set and after a deletion closed the last
+  /// period). Same-day orders on either side of a set/change/
+  /// delete resolve differently — that is the v27.17 rule.
+  double flatBonusAt(int instantMillis) =>
+      resolveFlatBonusAt(flatBonusPeriods, instantMillis);
 
-  /// Distance period active on an order's own calendar date, or null.
-  DistanceBonusPeriod? distancePeriodForDate(String dateKey) =>
-      resolveDistancePeriodForDate(distanceBonusPeriods, dateKey);
+  /// Distance period active at an order's own creation instant,
+  /// or null.
+  DistanceBonusPeriod? distancePeriodAt(int instantMillis) =>
+      resolveDistancePeriodAt(distanceBonusPeriods, instantMillis);
 
-  /// Whether the distance bonus is effective on one calendar date:
-  /// a period must cover the date AND the week's override (when one
-  /// is stored) must not turn it off. An override of ON can never
-  /// resurrect a bonus for a date outside every period.
-  bool distanceBonusEnabledForDate(String dateKey) {
-    if (distancePeriodForDate(dateKey) == null) return false;
+  /// Whether the distance bonus is effective for one order: a
+  /// period must cover the order's creation instant AND the
+  /// override for the order's calendar week (from [orderDateKey])
+  /// must not turn it off. An override of ON can never resurrect
+  /// a bonus for an order outside every period.
+  bool distanceBonusEnabledForOrder(int instantMillis, String orderDateKey) {
+    if (distancePeriodAt(instantMillis) == null) return false;
     final weekKey = WeekCalendar.dateKey(
-        WeekCalendar.weekStart(WeekCalendar.parseDateKey(dateKey)));
+        WeekCalendar.weekStart(WeekCalendar.parseDateKey(orderDateKey)));
     return distanceBonusWeekOverrides[weekKey] ?? true;
   }
 
   /// Effective distance-bonus flag for a week (report screen switch
-  /// + WeeklyReport flag): true when the week has at least one
-  /// period-covered day and its override (when stored) is not OFF.
-  /// v27.16: the old "override ?? global default" rule is replaced —
-  /// an override ON outside every period resolves to OFF, never
-  /// resurrecting a bonus for a week the bonus was never active in.
+  /// + WeeklyReport flag): true when the week overlaps at least
+  /// one distance period and its override (when stored) is not
+  /// OFF. An override ON outside every period resolves to OFF,
+  /// never resurrecting a bonus for a week the bonus was never
+  /// active in.
   bool distanceBonusEnabledForWeek(String weekStartKey) {
     if (distanceBonusWeekOverrides[weekStartKey] == false) return false;
     return hasDistancePeriodInWeek(weekStartKey);
   }
 
-  /// True when any distance period covers any day of the week
-  /// starting [weekStartKey] — the report screen's per-week switch
-  /// is only enabled for such weeks (otherwise it would be a dead
-  /// control: flipping it could never change any salary).
+  /// True when any distance period overlaps any instant of the
+  /// week starting [weekStartKey] — the report screen's per-week
+  /// switch is only enabled for such weeks (otherwise it would be
+  /// a dead control: flipping it could never change any salary).
   bool hasDistancePeriodInWeek(String weekStartKey) =>
       hasDistancePeriodInWeekFor(distanceBonusPeriods, weekStartKey);
 
-  /// v27.16: set/change/delete the flat bonus, effective [onDateKey]
-  /// (the user's local calendar date at the time of the change).
-  /// Setting an amount opens a period from that date; changing it
-  /// closes the open period the day before and opens a new one;
-  /// setting 0/empty (delete) closes the open period the day before
-  /// and opens nothing. Orders before the period keep 0, orders
-  /// inside it keep their amount forever, orders after a deletion
-  /// get 0. Also keeps the legacy current-value field in sync for
-  /// display (salary math NEVER reads it anymore).
-  void applyFlatBonus(double amount, String onDateKey) {
+  /// v27.17: set/change/delete the flat bonus, effective at
+  /// instant [atMillis] (the moment the user taps, NOT the
+  /// calendar date). Setting an amount opens a period from that
+  /// instant; changing it closes every open period AT that instant
+  /// and opens a new one; setting 0/empty (delete) closes every
+  /// open period at that instant and opens nothing. Orders created
+  /// before the instant keep their old value (or 0), orders
+  /// created at/after it get the new value (or 0) — even within
+  /// the same day, even minutes apart. A period that opened at
+  /// exactly this instant is mutated/removed in place instead, so
+  /// no zero-length period is stored. Also keeps the legacy
+  /// current-value field in sync for display (salary math NEVER
+  /// reads it anymore).
+  void applyFlatBonus(double amount, int atMillis) {
     flatOrderBonusEgp = amount < 0 ? 0 : amount;
     final periods = flatBonusPeriods;
-    final openIndex =
-        periods.indexWhere((p) => p.isOpen);
-    if (openIndex >= 0) {
-      final open = periods[openIndex];
-      if (open.startKey == onDateKey) {
-        // Period started today: mutate it in place (no inverted
-        // close-the-day-before, no zero-length period).
+    var changed = false;
+    for (var i = 0; i < periods.length; i++) {
+      if (!periods[i].isOpen) continue;
+      if (periods[i].startMillis == atMillis) {
         if (amount <= 0) {
-          periods.removeAt(openIndex);
+          periods.removeAt(i);
+          i--;
         } else {
-          periods[openIndex] = FlatBonusPeriod(
-              startKey: open.startKey, endKey: null, amount: amount);
+          periods[i] = FlatBonusPeriod(
+              startMillis: periods[i].startMillis,
+              endMillis: null,
+              amount: amount);
         }
-        flatBonusPeriods = periods;
-        return;
+      } else {
+        periods[i] = periods[i].closedAt(atMillis);
       }
-      periods[openIndex] = open.closedOn(previousDayKey(onDateKey));
+      changed = true;
     }
-    if (amount > 0) {
+    if (amount > 0 &&
+        !periods.any((p) => p.isOpen && p.startMillis == atMillis)) {
       periods.add(FlatBonusPeriod(
-          startKey: onDateKey, endKey: null, amount: amount));
+          startMillis: atMillis, endMillis: null, amount: amount));
+      changed = true;
     }
-    flatBonusPeriods = periods;
+    if (changed) flatBonusPeriods = periods;
   }
 
-  /// v27.16: enable/disable the distance bonus, effective
-  /// [onDateKey]. Enabling opens a period from that date with the
-  /// current tiers; disabling closes the open period the day
-  /// before. Enabling while a period is already open is a no-op
-  /// (the bonus was already being calculated).
-  void applyDistanceToggle(bool enabled, String onDateKey) {
+  /// v27.17: enable/disable the distance bonus, effective at
+  /// instant [atMillis]. Enabling opens a period from that instant
+  /// with the current tiers; disabling closes every open period
+  /// at that instant (a period opened at exactly this instant is
+  /// removed instead). Enabling while a period is already open is
+  /// a no-op (the bonus was already being calculated).
+  void applyDistanceToggle(bool enabled, int atMillis) {
     distanceBonusEnabled = enabled;
     final periods = distanceBonusPeriods;
-    final openIndex = periods.indexWhere((p) => p.isOpen);
     if (!enabled) {
-      if (openIndex >= 0) {
-        final open = periods[openIndex];
-        if (open.startKey == onDateKey) {
-          periods.removeAt(openIndex);
+      var changed = false;
+      for (var i = 0; i < periods.length; i++) {
+        if (!periods[i].isOpen) continue;
+        if (periods[i].startMillis == atMillis) {
+          periods.removeAt(i);
+          i--;
         } else {
-          periods[openIndex] = open.closedOn(previousDayKey(onDateKey));
+          periods[i] = periods[i].closedAt(atMillis);
         }
-        distanceBonusPeriods = periods;
+        changed = true;
       }
+      if (changed) distanceBonusPeriods = periods;
       return;
     }
-    if (openIndex < 0) {
+    if (!periods.any((p) => p.isOpen)) {
       periods.add(DistanceBonusPeriod(
-          startKey: onDateKey, endKey: null, tiers: distanceBonusTiers));
+          startMillis: atMillis, endMillis: null, tiers: distanceBonusTiers));
       distanceBonusPeriods = periods;
     }
   }
 
-  /// v27.16: edit the distance tiers, effective [onDateKey]. The
-  /// legacy tier fields are always updated (they are the editable
-  /// presets). A new period with the new tiers starts on the edit
-  /// date ONLY when a period is currently open — editing tiers
-  /// while the bonus is off must not silently create a period (and
-  /// therefore must not start calculating a bonus the user never
-  /// enabled).
-  void applyDistanceTiers(
-      List<DistanceBonusTier> tiers, String onDateKey) {
+  /// v27.17: edit the distance tiers, effective at instant
+  /// [atMillis]. The legacy tier fields are always updated (they
+  /// are the editable presets). A new period with the new tiers
+  /// starts at the edit instant ONLY when a period is currently
+  /// open — editing tiers while the bonus is off must not silently
+  /// create a period (and therefore must not start calculating a
+  /// bonus the user never enabled). A period opened at exactly
+  /// this instant is mutated in place; otherwise open periods
+  /// close at this instant and one new period opens.
+  void applyDistanceTiers(List<DistanceBonusTier> tiers, int atMillis) {
     if (tiers.length == 3) {
       distanceBonusTier1Km = tiers[0].fromKm;
       distanceBonusTier1Egp = tiers[0].bonusEgp;
@@ -277,42 +295,53 @@ class UserSettings extends HiveObject {
       distanceBonusTier3Egp = tiers[2].bonusEgp;
     }
     final periods = distanceBonusPeriods;
-    final openIndex = periods.indexWhere((p) => p.isOpen);
-    if (openIndex < 0) return;
-    final open = periods[openIndex];
-    if (open.startKey == onDateKey) {
-      periods[openIndex] = DistanceBonusPeriod(
-          startKey: open.startKey, endKey: null, tiers: tiers);
+    final openIndices = [
+      for (var i = 0; i < periods.length; i++)
+        if (periods[i].isOpen) i,
+    ];
+    if (openIndices.isEmpty) return;
+    final sameInstant =
+        openIndices.where((i) => periods[i].startMillis == atMillis);
+    if (sameInstant.isNotEmpty) {
+      for (final i in sameInstant) {
+        periods[i] = DistanceBonusPeriod(
+            startMillis: periods[i].startMillis,
+            endMillis: null,
+            tiers: tiers);
+      }
     } else {
-      periods[openIndex] = open.closedOn(previousDayKey(onDateKey));
+      for (final i in openIndices) {
+        periods[i] = periods[i].closedAt(atMillis);
+      }
       periods.add(DistanceBonusPeriod(
-          startKey: onDateKey, endKey: null, tiers: tiers));
+          startMillis: atMillis, endMillis: null, tiers: tiers));
     }
     distanceBonusPeriods = periods;
   }
 
-  /// v27.16 one-time migration for settings stored before periods
-  /// existed. A pre-existing single value has NO stored start date,
-  /// so no retroactive date is invented: an active value becomes a
-  /// period starting on [migrationDateKey] (first run after the
-  /// update), so past weeks stop getting it retroactively — exactly
-  /// the reported bug. An already-zero/off value creates no period
-  /// (it is NOT silently reset — it was already off — and it is not
-  /// silently turned on either). Weeks already carrying a per-week
-  /// override of ON additionally get a week-scoped period covering
-  /// exactly that week with the current tiers, so their stored
-  /// meaning is preserved rather than erased by the new
-  /// no-resurrection rule; overrides of OFF need no period (off is
-  /// already the default outside a period). Idempotent via
-  /// [bonusPeriodsMigrated].
-  void migrateLegacyBonusPeriods(String migrationDateKey) {
+  /// One-time migration for settings stored before periods existed
+  /// (v27.16 rule, kept verbatim except the instant form). A
+  /// pre-existing single value has NO stored start instant, so no
+  /// retroactive instant is invented: an active value becomes a
+  /// period starting at [migrationInstantMillis] (first run after
+  /// the update), so past orders stop getting it retroactively.
+  /// An already-zero/off value creates no period. Weeks already
+  /// carrying a per-week override of ON additionally get a
+  /// week-scoped period covering exactly that week (Sunday
+  /// start-of-day through the next Sunday's start-of-day, local
+  /// constructor arithmetic), so their stored meaning is preserved
+  /// rather than erased by the no-resurrection rule; overrides of
+  /// OFF need no period. Idempotent via [bonusPeriodsMigrated].
+  /// NOTE: this does NOT migrate v27.16 date periods — those are
+  /// converted honestly by the JSON decoders on read.
+  void migrateLegacyBonusPeriods(int migrationInstantMillis) {
     if (bonusPeriodsMigrated) return;
     bonusPeriodsMigrated = true;
     if (flatOrderBonusEgp > 0 && flatBonusPeriods.isEmpty) {
       flatBonusPeriods = [
         FlatBonusPeriod(
-            startKey: migrationDateKey,
-            endKey: null,
+            startMillis: migrationInstantMillis,
+            endMillis: null,
             amount: flatOrderBonusEgp),
       ];
     }
@@ -320,18 +349,20 @@ class UserSettings extends HiveObject {
       final periods = <DistanceBonusPeriod>[];
       if (distanceBonusEnabled) {
         periods.add(DistanceBonusPeriod(
-            startKey: migrationDateKey,
-            endKey: null,
+            startMillis: migrationInstantMillis,
+            endMillis: null,
             tiers: distanceBonusTiers));
       }
       // Preserve week-scoped ON overrides exactly: a period covering
-      // just that week (Sunday..Saturday, constructor arithmetic).
+      // just that week (Sunday start-of-day .. next Sunday
+      // start-of-day, constructor arithmetic).
       for (final entry in distanceBonusWeekOverrides.entries) {
         if (entry.value != true) continue;
         final start = WeekCalendar.parseDateKey(entry.key);
         periods.add(DistanceBonusPeriod(
-          startKey: entry.key,
-          endKey: WeekCalendar.dateKey(WeekCalendar.addDays(start, 6)),
+          startMillis: startOfDayMillis(entry.key),
+          endMillis: startOfDayMillis(WeekCalendar.dateKey(
+              WeekCalendar.addDays(start, 7))),
           tiers: distanceBonusTiers,
         ));
       }
@@ -971,7 +1002,9 @@ class OrderEntry extends HiveObject {
   @HiveField(1)
   String dateKey; // work-day yyyy-MM-dd this entry belongs to
   @HiveField(2)
-  int timestampMillis; // when the order was completed
+  int timestampMillis; // when the order was completed (v27.17:
+  // OVERWRITTEN at completion and editable from the edit sheet —
+  // it is a finalization/edit time, NEVER the bonus moment)
   @HiveField(3)
   double kmOut; // km driven going (>= 0)
   @HiveField(4)
@@ -1022,6 +1055,16 @@ class OrderEntry extends HiveObject {
   // --- Manual per-order bonus (v27.5) ---
   @HiveField(24)
   double manualBonusEgp; // plain EGP bonus on this order; 0 = none
+  // --- Original creation instant (v27.17) ---
+  // Set ONCE when the entry is created, never updated afterwards
+  // (completion overwrites timestampMillis, edits change
+  // timestampMillis — neither touches this). This is the instant
+  // bonus periods resolve against: Mohamed's rule is per-order
+  // moment, and the moment an order was MADE is its creation.
+  // Entries stored before v27.17 read 0 and fall back to
+  // timestampMillis via [bonusInstantMillis].
+  @HiveField(25)
+  int createdAtMillis;
 
   OrderEntry({
     required this.id,
@@ -1049,8 +1092,19 @@ class OrderEntry extends HiveObject {
     this.phone = '',
     this.countOnly = false,
     this.manualBonusEgp = 0,
+    this.createdAtMillis = 0,
   })  : assert(kmOut >= 0, 'kmOut cannot be negative'),
         assert(kmBack >= 0, 'kmBack cannot be negative');
+
+  /// The instant bonus periods resolve against: the original
+  /// creation instant when known, else the stored timestamp
+  /// (pre-v27.17 entries only — bounded skew, see the field
+  /// comment). Deliberately NOT pickupTimeMillis: a pending order
+  /// has no pickup yet, count-only entries never get one, and a
+  /// manually entered order's pickup is null — creation is the
+  /// one instant every counted order has.
+  int get bonusInstantMillis =>
+      createdAtMillis > 0 ? createdAtMillis : timestampMillis;
 
   double get kmTotal => kmOut + kmBack;
 
@@ -1118,6 +1172,7 @@ class OrderEntry extends HiveObject {
         'phone': phone,
         'countOnly': countOnly,
         'manualBonusEgp': manualBonusEgp,
+        'createdAtMillis': createdAtMillis,
       };
 
   static OrderEntry fromJson(Map<String, dynamic> json) => OrderEntry(
@@ -1209,13 +1264,14 @@ class OrderEntryAdapter extends TypeAdapter<OrderEntry> {
       phone: (fields[22] as String?) ?? '',
       countOnly: (fields[23] as bool?) ?? false,
       manualBonusEgp: (fields[24] as num?)?.toDouble() ?? 0,
+      createdAtMillis: (fields[25] as int?) ?? 0,
     );
   }
 
   @override
   void write(BinaryWriter writer, OrderEntry obj) {
     writer
-      ..writeByte(25)
+      ..writeByte(26)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -1265,7 +1321,9 @@ class OrderEntryAdapter extends TypeAdapter<OrderEntry> {
       ..writeByte(23)
       ..write(obj.countOnly)
       ..writeByte(24)
-      ..write(obj.manualBonusEgp);
+      ..write(obj.manualBonusEgp)
+      ..writeByte(25)
+      ..write(obj.createdAtMillis);
   }
 }
 
@@ -1678,11 +1736,13 @@ class WeeklyReport {
 
   double get totalKm => totalKmOut + totalKmBack;
 
-  /// v27.16: Σ flat per-order bonuses — the sum of each day's
-  /// [DayBreakdown.flatBonus], each resolved against the flat amount
-  /// active on THAT day's own date. Multiplying totalOrders by any
-  /// single current amount would reintroduce the v27.16 bug (past
-  /// weeks paid at today's rate, deleted bonuses erased).
+  /// v27.17: Σ flat per-order bonuses — the sum of each day's
+  /// [DayBreakdown.flatBonus], each itself the sum of that day's
+  /// counted orders resolved against the flat amount active at
+  /// EACH ORDER'S OWN creation instant. Multiplying totalOrders
+  /// by any single current amount would reintroduce the old bug
+  /// (past orders paid at today's rate, deleted bonuses erased,
+  /// same-day splits lost).
   double get totalFlatBonus =>
       days.fold(0.0, (sum, d) => sum + d.flatBonus);
 

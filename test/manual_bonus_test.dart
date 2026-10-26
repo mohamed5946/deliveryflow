@@ -51,12 +51,13 @@ void main() {
     );
     await db.updateOrderEntry(dateKey: sunKey, entryId: e2.id, status: 3);
 
-    // v27.16: distance bonus is OFF by default — explicitly enable
-    // it from this Sunday so the 15 km order's +10 still applies in
-    // the expectations below (fresh-user zero-bonus behaviour is
+    // v27.17: distance bonus is OFF by default — explicitly enable
+    // it from epoch 0 so it predates the seeded orders' creation
+    // instants and the 15 km order's +10 still applies in the
+    // expectations below (fresh-user zero-bonus behaviour is
     // covered in bonus_periods_test.dart).
     final settings = db.settings;
-    settings.applyDistanceToggle(true, sunKey);
+    settings.applyDistanceToggle(true, 0);
     await db.saveSettings(settings);
   });
 

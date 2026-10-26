@@ -77,23 +77,25 @@ class DatabaseService {
           'user', UserSettings(bonusPeriodsMigrated: true));
     } else if (!settings.bonusPeriodsMigrated) {
       // Pre-existing user: migrate the single stored values to
-      // periods starting TODAY (first run after the update) — no
-      // retroactive start date is invented, so past weeks stop
+      // periods starting NOW (first run after the update) — no
+      // retroactive start instant is invented, so past orders stop
       // getting the bonus retroactively (the reported bug). See
       // UserSettings.migrateLegacyBonusPeriods for the full rule,
-      // including preserved per-week ON overrides.
+      // including preserved per-week ON overrides. NOTE: v27.16
+      // date periods are NOT migrated here — the JSON decoders
+      // convert them honestly to instants on read.
       final s = settings;
       final hadFlat = s.flatOrderBonusEgp > 0;
       final hadDistance = s.distanceBonusEnabled;
-      s.migrateLegacyBonusPeriods(
-          WeekCalendar.dateKey(DateTime.now()));
+      final migrationInstant = DateTime.now().millisecondsSinceEpoch;
+      s.migrateLegacyBonusPeriods(migrationInstant);
       await _settings.put('user', s);
       _log?.info(
         AppLogCategory.settings,
         'Bonus periods migrated: flat was '
         '${hadFlat ? 'active' : 'off'}, distance was '
         '${hadDistance ? 'active' : 'off'}; periods start '
-        '${WeekCalendar.dateKey(DateTime.now())}, past weeks '
+        'at this instant ($migrationInstant), past orders '
         'no longer get either bonus retroactively',
       );
     }
@@ -321,6 +323,11 @@ class DatabaseService {
     double kmOut = 0,
     double kmBack = 0,
     String notes = '',
+    // v27.17: test-only override for the creation instant. Production
+    // callers omit it: creation is always "now", the moment the
+    // order is made — never the user-picked timestampMillis, never
+    // the completion time that later overwrites timestampMillis.
+    int? createdAtMillis,
   }) async {
     if (kmOut < 0 || kmBack < 0) {
       throw ArgumentError('Distance cannot be negative');
@@ -338,6 +345,7 @@ class DatabaseService {
       id: 'oe_${now}_${record.entries.length}',
       dateKey: dateKey,
       timestampMillis: timestampMillis,
+      createdAtMillis: createdAtMillis ?? now,
       kmOut: kmOut,
       kmBack: kmBack,
       notes: notes,
@@ -363,6 +371,8 @@ class DatabaseService {
     required String dateKey,
     required int count,
     int? timestampMillis,
+    // v27.17: test-only creation-instant override (see addOrderEntry).
+    int? createdAtMillis,
   }) async {
     if (count < 0) {
       throw ArgumentError('count cannot be negative');
@@ -384,6 +394,7 @@ class DatabaseService {
           id: 'oe_${now}_c${base + i}',
           dateKey: dateKey,
           timestampMillis: timestampMillis ?? now,
+          createdAtMillis: createdAtMillis ?? now,
           status: 3,
           countOnly: true,
         ),
@@ -437,6 +448,9 @@ class DatabaseService {
     // BEFORE the update, so the 0 -> >=1 transition can count it exactly
     // once (re-entering startOutgoing / resume never double-counts).
     final wasPending = entry.isPending;
+    // v27.17: timestampMillis may change here (completion, edit),
+    // but createdAtMillis NEVER does — the bonus moment is fixed
+    // at creation. There is deliberately no createdAtMillis param.
     if (timestampMillis != null) entry.timestampMillis = timestampMillis;
     if (kmOut != null) {
       if (kmOut < 0) throw ArgumentError('Distance cannot be negative');
@@ -865,16 +879,18 @@ class DatabaseService {
     final schedByDay = <String, DailySchedule>{
       for (final d in schedule?.dailySchedules ?? []) d.dateKey: d
     };
-    // v27.16: bonuses resolve against the bonus active on EACH
-    // ORDER'S OWN calendar date — never the current settings value.
-    // Flat: the period covering that day. Distance: the period
-    // covering that day, gated by the day's week override (an ON
-    // override outside every period pays nothing — it cannot
-    // resurrect a bonus). Manual bonuses are read straight off the
-    // entries (already per-order by construction). Derived, never
-    // stored, so period edits re-derive everywhere consistently —
-    // and because every earnings surface (Home card, Report card,
-    // PDF) goes through this one WeeklyReport, they all agree.
+    // v27.17: bonuses resolve against the bonus active at EACH
+    // ORDER'S OWN CREATION INSTANT — never the current settings
+    // value, never the order's calendar date. Flat: the period
+    // covering the order's creation instant. Distance: the period
+    // covering that instant, gated by the order week's override
+    // (an ON override outside every period pays nothing — it
+    // cannot resurrect a bonus). Manual bonuses are read straight
+    // off the entries (already per-order by construction).
+    // Derived, never stored, so period edits re-derive everywhere
+    // consistently — and because every earnings surface (Home
+    // card, Report card, PDF) goes through this one WeeklyReport,
+    // they all agree.
     final settings = this.settings;
     final weekKey = WeekCalendar.dateKey(start);
     final distanceBonusOn = settings.distanceBonusEnabledForWeek(weekKey);
@@ -929,19 +945,40 @@ class DatabaseService {
       // distance-bonus flag.
       var dayDistanceBonus = 0.0;
       var dayManualBonus = 0.0;
-      // v27.16: per-day resolution — the flat amount and distance
-      // tiers active on THIS day's own date, not today's settings.
-      final dayFlat = settings.flatBonusForDate(key);
-      final dayDistancePeriod = settings.distancePeriodForDate(key);
-      final dayDistanceOn = settings.distanceBonusEnabledForDate(key);
+      var dayFlatBonus = 0.0;
+      // v27.17: PER-ORDER resolution — each entry resolves flat
+      // and distance against ITS OWN creation instant
+      // (bonusInstantMillis), not the day, not today's settings.
+      // Same-day orders on either side of a set/delete therefore
+      // split correctly. Counted = status >= 1, exactly the
+      // completedOrders counting rule (see update/deleteOrderEntry).
+      var countedEntries = 0;
       for (final e in order?.entries ?? const <OrderEntry>[]) {
-        if (e.status >= 1 && e.manualBonusEgp > 0) {
+        if (e.status < 1) continue;
+        countedEntries++;
+        dayFlatBonus += settings.flatBonusAt(e.bonusInstantMillis);
+        if (e.manualBonusEgp > 0) {
           dayManualBonus += e.manualBonusEgp;
         }
-        if (dayDistanceOn && e.isCompleted) {
+        if (e.isCompleted &&
+            settings.distanceBonusEnabledForOrder(
+                e.bonusInstantMillis, e.dateKey)) {
           dayDistanceBonus += distanceBonusFor(
-              e.effectiveKmTotal, dayDistancePeriod?.tiers ?? const []);
+              e.effectiveKmTotal,
+              settings.distancePeriodAt(e.bonusInstantMillis)?.tiers ??
+                  const []);
         }
+      }
+      // Legacy fallback: counted orders with NO entry record at all
+      // (pre-entry days) have no creation instant. They take the
+      // flat amount in force at the END of their day (start of the
+      // next day) — the day's closing rate. This path never fires
+      // for v27-era data, where every counted order has an entry.
+      final unattributed = (orders ?? 0) - countedEntries;
+      if (unattributed > 0) {
+        final dayEnd = startOfDayMillis(
+            WeekCalendar.dateKey(WeekCalendar.addDays(day, 1)));
+        dayFlatBonus += unattributed * settings.flatBonusAt(dayEnd);
       }
       totalDistanceBonus += dayDistanceBonus;
       totalManualBonus += dayManualBonus;
@@ -967,11 +1004,10 @@ class DatabaseService {
         kmBack: kmBack,
         distanceBonus: dayDistanceBonus,
         manualBonus: dayManualBonus,
-        // v27.16: the day's counted orders each earn the flat amount
-        // active on THIS day (0 before the first set / after a
-        // deletion) — count-only orders earn flat too, exactly as
-        // before, but at their own day's rate.
-        flatBonus: (orders ?? 0) * dayFlat,
+        // v27.17: the sum of each counted order's own flat amount
+        // at its creation instant — count-only orders earn flat
+        // too, exactly as before, but at their own moment's rate.
+        flatBonus: dayFlatBonus,
       ));
     }
 
@@ -1015,10 +1051,11 @@ class DatabaseService {
       totalDistanceBonus: totalDistanceBonus,
       totalManualBonus: totalManualBonus,
       distanceBonusEnabled: distanceBonusOn,
-      // Display-only: the flat amount active on the week's last day.
-      // Totals use the per-day sums (WeeklyReport.totalFlatBonus).
-      flatOrderBonusEgp: settings.flatBonusForDate(
-          WeekCalendar.dateKey(WeekCalendar.addDays(start, 6))),
+      // Display-only: the flat amount in force at the END of this
+      // week (start of the next Sunday). Totals use the per-order
+      // sums (WeeklyReport.totalFlatBonus), never this field.
+      flatOrderBonusEgp: settings.flatBonusAt(startOfDayMillis(
+          WeekCalendar.dateKey(WeekCalendar.addDays(start, 7)))),
     );
   }
 

@@ -59,12 +59,12 @@ void main() {
     await tmp.delete(recursive: true);
   });
 
-  // v27.16: set the flat bonus effective from the week's Sunday, so
-  // the seeded current-week orders fall inside the period (setting
-  // it "today" would correctly pay 0 to earlier days of the week).
+  // v27.17: open the period at epoch 0, so it predates every seeded
+  // order (this file tests counted-vs-pending and totals, not the
+  // instant timing — that is bonus_periods_test/bonus_instant_test).
   Future<void> setFlat(double v) async {
     final s = db.settings;
-    s.applyFlatBonus(v, sunKey);
+    s.applyFlatBonus(v, 0);
     await db.saveSettings(s);
   }
 
@@ -73,11 +73,13 @@ void main() {
 
     await setFlat(7.5);
     expect(db.settings.flatOrderBonusEgp, 7.5);
-    expect(db.settings.flatBonusForDate(sunKey), 7.5);
+    expect(db.settings.flatBonusAt(
+        DateTime.now().millisecondsSinceEpoch), 7.5);
 
     final clone = UserSettings.fromJson(db.settings.toJson());
     expect(clone.flatOrderBonusEgp, 7.5);
-    expect(clone.flatBonusForDate(sunKey), 7.5);
+    expect(clone.flatBonusAt(
+        DateTime.now().millisecondsSinceEpoch), 7.5);
   });
 
   test('report: counted orders only, per-day and week totals',

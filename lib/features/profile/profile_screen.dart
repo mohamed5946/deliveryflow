@@ -16,7 +16,6 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/database/models.dart';
-import '../../core/date_time/week_calendar.dart';
 import '../../core/developer/developer_mode.dart';
 import '../../core/logging/app_log_service.dart';
 import '../../core/money_format.dart';
@@ -236,20 +235,23 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (!answered || amount == null) return;
     final km = fromKm!;
     final egp = amount!;
-    // v27.16: editing a tier starts a new distance period from
-    // TODAY with the new tiers when a period is open (orders before
-    // today keep the old tiers); when the bonus is off, the edit
-    // only updates the presets and creates no period.
+    // v27.17: editing a tier starts a new distance period from
+    // THIS INSTANT with the new tiers when a period is open
+    // (orders created before now keep the old tiers — even orders
+    // from earlier today); when the bonus is off, the edit only
+    // updates the presets and creates no period.
+    final tierAt = DateTime.now().millisecondsSinceEpoch;
     await ref.read(settingsProvider.notifier).update((s) {
       final tiers = List<DistanceBonusTier>.from(s.distanceBonusTiers);
       tiers[index] = DistanceBonusTier(fromKm: km, bonusEgp: egp);
-      s.applyDistanceTiers(tiers, WeekCalendar.dateKey(DateTime.now()));
+      s.applyDistanceTiers(tiers, tierAt);
       return s;
     });
     ref.read(appLogServiceProvider).info(
           AppLogCategory.settings,
           'Distance bonus tier ${index + 1} updated: from ${km}km -> '
-          '$egp EGP (effective today; earlier orders keep old tiers)',
+          '$egp EGP (effective at $tierAt; orders created before '
+          'now keep old tiers)',
         );
   }
 
@@ -785,19 +787,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       label: l10n.distanceBonusLabel,
                       value: settings.distanceBonusEnabled,
                       onChanged: (v) async {
-                        // v27.16: enabling opens a distance period
-                        // from today; disabling closes it yesterday.
-                        // Orders before today keep the old state.
+                        // v27.17: enabling opens a distance period
+                        // from THIS INSTANT; disabling closes it at
+                        // this instant. Orders created before now
+                        // keep the old state — even same-day ones.
+                        final toggleAt =
+                            DateTime.now().millisecondsSinceEpoch;
                         await notifier.update((s) {
-                          s.applyDistanceToggle(
-                              v, WeekCalendar.dateKey(DateTime.now()));
+                          s.applyDistanceToggle(v, toggleAt);
                           return s;
                         });
                         ref.read(appLogServiceProvider).info(
                               AppLogCategory.settings,
                               'Distance bonus -> ${v ? 'ON' : 'OFF'} '
-                              '(effective today; earlier orders keep '
-                              'their period)',
+                              '(effective at $toggleAt; orders '
+                              'created before now keep their period)',
                             );
                       },
                     ),
@@ -831,21 +835,25 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         onDone: (v) async {
                           final amount =
                               (v == null || v < 0) ? 0.0 : v;
-                          // v27.16: setting/deleting the flat bonus
-                          // opens/closes a period from today — past
-                          // orders keep whatever was active on their
-                          // own date, future orders get the new value
-                          // (or 0 after a deletion).
+                          // v27.17: setting/deleting the flat bonus
+                          // opens/closes a period at THIS INSTANT —
+                          // orders created before now keep whatever
+                          // was active at their own moment (even
+                          // same-day ones), orders created from now
+                          // on get the new value (or 0 after a
+                          // deletion).
+                          final flatAt =
+                              DateTime.now().millisecondsSinceEpoch;
                           await notifier.update((s) {
-                            s.applyFlatBonus(
-                                amount, WeekCalendar.dateKey(DateTime.now()));
+                            s.applyFlatBonus(amount, flatAt);
                             return s;
                           });
                           ref.read(appLogServiceProvider).info(
                                 AppLogCategory.settings,
                                 'Flat order bonus -> $amount EGP per '
-                                'counted order (effective today; '
-                                'earlier orders keep their period)',
+                                'counted order (effective at $flatAt; '
+                                'orders created before now keep '
+                                'their period)',
                               );
                         },
                       ),
