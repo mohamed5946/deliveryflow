@@ -669,7 +669,13 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
           );
           if (mounted) _load();
         },
-        child: GlassCard(
+        // v27.20 Hero source: this card flies to the detail trip
+        // card. Tag is unique per order id (see orderDetailHeroTag).
+        child: Hero(
+          tag: orderDetailHeroTag(entry.id),
+          child: Material(
+            type: MaterialType.transparency,
+            child: GlassCard(
         padding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Column(
@@ -771,6 +777,8 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
           ],
             ),
           ],
+        ),
+        ),
         ),
         ),
       ),

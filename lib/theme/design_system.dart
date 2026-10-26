@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:deliveryflow/l10n/gen/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart' hide TextDirection;
 
 import '../core/date_time/week_calendar.dart';
 import '../core/providers.dart';
@@ -971,20 +972,30 @@ class WeekDayStrip extends StatelessWidget {
     this.onSelect,
   });
 
-  static const _dayNames = [
-    'الأحد',
-    'الاثنين',
-    'الثلاثاء',
-    'الأربعاء',
-    'الخميس',
-    'الجمعة',
-    'السبت',
-  ];
+  /// v27.20: weekday names follow the app locale. 2023-01-01 was a
+  /// Sunday, so formatting it + 0..6 days gives Sunday-first names
+  /// in either locale ('ar': الأحد…السبت, 'en': Sunday…Saturday).
+  /// Anything else is NOT a supported locale — it falls back to 'en'.
+  static List<String> weekdayNames(String locale) {
+    final loc = locale == 'ar' ? 'ar' : 'en';
+    final sunday = DateTime(2023, 1, 1);
+    return [
+      for (var i = 0; i < 7; i++)
+        DateFormat.EEEE(loc).format(WeekCalendar.addDays(sunday, i)),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final text = Theme.of(context).textTheme;
+    // v27.20: names follow the live app locale (MaterialApp.locale
+    // tracks settings.languageCode, so switching language in Profile
+    // rebuilds this strip immediately — no restart). Previously this
+    // was a hardcoded Arabic list, which is why the strip stayed
+    // Arabic after switching the app to English.
+    final dayNames =
+        weekdayNames(Localizations.localeOf(context).languageCode);
     final today = DateTime.now();
     final todayKey = DateTime(today.year, today.month, today.day);
     return Row(
@@ -1043,7 +1054,7 @@ class WeekDayStrip extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Text(
-                        _dayNames[i],
+                        dayNames[i],
                         textAlign: TextAlign.center,
                         style: text.bodySmall?.copyWith(
                           fontSize: 10,

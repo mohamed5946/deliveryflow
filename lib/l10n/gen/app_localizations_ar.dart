@@ -246,6 +246,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get endTime => 'وقت النهاية';
 
   @override
+  String get endOrder => 'إنهاء الـ Order';
+
+  @override
   String get exportCsv => 'تصدير CSV';
 
   @override
@@ -720,6 +723,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get deleteOrderConfirm => 'هيتمسح الأوردر ده من سجل اليوم.';
 
   @override
+  String get didYouDeliverOrder => 'هل أنت وصلت الـ Order؟';
+
+  @override
   String get invalidKm => 'أدخل رقمًا أكبر من صفر';
 
   @override
@@ -943,6 +949,9 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get phoneNumberHint => 'اختياري';
+
+  @override
+  String get portfolioWebsite => 'الموقع الشخصي';
 
   @override
   String get trackingFailedTitle => 'فشل تشغيل التتبع';

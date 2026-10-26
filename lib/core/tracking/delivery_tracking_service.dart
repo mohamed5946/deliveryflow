@@ -594,6 +594,76 @@ class DeliveryTrackingService {
     return finalKmOut;
   }
 
+  /// v27.20 "End Order" (Yes) from the OUTGOING leg: the courier ends
+  /// the order at the customer without ever starting a return leg.
+  /// Same finalization as [markDelivered] for the outgoing leg — stop
+  /// background tracking, OSRM-snap the traveled trail with the
+  /// 0.5x–2.5x sanity guard, save the outgoing km/duration/route —
+  /// but the order is COMPLETED here (status 3, delivered + completion
+  /// timestamps set) and NO return leg is started, so no return trip
+  /// ever appears for an order whose return never happened. Differs
+  /// from [markDelivered] ONLY in the final status and the missing
+  /// startReturnLeg call.
+  Future<double> completeFromCustomer({
+    required String dateKey,
+    required String entryId,
+  }) async {
+    _trackingDateKey = dateKey;
+    final progress = await _readProgress(entryId);
+    final kmOut = (progress?['km'] as num?)?.toDouble() ?? 0;
+    final startedAt =
+        (progress?['startedAt'] as num?)?.toInt() ??
+            DateTime.now().millisecondsSinceEpoch;
+    final durationSec =
+        DateTime.now().difference(
+          DateTime.fromMillisecondsSinceEpoch(startedAt),
+        ).inSeconds;
+    final outLat = ((progress?['lat'] as List?) ?? [])
+        .map((e) => (e as num).toDouble())
+        .toList();
+    final outLng = ((progress?['lng'] as List?) ?? [])
+        .map((e) => (e as num).toDouble())
+        .toList();
+
+    await _stopBackgroundTracking();
+    await _deleteProgress(entryId);
+
+    final snapped = await _snap.snapRoute(lat: outLat, lng: outLng);
+    final finalKmOut = _saneFinalKm(gpsKm: kmOut, snappedKm: snapped?.distanceKm);
+    _log?.info(
+      AppLogCategory.tracking,
+      'Outgoing leg finalized by End Order for entry $entryId: '
+      'gps=${kmOut}km, osrm=${snapped?.distanceKm}km, '
+      'chosen=${finalKmOut}km (no return leg)',
+    );
+    final roadLat =
+        snapped?.geometry.map((p) => p.latitude).toList() ??
+            const <double>[];
+    final roadLng =
+        snapped?.geometry.map((p) => p.longitude).toList() ??
+            const <double>[];
+
+    final now = DateTime.now().millisecondsSinceEpoch;
+    await _db.updateOrderEntry(
+      dateKey: dateKey,
+      entryId: entryId,
+      status: 3,
+      deliveredTimeMillis: now,
+      timestampMillis: now,
+      gpsKmOut: _round2(finalKmOut),
+      outgoingDurationSec: durationSec,
+      routeOutLat: outLat,
+      routeOutLng: outLng,
+      roadOutLat: roadLat,
+      roadOutLng: roadLng,
+    );
+
+    if (outLat.isNotEmpty && outLng.isNotEmpty) {
+      await _applyMartObservation(outLat.first, outLng.first);
+    }
+    return finalKmOut;
+  }
+
   /// Courier arrived back at the mart and pressed "وصلت للمارت".
   Future<void> markArrivedAtMart({
     required String dateKey,

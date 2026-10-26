@@ -115,7 +115,13 @@ class DayOrdersScreen extends ConsumerWidget {
                                 ),
                               ),
                             ),
-                    child: GlassCard(
+                    // v27.20 Hero source: this order card flies to
+                    // the detail trip card (tag unique per order).
+                    child: Hero(
+                      tag: orderDetailHeroTag(entry.id),
+                      child: Material(
+                        type: MaterialType.transparency,
+                        child: GlassCard(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 14, vertical: 12),
                       child: Row(
@@ -231,6 +237,8 @@ class DayOrdersScreen extends ConsumerWidget {
                           ),
                         ],
                       ),
+                    ),
+                    ),
                     ),
                   ),
                 );

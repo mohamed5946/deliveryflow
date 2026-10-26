@@ -560,6 +560,12 @@ abstract class AppLocalizations {
   /// **'End time'**
   String get endTime;
 
+  /// No description provided for @endOrder.
+  ///
+  /// In en, this message translates to:
+  /// **'End Order'**
+  String get endOrder;
+
   /// No description provided for @exportCsv.
   ///
   /// In en, this message translates to:
@@ -1448,6 +1454,12 @@ abstract class AppLocalizations {
   /// **'This order will be removed from the day\'s log.'**
   String get deleteOrderConfirm;
 
+  /// No description provided for @didYouDeliverOrder.
+  ///
+  /// In en, this message translates to:
+  /// **'Did you deliver the order?'**
+  String get didYouDeliverOrder;
+
   /// No description provided for @invalidKm.
   ///
   /// In en, this message translates to:
@@ -1879,6 +1891,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Optional'**
   String get phoneNumberHint;
+
+  /// No description provided for @portfolioWebsite.
+  ///
+  /// In en, this message translates to:
+  /// **'Portfolio Website'**
+  String get portfolioWebsite;
 
   /// No description provided for @trackingFailedTitle.
   ///

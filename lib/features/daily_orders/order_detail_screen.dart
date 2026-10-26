@@ -44,6 +44,17 @@ import 'phone_sheet.dart';
 /// with the sheet's `invalidKm` error.
 typedef LegKmEdit = ({bool invalid, double? km, double? gpsKm});
 
+/// v27.20 Hero tag for the order card → order detail flight.
+/// Unique per order id: a shared tag across cards throws
+/// 'multiple heroes share the same tag' (the video's lesson).
+String orderDetailHeroTag(String entryId) => 'order-detail-$entryId';
+
+/// v27.20 End Order visibility: ONLY while a trip is actually in
+/// progress — outgoing (toCustomer) or returning (toMart). Hidden
+/// when pending (nothing to end) and when completed (nothing left).
+bool showEndOrderButton(OrderEntry entry) =>
+    entry.isToCustomer || entry.isToMart;
+
 LegKmEdit resolveLegKmEdit(String raw, double effectiveKm) {
   final t = raw.trim().replaceAll(',', '.');
   if (t.isEmpty) return (invalid: false, km: null, gpsKm: null);
@@ -888,6 +899,133 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
     }
   }
 
+  /// v27.20 "End Order" — the permanent button under the lifecycle
+  /// action button, visible only during the two active legs.
+  /// Dialog question is exactly «هل أنت وصلت الـ Order؟»:
+  /// - YES: complete the order with the details collected SO FAR.
+  ///   Outgoing leg → completeFromCustomer (status 3, outgoing leg
+  ///   finalized, NO return leg started, so no return trip appears).
+  ///   Return leg → markArrivedAtMart (the normal completion path).
+  /// - NO: the order was NOT delivered → delete it entirely, after
+  ///   stopping this order's background tracking (only if THIS order
+  ///   is the tracked one — never kill another order's tracking),
+  ///   deleting its progress file and cancelling arrival prompts,
+  ///   then close the detail screen.
+  /// - Dismiss (back / tap outside): nothing happens.
+  /// Any failure shows a loud blocking error and does NOT silently
+  /// complete, delete, or close anything.
+  Future<void> _confirmEndOrder() async {
+    if (_busy) return;
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.endOrder),
+        content: Text(l10n.didYouDeliverOrder),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(l10n.no),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(l10n.yes),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == null || !mounted) return;
+    if (confirmed) {
+      await _endOrderComplete();
+    } else {
+      await _endOrderDelete();
+    }
+  }
+
+  Future<void> _endOrderComplete() async {
+    if (_busy) return;
+    // Re-read: the status may have changed (e.g. auto-arrival) while
+    // the dialog was open.
+    final entry = _entry;
+    if (entry == null ||
+        !(entry.isToCustomer || entry.isToMart)) {
+      _load();
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      final svc = ref.read(deliveryTrackingServiceProvider);
+      if (entry.isToCustomer) {
+        await svc.completeFromCustomer(
+          dateKey: widget.dateKey,
+          entryId: widget.entryId,
+        );
+      } else {
+        await svc.markArrivedAtMart(
+          dateKey: widget.dateKey,
+          entryId: widget.entryId,
+        );
+      }
+      await ref.read(notificationServiceProvider).cancelArrivalPrompts();
+      ref.read(appLogServiceProvider).info(
+            AppLogCategory.tracking,
+            'End Order confirmed for entry ${widget.entryId} '
+            '(was status ${entry.status}): completed with details '
+            'collected so far',
+          );
+      bumpDataVersion(ref);
+      _load();
+      if (!mounted) return;
+      final l10n = AppLocalizations.of(context);
+      showTopSnackBar(context, l10n.orderCompleted);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      _load();
+      final l10n = AppLocalizations.of(context);
+      await _showBlockingError(
+        l10n.trackingFailedTitle,
+        _errorText(e),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _endOrderDelete() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final svc = ref.read(deliveryTrackingServiceProvider);
+      // Only stop tracking when THIS order is the tracked one.
+      if (svc.trackingOrderId == widget.entryId) {
+        await svc.cancelTracking();
+      }
+      await ref.read(notificationServiceProvider).cancelArrivalPrompts();
+      await ref.read(databaseServiceProvider).deleteOrderEntry(
+            dateKey: widget.dateKey,
+            entryId: widget.entryId,
+          );
+      ref.read(appLogServiceProvider).info(
+            AppLogCategory.orders,
+            'End Order declined for entry ${widget.entryId}: '
+            'order deleted entirely',
+          );
+      bumpDataVersion(ref);
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      final l10n = AppLocalizations.of(context);
+      await _showBlockingError(
+        l10n.trackingFailedTitle,
+        _errorText(e),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   /// Customer location for the "توجيه" (Navigate) button: last point of
   /// the recorded OUTGOING trail, falling back to the snapped road
   /// geometry end. Null when no trail was recorded (e.g. orders from
@@ -1038,6 +1176,12 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                   _noteCard(context, entry),
                   const SizedBox(height: 12),
                   _actionButton(context, entry),
+                  // v27.20 permanent End Order button, directly under
+                  // the lifecycle action button, during both legs.
+                  if (showEndOrderButton(entry)) ...[
+                    const SizedBox(height: 12),
+                    _endOrderButton(context),
+                  ],
                   SizedBox(
                       height: 24 + (hasHero ? (overlap - gap) : 0)),
                 ],
@@ -1148,7 +1292,13 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
       );
     }
 
-    return GlassCard(
+    // v27.20 Hero destination: the trip card flies in from the
+    // order list card. Kept as a local first so the card body
+    // itself is untouched by the wrap (tag unique per order —
+    // see orderDetailHeroTag; Material(transparency) lets the
+    // card's text fly without a flight-time background, the
+    // video's bonus step).
+    final card = GlassCard(
       borderRadius: GlassTokens.radiusL,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1313,6 +1463,10 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
           ),
         ],
       ),
+    );
+    return Hero(
+      tag: orderDetailHeroTag(entry.id),
+      child: Material(type: MaterialType.transparency, child: card),
     );
   }
 
@@ -1624,6 +1778,22 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
 
   Widget _pulsingDot(Color color) {
     return _PulsingDot(color: color);
+  }
+
+  /// v27.20 End Order button: secondary/outlined look on purpose —
+  /// it must never be mistaken for the primary arrival button above
+  /// it. Disabled while [_busy].
+  Widget _endOrderButton(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return SizedBox(
+      width: double.infinity,
+      child: GlassButton(
+        primary: false,
+        label: _busy ? l10n.pleaseWait : l10n.endOrder,
+        icon: Icons.flag_rounded,
+        onPressed: _busy ? null : _confirmEndOrder,
+      ),
+    );
   }
 
   Widget _actionButton(BuildContext context, OrderEntry entry) {

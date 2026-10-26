@@ -841,7 +841,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
             ),
           ),
         ),
-        child: GlassCard(
+        // v27.20 Hero source: the active-order banner card flies to
+        // the detail trip card (tag unique per order id).
+        child: Hero(
+          tag: orderDetailHeroTag(trackingId),
+          child: Material(
+            type: MaterialType.transparency,
+            child: GlassCard(
           child: Row(
             children: [
               Container(
@@ -887,6 +893,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               ),
             ],
           ),
+        ),
+        ),
         ),
       ),
     );

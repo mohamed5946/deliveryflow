@@ -217,7 +217,13 @@ class _NotificationRow extends StatelessWidget {
         );
     return Pressable(
       onTap: onTap,
-      child: GlassCard(
+      // v27.20 Hero source: this notification card flies to the
+      // detail trip card (tag unique per order).
+      child: Hero(
+        tag: orderDetailHeroTag(entry.id),
+        child: Material(
+          type: MaterialType.transparency,
+          child: GlassCard(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
@@ -306,6 +312,8 @@ class _NotificationRow extends StatelessWidget {
             const Icon(Icons.arrow_forward_rounded,
                 size: 18, color: LiquidPalette.primaryBlue),
           ],
+        ),
+      ),
         ),
       ),
     );

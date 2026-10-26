@@ -494,6 +494,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   icon: Icons.call_rounded,
                   onPressed: () => launchUrl(Uri.parse('tel:01557887719')),
                 ),
+                const SizedBox(height: 12),
+                // v27.20: Mohamed's public portfolio website — opens
+                // in the browser; falls back to copying the link
+                // (never a dead button), like _openSupportEmail.
+                GlassButton(
+                  label: l10n.portfolioWebsite,
+                  icon: Icons.language_rounded,
+                  primary: false,
+                  onPressed: _openPortfolioWebsite,
+                ),
               ],
             ),
           ),
@@ -949,6 +959,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       value: '01557887719',
                     ),
                     const SizedBox(height: 4),
+                    // v27.20: portfolio website row (same destination
+                    // as the help sheet button).
+                    _valueRow(
+                      icon: Icons.language_rounded,
+                      label: l10n.portfolioWebsite,
+                      value: 'mohamed5946.github.io/portfolio',
+                      onTap: _openPortfolioWebsite,
+                    ),
+                    const SizedBox(height: 4),
                     _aboutRow(l10n),
                   ],
                 ),
@@ -1296,6 +1315,29 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   /// v27.4: support email shown under the designer credit in the
   /// About section and the help sheet.
   static const String _supportEmail = 'ma4670156@gmail.com';
+
+  /// v27.20: Mohamed's public portfolio website.
+  static const String _portfolioUrl =
+      'https://mohamed5946.github.io/portfolio/';
+
+  /// Opens the portfolio website in the browser; when no browser can
+  /// take the link, copies the URL and confirms with the top
+  /// snackbar — no dead end, same pattern as [_openSupportEmail].
+  Future<void> _openPortfolioWebsite() async {
+    var ok = false;
+    try {
+      ok = await launchUrl(
+        Uri.parse(_portfolioUrl),
+        mode: LaunchMode.externalApplication,
+      );
+    } catch (_) {
+      ok = false;
+    }
+    if (ok || !mounted) return;
+    await Clipboard.setData(const ClipboardData(text: _portfolioUrl));
+    if (!mounted) return;
+    showTopSnackBar(context, AppLocalizations.of(context).copied);
+  }
 
   /// Opens the mail app for the support email; when no mail app can
   /// take the mailto: link, copies the address and confirms with the

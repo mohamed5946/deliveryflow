@@ -247,6 +247,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get endTime => 'End time';
 
   @override
+  String get endOrder => 'End Order';
+
+  @override
   String get exportCsv => 'Export CSV';
 
   @override
@@ -721,6 +724,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'This order will be removed from the day\'s log.';
 
   @override
+  String get didYouDeliverOrder => 'Did you deliver the order?';
+
+  @override
   String get invalidKm => 'Enter a number greater than zero';
 
   @override
@@ -945,6 +951,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get phoneNumberHint => 'Optional';
+
+  @override
+  String get portfolioWebsite => 'Portfolio Website';
 
   @override
   String get trackingFailedTitle => 'Tracking failed to start';
