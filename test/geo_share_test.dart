@@ -83,8 +83,12 @@ void main() {
       expect(t.label, 'test');
     });
 
-    test('plain text with no URL returns null', () async {
-      expect(await parseShareInput('just some text'), isNull);
+    test('plain text with no URL returns a label-only target (v27.18: '
+        'geocode fallback) or null for empty', () async {
+      final t = await parseShareInput('just some text');
+      expect(t, isNotNull);
+      expect(t!.hasCoords, isFalse);
+      expect(t.label, 'just some text');
       expect(await parseShareInput(''), isNull);
     });
 
@@ -112,12 +116,20 @@ void main() {
         expect(t.lng, closeTo(31.0, 1e-6));
       });
 
-      test('out-of-range numbers are rejected', () async {
-        expect(await parseShareInput('عنوان @ 999.0,31.0'), isNull);
+      test('out-of-range numbers are rejected as coordinates '
+          '(v27.18: label-only, geocode fallback — never a target)',
+          () async {
+        final t = await parseShareInput('عنوان @ 999.0,31.0');
+        expect(t, isNotNull);
+        expect(t!.hasCoords, isFalse);
       });
 
-      test('address-only text still returns null (geocoded later)', () async {
-        expect(await parseShareInput('شارع فيصل الرئيسي'), isNull);
+      test('address-only text returns a label-only target (v27.18: '
+          'geocoded later as last resort)', () async {
+        final t = await parseShareInput('شارع فيصل الرئيسي');
+        expect(t, isNotNull);
+        expect(t!.hasCoords, isFalse);
+        expect(t.label, 'شارع فيصل الرئيسي');
       });
     });
 

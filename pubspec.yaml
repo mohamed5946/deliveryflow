@@ -1,7 +1,7 @@
 name: deliveryflow
 description: DeliveryFlow - weekly schedules, order tracking, working hours and reports for delivery drivers.
 publish_to: 'none'
-version: 27.17.0+50
+version: 27.18.0+51
 
 environment:
   sdk: ^3.6.0

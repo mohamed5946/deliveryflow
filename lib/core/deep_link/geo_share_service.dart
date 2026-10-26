@@ -182,7 +182,12 @@ GeoShareTarget? _parseGoogleMapsUrl(String url) {
   if (atMatch != null) {
     final lat = double.tryParse(atMatch.group(1)!);
     final lng = double.tryParse(atMatch.group(2)!);
-    if (lat != null && lng != null) {
+    if (lat != null &&
+        lng != null &&
+        lat >= -90 &&
+        lat <= 90 &&
+        lng >= -180 &&
+        lng <= 180) {
       var label = '';
       final placeMatch = RegExp(r'/place/([^/?#@]+)').firstMatch(uri.path);
       if (placeMatch != null) {
@@ -215,16 +220,12 @@ GeoShareTarget? _parseGoogleMapsUrl(String url) {
   return null;
 }
 
-/// v24: "lat,lng" → coordinates, anything else → address label.
+/// v27.18: "lat,lng" → coordinates (via the coordinates-first
+/// extractor, so stray characters in a Maps query value can't poison
+/// it), anything else → address label.
 GeoShareTarget _coordsOrLabel(String v) {
-  final parts = v.split(',');
-  if (parts.length >= 2) {
-    final lat = double.tryParse(parts[0].trim());
-    final lng = double.tryParse(parts[1].trim());
-    if (lat != null && lng != null) {
-      return GeoShareTarget(lat: lat, lng: lng);
-    }
-  }
+  final extracted = extractCoordsFromText(v);
+  if (extracted != null && extracted.hasCoords) return extracted;
   return GeoShareTarget(label: v);
 }
 
@@ -301,16 +302,27 @@ String _normalizeShareText(String s) {
 ///   `goo.gl/maps/…`, `maps.app.goo.gl/…` — short links are resolved
 ///   via HTTP redirects first),
 /// - share-sheet text wrapping any of the above (first URL wins).
+/// v27.18: coordinates are extracted FIRST from the entire text
+/// (see [extractCoordsFromText]) before any structured parse is
+/// trusted, and every branch below funnels through that extractor
+/// (structured label rescue, Maps query values). A share with no
+/// coordinate pair anywhere returns a label-only target for plain
+/// free text, so the caller can still try last-resort geocoding;
+/// a bare non-Maps URL still returns null (a URL is not an address).
 /// Returns null when nothing usable is found.
 Future<GeoShareTarget?> parseShareInput(String raw) async {
   final text = _normalizeShareText(raw.trim());
   if (text.isEmpty) return null;
+  // Coordinates-first: scan the whole text, whatever else it holds.
+  final coordsFirst = extractCoordsFromText(text);
   final urlMatch = RegExp(r'https?://[^\s]+').firstMatch(text);
   var candidate = (urlMatch?.group(0) ?? text).trim();
   // Strip trailing punctuation the share text may have glued on.
   candidate = candidate.replaceAll(RegExp(r'[.,;)\]]+$'), '');
   if (candidate.startsWith('geo:')) {
-    return _rescueEmbeddedCoords(parseGeoUri(candidate));
+    final parsed = _rescueEmbeddedCoords(parseGeoUri(candidate));
+    if (parsed != null) return parsed;
+    return coordsFirst;
   }
   if (_looksLikeMapsUrl(candidate)) {
     var finalUrl = candidate;
@@ -323,14 +335,21 @@ Future<GeoShareTarget?> parseShareInput(String raw) async {
         finalUrl = candidate;
       }
     }
-    final parsed = _parseGoogleMapsUrl(finalUrl);
-    if (parsed != null) return _rescueEmbeddedCoords(parsed);
+    final parsed = _rescueEmbeddedCoords(_parseGoogleMapsUrl(finalUrl));
+    if (parsed != null) return parsed;
+    return coordsFirst;
   }
   // v24.1: Flex-style free text: "customer address @ lat,lng".
   // The coordinates are the EXACT location (source of truth); the
   // customer's written address is only a label for the notes — it is
   // never geocoded or treated as the location when coords exist.
-  return _extractCoordsFromText(text);
+  if (coordsFirst != null) return coordsFirst;
+  // v27.18: no coordinates anywhere — plain free text becomes a
+  // label-only target so the caller geocodes it as a LAST resort
+  // (and, if that fails, shows the original text in the dialog).
+  // A bare URL is not an address: keep the old null for that case.
+  if (urlMatch != null && candidate == text) return null;
+  return GeoShareTarget(label: text);
 }
 
 /// v27.7: some shares carry the exact coordinates INSIDE what the
@@ -345,6 +364,9 @@ Future<GeoShareTarget?> parseShareInput(String raw) async {
 /// already have coordinates, and labels with no embedded pair, pass
 /// through unchanged: a true address-only share still geocodes exactly
 /// as before.
+/// v27.18: the rescue now uses [extractCoordsFromText], which scans
+/// the whole label past invalid pairs instead of stopping at the
+/// first one (the 2026-10-26 screenshot bug).
 GeoShareTarget? _rescueEmbeddedCoords(GeoShareTarget? target) {
   if (target == null || target.hasCoords || target.label.isEmpty) {
     return target;
@@ -352,24 +374,95 @@ GeoShareTarget? _rescueEmbeddedCoords(GeoShareTarget? target) {
   return _extractCoordsFromText(target.label) ?? target;
 }
 
-/// v24.1: extracts a "lat,lng" pair embedded in free text, e.g.
-/// "شارع عبدالحليم محمود عمارة 15 الدور الاخير @ 29.987240,30.979383".
-/// The remaining text becomes the label (customer's address).
-/// Returns null when no valid coordinate pair is found.
-GeoShareTarget? _extractCoordsFromText(String text) {
-  final m =
-      RegExp(r'(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)').firstMatch(text);
-  if (m == null) return null;
-  final lat = double.tryParse(m.group(1)!);
-  final lng = double.tryParse(m.group(2)!);
-  if (lat == null || lng == null) return null;
-  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
-  final label = ('${text.substring(0, m.start)} ${text.substring(m.end)}')
+/// v27.18: coordinates-FIRST extractor — the single funnel every
+/// share entry point routes through (share intent via
+/// [parseShareInput], `geo:` label rescue, Maps query values).
+/// It scans the ENTIRE text for a latitude/longitude pair and ignores
+/// everything around it: `@` (spaced, glued like `3@`, or doubled),
+/// commas, newlines, Arabic text, street numbers, punctuation,
+/// `# $ % & *`, parentheses and duplicated numbers.
+///
+/// WHY this replaced the old extractor (the 2026-10-26 field bug):
+/// the old code took the FIRST regex match and returned null when
+/// that pair was invalid. For the screenshot text
+/// `Sameh Gado Street 194 194, 3@30.003383,30.976819` the first
+/// match was the poison pair `194, 3` (second street number + the
+/// digit glued to `@`), latitude 194 failed the range check, and
+/// the function returned null WITHOUT ever looking at the real
+/// pair later in the string. The `@` itself was never the problem;
+/// the first-match-and-give-up logic was. This extractor never
+/// gives up on an invalid pair: it advances one character past it
+/// and keeps scanning (so a valid pair hidden inside a longer
+/// digit run, e.g. `130.1,31.2` hiding `30.1,31.2`, is still found).
+///
+/// Validation, in order:
+/// - BOTH numbers must carry a decimal point, so street numbers
+///   (`194, 194`, `194, 3`) can never be mistaken for coordinates.
+/// - They must be separated by a comma (optional spaces).
+/// - They must fall inside Egypt (latitude 22–32, longitude 24–37);
+///   a pair outside Egypt is rejected, never used as a target.
+/// Choice when several valid pairs appear: the FIRST valid pair
+/// after the first `@` wins (the `@` marks the intended pair in
+/// Flex shares); with no `@`, the LAST valid pair wins (the
+/// coordinates in a Flex share trail the address).
+/// The label is the text with every valid pair removed and `@`/`
+/// punctuation residue cleaned, so the customer's address survives
+/// as notes while no coordinate digits leak into it.
+/// Returns null when no valid pair exists anywhere in the text.
+GeoShareTarget? extractCoordsFromText(String raw) {
+  final text = _normalizeShareText(raw);
+  // Overlapping scan: after an invalid pair, resume one character
+  // past its start (not past its end) so a valid pair nested inside
+  // an invalid digit run is not skipped.
+  final pairRe = RegExp(r'(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)');
+  final found = <({double lat, double lng, int start, int end})>[];
+  var offset = 0;
+  while (offset < text.length) {
+    final m = pairRe.firstMatch(text.substring(offset));
+    if (m == null) break;
+    final start = offset + m.start;
+    final end = offset + m.end;
+    final lat = double.tryParse(m.group(1)!);
+    final lng = double.tryParse(m.group(2)!);
+    if (lat != null &&
+        lng != null &&
+        lat >= 22 &&
+        lat <= 32 &&
+        lng >= 24 &&
+        lng <= 37) {
+      found.add((lat: lat, lng: lng, start: start, end: end));
+      offset = end;
+    } else {
+      offset = start + 1;
+    }
+  }
+  if (found.isEmpty) return null;
+  var chosen = found.last;
+  final atIdx = text.indexOf('@');
+  if (atIdx >= 0) {
+    for (final pair in found) {
+      if (pair.start > atIdx) {
+        chosen = pair;
+        break;
+      }
+    }
+  }
+  var label = text;
+  // Remove every valid pair (a decoy pair must not leak into notes),
+  // walking backwards so earlier offsets stay valid.
+  for (final pair in found.reversed) {
+    label = '${label.substring(0, pair.start)} ${label.substring(pair.end)}';
+  }
+  label = label
       .replaceAll(RegExp(r'[@\-–—:;،,]+'), ' ')
       .replaceAll(RegExp(r'\s{2,}'), ' ')
       .trim();
-  return GeoShareTarget(lat: lat, lng: lng, label: label);
+  return GeoShareTarget(lat: chosen.lat, lng: chosen.lng, label: label);
 }
+
+/// Backwards-compatible private alias (was the v24.1 extractor).
+GeoShareTarget? _extractCoordsFromText(String text) =>
+    extractCoordsFromText(text);
 
 /// Resolves a free-text address to coordinates via Nominatim
 /// (OpenStreetMap). Returns null when the address can't be resolved.
@@ -579,6 +672,22 @@ Future<void> handleSharedGeoUri(
     await failWithReceived(raw.trim(), 'parse: no coords/address found');
     return;
   }
+  // v27.18: log the extraction outcome explicitly — a share with
+  // coordinates must NEVER reach geocoding, so this line is the
+  // proof in the in-app log when a field share is disputed.
+  if (target.hasCoords) {
+    appLog.info(
+      AppLogCategory.share,
+      'Share coords extracted directly (no geocode)',
+      detail: 'coords: ${target.lat},${target.lng} label: ${target.label}',
+    );
+  } else {
+    appLog.info(
+      AppLogCategory.share,
+      'Share has no coords; geocoding as last resort only',
+      detail: 'label: ${target.label}',
+    );
+  }
 
   final LatLng dest;
   var label = target.label;
@@ -645,7 +754,9 @@ Future<void> handleSharedGeoUri(
         'Geocode: address not found',
         detail: 'label: ${target.label}',
       );
-      await failWithReceived(target.label, 'geocode: address not found');
+      // v27.18: show the ORIGINAL received text, not just the
+      // parsed label, so nothing is lost when geocoding fails.
+      await failWithReceived(rawReceived, 'geocode: address not found');
       return;
     }
     dest = geocoded;
