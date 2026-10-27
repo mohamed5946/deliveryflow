@@ -25,6 +25,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/design_system.dart';
 import '../../theme/top_snack_bar.dart';
 import '../../theme/pressable.dart';
+import '../registration/glass_otp.dart';
 
 /// Profile / account hub: the single settings control center.
 /// Replaces the standalone settings page — the bottom-nav "حسابي" tab
@@ -2044,60 +2045,42 @@ class _ReminderHealthRowsState extends ConsumerState<_ReminderHealthRows>
 /// v27.4: password prompt for Developer Mode. Wrong entries show an
 /// inline error and stay in the dialog (and land in the diagnostics
 /// log WITHOUT the entered value); a correct entry pops with `true`.
-class _DeveloperPasswordDialog extends StatefulWidget {
+///
+/// v27.23: glassy OTP entry (video style) — same gate value and
+/// numeric entry as before, only the UI changed: digit boxes, a
+/// spinning-circle transition, green success only after a match, red
+/// error + full restart on a wrong code. The cancel path is unchanged.
+class _DeveloperPasswordDialog extends StatelessWidget {
   const _DeveloperPasswordDialog({required this.log});
 
   final AppLogService log;
 
   @override
-  State<_DeveloperPasswordDialog> createState() =>
-      _DeveloperPasswordDialogState();
-}
-
-class _DeveloperPasswordDialogState extends State<_DeveloperPasswordDialog> {
-  final _ctrl = TextEditingController();
-  bool _error = false;
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  void _submit() {
-    if (DeveloperMode.accepts(_ctrl.text)) {
-      Navigator.pop(context, true);
-    } else {
-      widget.log.warn(
-        AppLogCategory.settings,
-        'Developer mode unlock attempt failed (wrong password)',
-      );
-      setState(() => _error = true);
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return AlertDialog(
-      title: Text(l10n.developerPasswordTitle),
-      content: TextField(
-        controller: _ctrl,
-        autofocus: true,
-        obscureText: true,
-        keyboardType: TextInputType.number,
-        onSubmitted: (_) => _submit(),
-        decoration: InputDecoration(
-          labelText: l10n.developerPasswordHint,
-          errorText: _error ? l10n.developerPasswordError : null,
+    return Dialog(
+      backgroundColor: const Color(0xFF0B1220),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(28),
+      ),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: GlassOtpEntry(
+          expectedCode: DeveloperMode.password,
+          title: l10n.developerPasswordTitle,
+          hint: l10n.developerPasswordHint,
+          verifyLabel: l10n.developerUnlock,
+          errorLabel: l10n.developerPasswordError,
+          successLabel: l10n.otpVerified,
+          onVerified: () => Navigator.pop(context, true),
+          onWrongAttempt: () => log.warn(
+            AppLogCategory.settings,
+            'Developer mode unlock attempt failed (wrong password)',
+          ),
+          onCancel: () => Navigator.pop(context, false),
+          cancelLabel: l10n.cancel,
         ),
       ),
-      actions: [
-        TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(l10n.cancel)),
-        FilledButton(onPressed: _submit, child: Text(l10n.developerUnlock)),
-      ],
     );
   }
 }

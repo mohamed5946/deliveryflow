@@ -209,6 +209,7 @@
   "registerError": "Incorrect code, try again",
   "registerHint": "Enter the registration code",
   "registerTitle": "Registration Code",
+  "otpVerified": "Verified successfully",
   "remindMeLater": "Later",
   "reminderTimeLabel": "Daily end-of-day reminder",
   "reportForWeek": "Report: {start} – {end}",
@@ -569,14 +570,5 @@
   "blockBreak": "Break",
   "blockRestore": "Restore",
   "blockProtected": "Protected",
-  "blockProtectedHasOrders": "This block cannot be deleted because it contains orders",
-  "navInsights": "Insights",
-  "insightsTodayOrders": "Today's orders",
-  "insightsTodayEarnings": "Today's earnings",
-  "insightsTodayDistance": "Today's distance",
-  "insightsWeekSalary": "Week salary",
-  "insightsEarningsChart": "Week earnings",
-  "insightsRecentOrders": "Recent orders",
-  "insightsNoRecentOrders": "No orders yet",
-  "insightsKm": "km"
+  "blockProtectedHasOrders": "This block cannot be deleted because it contains orders"
 }

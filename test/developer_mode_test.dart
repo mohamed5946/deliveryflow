@@ -146,7 +146,8 @@ void main() {
       expect(find.text('نسخة المطور'), findsOneWidget);
     });
 
-    testWidgets('wrong password: inline error, stays locked', (tester) async {
+    testWidgets('wrong password: error, restart, stays locked',
+        (tester) async {
       await pumpProfile(tester);
       await tester.ensureVisible(find.text('نسخة المطور'));
       await tester.pump();
@@ -154,15 +155,21 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
       expect(find.text('تفعيل نسخة المطور'), findsOneWidget);
-      final dialog = find.byType(AlertDialog);
+      // v27.23: glassy OTP dialog — auto-submits on 4 digits, spins,
+      // then shows the error and restarts from the beginning.
+      final dialog = find.byType(Dialog);
       await tester.enterText(
           find.descendant(of: dialog, matching: find.byType(TextField)),
           '0000');
-      await tester
-          .tap(find.descendant(of: dialog, matching: find.text('تفعيل')));
-      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1000));
       expect(find.text('كلمة المرور غير صحيحة'), findsOneWidget);
       expect(find.text('اختبار إشعار فوري'), findsNothing);
+      expect(db.settings.developerModeUnlocked, isFalse);
+      // After the error hold the dialog restarts: error gone, still
+      // locked, dialog still open for a fresh attempt.
+      await tester.pump(const Duration(milliseconds: 1100));
+      expect(find.text('كلمة المرور غير صحيحة'), findsNothing);
+      expect(find.text('تفعيل نسخة المطور'), findsOneWidget);
       expect(db.settings.developerModeUnlocked, isFalse);
     });
 
