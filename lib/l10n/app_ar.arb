@@ -514,5 +514,14 @@
   "blockBreak": "بريك",
   "blockRestore": "استعادة",
   "blockProtected": "محمي",
-  "blockProtectedHasOrders": "لا يمكن حذف هذه البلوكاية لأنها تحتوي على أوردرات"
+  "blockProtectedHasOrders": "لا يمكن حذف هذه البلوكاية لأنها تحتوي على أوردرات",
+  "navInsights": "تحليلات",
+  "insightsTodayOrders": "أوردرات اليوم",
+  "insightsTodayEarnings": "إيراد اليوم",
+  "insightsTodayDistance": "مسافة اليوم",
+  "insightsWeekSalary": "مرتب الأسبوع",
+  "insightsEarningsChart": "إيراد أيام الأسبوع",
+  "insightsRecentOrders": "أحدث الأوردرات",
+  "insightsNoRecentOrders": "مفيش أوردرات لسه",
+  "insightsKm": "كم"
 }

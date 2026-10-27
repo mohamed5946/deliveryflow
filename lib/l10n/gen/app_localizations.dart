@@ -2989,6 +2989,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This block cannot be deleted because it contains orders'**
   String get blockProtectedHasOrders;
+
+  /// No description provided for @navInsights.
+  ///
+  /// In en, this message translates to:
+  /// **'Insights'**
+  String get navInsights;
+
+  /// No description provided for @insightsTodayOrders.
+  ///
+  /// In en, this message translates to:
+  /// **'Today\'s orders'**
+  String get insightsTodayOrders;
+
+  /// No description provided for @insightsTodayEarnings.
+  ///
+  /// In en, this message translates to:
+  /// **'Today\'s earnings'**
+  String get insightsTodayEarnings;
+
+  /// No description provided for @insightsTodayDistance.
+  ///
+  /// In en, this message translates to:
+  /// **'Today\'s distance'**
+  String get insightsTodayDistance;
+
+  /// No description provided for @insightsWeekSalary.
+  ///
+  /// In en, this message translates to:
+  /// **'Week salary'**
+  String get insightsWeekSalary;
+
+  /// No description provided for @insightsEarningsChart.
+  ///
+  /// In en, this message translates to:
+  /// **'Week earnings'**
+  String get insightsEarningsChart;
+
+  /// No description provided for @insightsRecentOrders.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent orders'**
+  String get insightsRecentOrders;
+
+  /// No description provided for @insightsNoRecentOrders.
+  ///
+  /// In en, this message translates to:
+  /// **'No orders yet'**
+  String get insightsNoRecentOrders;
+
+  /// No description provided for @insightsKm.
+  ///
+  /// In en, this message translates to:
+  /// **'km'**
+  String get insightsKm;
 }
 
 class _AppLocalizationsDelegate

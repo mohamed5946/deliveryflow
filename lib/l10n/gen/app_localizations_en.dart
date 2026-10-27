@@ -1536,4 +1536,31 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get blockProtectedHasOrders =>
       'This block cannot be deleted because it contains orders';
+
+  @override
+  String get navInsights => 'Insights';
+
+  @override
+  String get insightsTodayOrders => 'Today\'s orders';
+
+  @override
+  String get insightsTodayEarnings => 'Today\'s earnings';
+
+  @override
+  String get insightsTodayDistance => 'Today\'s distance';
+
+  @override
+  String get insightsWeekSalary => 'Week salary';
+
+  @override
+  String get insightsEarningsChart => 'Week earnings';
+
+  @override
+  String get insightsRecentOrders => 'Recent orders';
+
+  @override
+  String get insightsNoRecentOrders => 'No orders yet';
+
+  @override
+  String get insightsKm => 'km';
 }

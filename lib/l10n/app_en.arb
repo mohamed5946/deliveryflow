@@ -569,5 +569,14 @@
   "blockBreak": "Break",
   "blockRestore": "Restore",
   "blockProtected": "Protected",
-  "blockProtectedHasOrders": "This block cannot be deleted because it contains orders"
+  "blockProtectedHasOrders": "This block cannot be deleted because it contains orders",
+  "navInsights": "Insights",
+  "insightsTodayOrders": "Today's orders",
+  "insightsTodayEarnings": "Today's earnings",
+  "insightsTodayDistance": "Today's distance",
+  "insightsWeekSalary": "Week salary",
+  "insightsEarningsChart": "Week earnings",
+  "insightsRecentOrders": "Recent orders",
+  "insightsNoRecentOrders": "No orders yet",
+  "insightsKm": "km"
 }

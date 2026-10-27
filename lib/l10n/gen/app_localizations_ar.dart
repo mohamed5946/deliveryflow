@@ -1532,4 +1532,31 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get blockProtectedHasOrders =>
       'لا يمكن حذف هذه البلوكاية لأنها تحتوي على أوردرات';
+
+  @override
+  String get navInsights => 'تحليلات';
+
+  @override
+  String get insightsTodayOrders => 'أوردرات اليوم';
+
+  @override
+  String get insightsTodayEarnings => 'إيراد اليوم';
+
+  @override
+  String get insightsTodayDistance => 'مسافة اليوم';
+
+  @override
+  String get insightsWeekSalary => 'مرتب الأسبوع';
+
+  @override
+  String get insightsEarningsChart => 'إيراد أيام الأسبوع';
+
+  @override
+  String get insightsRecentOrders => 'أحدث الأوردرات';
+
+  @override
+  String get insightsNoRecentOrders => 'مفيش أوردرات لسه';
+
+  @override
+  String get insightsKm => 'كم';
 }

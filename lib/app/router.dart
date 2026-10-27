@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../core/providers.dart';
 import '../theme/design_system.dart';
 import '../features/dashboard/dashboard_screen.dart';
+import '../features/dashboard/glass_dashboard_screen.dart';
 import '../features/daily_orders/order_entry_screen.dart';
 import '../features/history/history_screen.dart';
 import '../features/onboarding/onboarding_screen.dart';
@@ -18,7 +19,14 @@ import '../features/schedule/schedule_screen.dart';
 import '../features/weekly_reports/report_screen.dart';
 import '../features/work_sessions/session_screen.dart';
 
-const _paths = ['/home', '/schedule', '/reports', '/history', '/profile'];
+const _paths = [
+  '/home',
+  '/schedule',
+  '/reports',
+  '/history',
+  '/profile',
+  '/insights',
+];
 
 IconData _iconFor(int index, bool selected) {
   switch (index) {
@@ -34,6 +42,10 @@ IconData _iconFor(int index, bool selected) {
       return selected ? Icons.history_rounded : Icons.history_outlined;
     case 4:
       return selected ? Icons.person_rounded : Icons.person_outlined;
+    case 5:
+      return selected
+          ? Icons.analytics_rounded
+          : Icons.analytics_outlined;
     default:
       return Icons.circle;
   }
@@ -51,6 +63,8 @@ String _labelFor(AppLocalizations l10n, int index) {
       return l10n.navHistory;
     case 4:
       return l10n.navProfile;
+    case 5:
+      return l10n.navInsights;
     default:
       return '';
   }
@@ -257,6 +271,12 @@ final routerProvider = Provider<GoRouter>((ref) {
             GoRoute(
                 path: '/profile',
                 builder: (context, state) => const ProfileScreen()),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(
+                path: '/insights',
+                builder: (context, state) =>
+                    const GlassDashboardScreen()),
           ]),
         ],
       ),
