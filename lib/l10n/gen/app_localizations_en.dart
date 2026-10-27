@@ -405,6 +405,33 @@ class AppLocalizationsEn extends AppLocalizations {
   String get notificationsEnabled => 'Enable notifications';
 
   @override
+  String get appLock => 'Lock app with fingerprint';
+
+  @override
+  String get appLockDesc =>
+      'Require fingerprint or device credentials every time the app returns from the background';
+
+  @override
+  String get appLockUnavailable =>
+      'No fingerprint or device lock is available on this phone';
+
+  @override
+  String get appLockUnlockTitle => 'App locked';
+
+  @override
+  String get appLockUnlockHint =>
+      'Confirm your identity with fingerprint or device credentials to open the app';
+
+  @override
+  String get appLockRetry => 'Try again';
+
+  @override
+  String get appLockAuthFailed => 'Verification failed, try again';
+
+  @override
+  String get appLockAuthReason => 'Confirm your identity to open DeliveryFlow';
+
+  @override
   String get notificationsSection => 'Notifications';
 
   @override

@@ -131,6 +131,11 @@ class UserSettings extends HiveObject {
   // has run (pre-existing values) or the settings were created
   // fresh on v27.16+ (nothing to migrate). Fresh settings carry NO
   // periods: all bonuses default to 0/off.
+  // --- App lock (v27.24) ---
+  @HiveField(50)
+  bool appLockEnabled; // v27.24: fingerprint/device-credential lock on
+  // every foreground entry (Instagram-style). Default OFF; missing
+  // field on pre-v27.24 rows reads as false, so no migration needed.
 
   /// True once a mart location has been learned and saved.
   bool get hasMart => martLat != null && martLng != null;
@@ -421,6 +426,7 @@ class UserSettings extends HiveObject {
     String? flatBonusPeriodsJson,
     String? distanceBonusPeriodsJson,
     this.bonusPeriodsMigrated = false,
+    this.appLockEnabled = false,
   })  : flatBonusPeriodsJson = flatBonusPeriodsJson ?? '',
         distanceBonusPeriodsJson = distanceBonusPeriodsJson ?? '',
         readNotificationIds = readNotificationIds ?? [],
@@ -478,6 +484,7 @@ class UserSettings extends HiveObject {
         'flatBonusPeriodsJson': flatBonusPeriodsJson,
         'distanceBonusPeriodsJson': distanceBonusPeriodsJson,
         'bonusPeriodsMigrated': bonusPeriodsMigrated,
+        'appLockEnabled': appLockEnabled,
         'schemaVersion': kSchemaVersion,
       };
 
@@ -561,6 +568,7 @@ class UserSettings extends HiveObject {
             (json['distanceBonusPeriodsJson'] as String?) ?? '',
         bonusPeriodsMigrated:
             (json['bonusPeriodsMigrated'] as bool?) ?? false,
+        appLockEnabled: (json['appLockEnabled'] as bool?) ?? false,
       );
 }
 
@@ -627,13 +635,14 @@ class UserSettingsAdapter extends TypeAdapter<UserSettings> {
       flatBonusPeriodsJson: (fields[47] as String?) ?? '',
       distanceBonusPeriodsJson: (fields[48] as String?) ?? '',
       bonusPeriodsMigrated: (fields[49] as bool?) ?? false,
+      appLockEnabled: (fields[50] as bool?) ?? false,
     );
   }
 
   @override
   void write(BinaryWriter writer, UserSettings obj) {
     writer
-      ..writeByte(50)
+      ..writeByte(51)
       ..writeByte(0)
       ..write(obj.displayName)
       ..writeByte(1)
@@ -733,7 +742,9 @@ class UserSettingsAdapter extends TypeAdapter<UserSettings> {
       ..writeByte(48)
       ..write(obj.distanceBonusPeriodsJson)
       ..writeByte(49)
-      ..write(obj.bonusPeriodsMigrated);
+      ..write(obj.bonusPeriodsMigrated)
+      ..writeByte(50)
+      ..write(obj.appLockEnabled);
   }
 }
 

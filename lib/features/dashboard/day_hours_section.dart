@@ -6,6 +6,7 @@ import '../../core/date_time/hour_blocks.dart';
 import '../../core/date_time/time_format.dart';
 import '../../core/date_time/week_calendar.dart';
 import '../../theme/design_system.dart';
+import '../../theme/bin_eating_delete_button.dart';
 
 /// v27.13 Home hour blocks for one selected day, full screen width.
 ///
@@ -153,6 +154,32 @@ class DayHoursSection extends StatelessWidget {
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: Text(l10n.yes),
+          ),
+        ],
+      ),
+    );
+    return ok ?? false;
+  }
+
+  /// v27.24: delete-only confirmation. Same Yes/No gate as [_confirm],
+  /// but the Yes button is the bin-eats-label button: its label letters
+  /// are eaten by the bin, it shrinks to a circle, and only then does
+  /// the dialog pop (true) so the caller deletes. Break keeps the plain
+  /// [_confirm] dialog — Break is a different action, never animated here.
+  Future<bool> _confirmDelete(BuildContext context) async {
+    final l10n = AppLocalizations.of(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.confirmDeleteBlock),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l10n.no),
+          ),
+          BinEatingDeleteButton(
+            label: l10n.yes,
+            onConfirmed: () => Navigator.pop(ctx, true),
           ),
         ],
       ),
@@ -446,7 +473,7 @@ class DayHoursSection extends StatelessWidget {
       cardColor: color,
       cardBg: bg,
       onDelete: () async {
-        if (await _confirm(context, false)) onDelete(start);
+        if (await _confirmDelete(context)) onDelete(start);
       },
       onBreak: () async {
         if (await _confirm(context, isBreak)) onToggleBreak(start);

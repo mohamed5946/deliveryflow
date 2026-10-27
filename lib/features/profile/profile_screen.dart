@@ -16,6 +16,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/database/models.dart';
+import '../../core/app_lock/app_lock_service.dart';
 import '../../core/developer/developer_mode.dart';
 import '../../core/logging/app_log_service.dart';
 import '../../core/money_format.dart';
@@ -23,6 +24,7 @@ import '../../core/notifications/battery_optimization.dart';
 import '../../core/providers.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/design_system.dart';
+import '../../theme/bin_eating_delete_button.dart';
 import '../../theme/top_snack_bar.dart';
 import '../../theme/pressable.dart';
 import '../registration/glass_otp.dart';
@@ -54,6 +56,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   /// (no fake placeholder).
   String? _appVersion;
 
+  /// v27.24: OS app-lock capability. Null while checking (toggle stays
+  /// enabled and the enable path re-checks); false disables the toggle
+  /// with an explanation instead of a fake ON state.
+  bool? _appLockAvailable;
+
   @override
   void initState() {
     super.initState();
@@ -65,6 +72,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       if (!_nameFocus.hasFocus) _flushNameSave();
     });
     _loadAppVersion();
+    _loadAppLockAvailability();
+  }
+
+  /// v27.24: probe OS auth capability once for the toggle's enabled state.
+  Future<void> _loadAppLockAvailability() async {
+    try {
+      final ok = await ref.read(appLockServiceProvider).canUseLock();
+      if (!mounted) return;
+      setState(() => _appLockAvailable = ok);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _appLockAvailable = false);
+    }
   }
 
   /// v23: reads the real version (e.g. 23.0.0+25) from the installed APK.
@@ -327,11 +347,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
               child: Text(l10n.cancel)),
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              style: TextButton.styleFrom(
-                  foregroundColor: Theme.of(ctx).colorScheme.error),
-              child: Text(l10n.delete)),
+          // v27.24: bin-eats-label animation; pops (true) only after it
+          // completes, and the data is cleared only then.
+          BinEatingDeleteButton(
+            label: l10n.delete,
+            onConfirmed: () => Navigator.pop(ctx, true),
+          ),
         ],
       ),
     );
@@ -1242,6 +1263,52 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         },
       ),
       const SizedBox(height: 4),
+      // v27.24: fingerprint app lock (Instagram-style). Enabling proves
+      // the OS prompt works first (probe auth) so the setting can never
+      // be ON on a device that cannot actually unlock. When the device
+      // reports no auth capability, the toggle is disabled with an
+      // explanation instead of a fake ON state.
+      _toggleRow(
+        icon: Icons.fingerprint_rounded,
+        label: l10n.appLock,
+        value: settings.appLockEnabled,
+        enabled: _appLockAvailable != false,
+        onChanged: (v) async {
+          if (!v) {
+            await notifier.update((s) => s..appLockEnabled = false);
+            return;
+          }
+          final service = ref.read(appLockServiceProvider);
+          if (!await service.canUseLock()) {
+            if (mounted) {
+              showTopSnackBar(context, l10n.appLockUnavailable);
+            }
+            return;
+          }
+          final ok = await service.authenticate(
+              localizedReason: l10n.appLockAuthReason);
+          if (!mounted) return;
+          if (ok) {
+            await notifier.update((s) => s..appLockEnabled = true);
+          } else {
+            showTopSnackBar(context, l10n.appLockAuthFailed);
+          }
+        },
+      ),
+      Padding(
+        padding: const EdgeInsets.only(left: 38, right: 4, bottom: 4),
+        child: Text(
+          _appLockAvailable == false
+              ? l10n.appLockUnavailable
+              : l10n.appLockDesc,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context)
+                  .colorScheme
+                  .onSurface
+                  .withValues(alpha: 0.6)),
+        ),
+      ),
+      const SizedBox(height: 4),
       _timeRow2(
         label: l10n.dailyReminderTime,
         time: dailyTime,
@@ -1618,6 +1685,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     required String label,
     required bool value,
     required ValueChanged<bool> onChanged,
+    bool enabled = true,
   }) {
     final text = Theme.of(context).textTheme;
     return Padding(
@@ -1629,13 +1697,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           Expanded(
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTap: () => onChanged(!value),
+              onTap: enabled ? () => onChanged(!value) : null,
               child: Text(label,
                   style:
                       text.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
             ),
           ),
-          Switch(value: value, onChanged: onChanged),
+          Switch(value: value, onChanged: enabled ? onChanged : null),
         ],
       ),
     );

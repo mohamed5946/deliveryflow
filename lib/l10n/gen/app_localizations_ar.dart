@@ -405,6 +405,32 @@ class AppLocalizationsAr extends AppLocalizations {
   String get notificationsEnabled => 'تفعيل الإشعارات';
 
   @override
+  String get appLock => 'قفل التطبيق بالبصمة';
+
+  @override
+  String get appLockDesc =>
+      'اطلب البصمة أو قفل الجهاز كل ما التطبيق يرجع من الخلفية';
+
+  @override
+  String get appLockUnavailable => 'مفيش بصمة أو قفل جهاز متاح على الموبايل ده';
+
+  @override
+  String get appLockUnlockTitle => 'التطبيق مقفول';
+
+  @override
+  String get appLockUnlockHint =>
+      'أكّد هويتك بالبصمة أو بقفل الجهاز عشان تفتح التطبيق';
+
+  @override
+  String get appLockRetry => 'حاول تاني';
+
+  @override
+  String get appLockAuthFailed => 'التحقق فشل، حاول تاني';
+
+  @override
+  String get appLockAuthReason => 'أكّد هويتك عشان تفتح DeliveryFlow';
+
+  @override
   String get notificationsSection => 'الإشعارات';
 
   @override

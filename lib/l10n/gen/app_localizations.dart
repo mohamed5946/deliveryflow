@@ -860,6 +860,54 @@ abstract class AppLocalizations {
   /// **'Enable notifications'**
   String get notificationsEnabled;
 
+  /// No description provided for @appLock.
+  ///
+  /// In en, this message translates to:
+  /// **'Lock app with fingerprint'**
+  String get appLock;
+
+  /// No description provided for @appLockDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Require fingerprint or device credentials every time the app returns from the background'**
+  String get appLockDesc;
+
+  /// No description provided for @appLockUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'No fingerprint or device lock is available on this phone'**
+  String get appLockUnavailable;
+
+  /// No description provided for @appLockUnlockTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'App locked'**
+  String get appLockUnlockTitle;
+
+  /// No description provided for @appLockUnlockHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm your identity with fingerprint or device credentials to open the app'**
+  String get appLockUnlockHint;
+
+  /// No description provided for @appLockRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again'**
+  String get appLockRetry;
+
+  /// No description provided for @appLockAuthFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Verification failed, try again'**
+  String get appLockAuthFailed;
+
+  /// No description provided for @appLockAuthReason.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm your identity to open DeliveryFlow'**
+  String get appLockAuthReason;
+
   /// No description provided for @notificationsSection.
   ///
   /// In en, this message translates to:

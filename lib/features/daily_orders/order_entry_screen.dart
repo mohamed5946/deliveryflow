@@ -11,6 +11,7 @@ import '../../core/date_time/week_calendar.dart';
 import '../../core/providers.dart';
 import '../../core/tracking/delivery_tracking_service.dart';
 import '../../theme/design_system.dart';
+import '../../theme/bin_eating_delete_button.dart';
 import '../../theme/top_snack_bar.dart';
 import '../../theme/page_transitions.dart';
 import '../../theme/pressable.dart';
@@ -365,10 +366,12 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
             onPressed: () => Navigator.of(ctx).pop(false),
             child: Text(l10n.cancel),
           ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(l10n.delete,
-                style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
+          // v27.24: bin-eats-label animation. The tap IS the confirmation;
+          // the dialog pops (true) only after the animation completes,
+          // and the caller deletes only then — nothing is deleted early.
+          BinEatingDeleteButton(
+            label: l10n.delete,
+            onConfirmed: () => Navigator.of(ctx).pop(true),
           ),
         ],
       ),

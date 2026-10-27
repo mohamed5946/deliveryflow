@@ -10,6 +10,7 @@ import 'package:deliveryflow/features/dashboard/day_hours_section.dart';
 import 'package:deliveryflow/features/schedule/schedule_screen.dart';
 import 'package:deliveryflow/l10n/gen/app_localizations.dart';
 import 'package:deliveryflow/theme/app_theme.dart';
+import 'package:deliveryflow/theme/bin_eating_delete_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -121,8 +122,13 @@ void main() {
       await tester.tap(deleteKey(840));
       await tester.pump();
       expect(find.text('هل أنت متأكد من حذف البلوكاية؟'), findsOneWidget);
-      await tester.tap(find.text('نعم'));
-      await tester.pumpAndSettle();
+      // v27.24: the Yes button is now the bin-eats-label button:
+      // 'نعم' letters are eaten at 90ms each, then it shrinks (300ms).
+      await tester.tap(find.byType(BinEatingDeleteButton));
+      await tester.pump(const Duration(milliseconds: 90));
+      await tester.pump(const Duration(milliseconds: 90));
+      await tester.pump(const Duration(milliseconds: 90));
+      await tester.pump(const Duration(milliseconds: 400));
       expect(deleted, [840]);
       expect(toggled, isEmpty);
     });
@@ -194,8 +200,13 @@ void main() {
       await tester.tap(deleteKey(840));
       await tester.pump();
       expect(find.text('هل أنت متأكد من حذف البلوكاية؟'), findsOneWidget);
-      await tester.tap(find.text('نعم'));
-      await tester.pumpAndSettle();
+      // v27.24: the Yes button is now the bin-eats-label button:
+      // 'نعم' letters are eaten at 90ms each, then it shrinks (300ms).
+      await tester.tap(find.byType(BinEatingDeleteButton));
+      await tester.pump(const Duration(milliseconds: 90));
+      await tester.pump(const Duration(milliseconds: 90));
+      await tester.pump(const Duration(milliseconds: 90));
+      await tester.pump(const Duration(milliseconds: 400));
       expect(deleted, [840]);
       expect(toggled, isEmpty);
     });
@@ -723,8 +734,13 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(deleteKey(900));
       await tester.pump();
-      await tester.tap(find.text('نعم'));
-      await tester.pumpAndSettle();
+      // v27.24: the Yes button is now the bin-eats-label button:
+      // 'نعم' letters are eaten at 90ms each, then it shrinks (300ms).
+      await tester.tap(find.byType(BinEatingDeleteButton));
+      await tester.pump(const Duration(milliseconds: 90));
+      await tester.pump(const Duration(milliseconds: 90));
+      await tester.pump(const Duration(milliseconds: 90));
+      await tester.pump(const Duration(milliseconds: 400));
       expect(deleted, [900]);
       expect(toggled, isEmpty);
     });

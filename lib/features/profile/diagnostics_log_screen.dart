@@ -9,6 +9,7 @@ import '../../core/logging/frame_timing_collector.dart';
 import '../../core/providers.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../theme/design_system.dart';
+import '../../theme/bin_eating_delete_button.dart';
 import '../../theme/top_snack_bar.dart';
 
 /// v27.2: سجل التشخيص — viewer for the in-app diagnostics log.
@@ -90,7 +91,6 @@ class _DiagnosticsLogScreenState
 
   Future<void> _clearAll() async {
     final l10n = AppLocalizations.of(context);
-    final scheme = Theme.of(context).colorScheme;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -101,10 +101,11 @@ class _DiagnosticsLogScreenState
             onPressed: () => Navigator.of(ctx).pop(false),
             child: Text(l10n.cancel),
           ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: FilledButton.styleFrom(backgroundColor: scheme.error),
-            child: Text(l10n.delete),
+          // v27.24: bin-eats-label animation; pops (true) only after it
+          // completes, and the log is cleared only then.
+          BinEatingDeleteButton(
+            label: l10n.delete,
+            onConfirmed: () => Navigator.of(ctx).pop(true),
           ),
         ],
       ),

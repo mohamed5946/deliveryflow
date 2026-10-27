@@ -8,6 +8,7 @@ import '../../core/date_time/week_calendar.dart';
 import '../../core/providers.dart';
 import '../../core/tracking/delivery_tracking_service.dart';
 import '../../theme/design_system.dart';
+import '../../theme/bin_eating_delete_button.dart';
 import '../../theme/page_transitions.dart';
 import '../../theme/pressable.dart';
 import 'day_orders_screen.dart';
@@ -195,13 +196,11 @@ class HistoryScreen extends ConsumerWidget {
             onPressed: () => Navigator.of(ctx).pop(false),
             child: Text(l10n.cancel),
           ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: TextButton.styleFrom(
-              foregroundColor:
-                  Theme.of(ctx).colorScheme.error,
-            ),
-            child: Text(l10n.delete),
+          // v27.24: bin-eats-label animation; pops (true) only after it
+          // completes, and the caller deletes the week only then.
+          BinEatingDeleteButton(
+            label: l10n.delete,
+            onConfirmed: () => Navigator.of(ctx).pop(true),
           ),
         ],
       ),

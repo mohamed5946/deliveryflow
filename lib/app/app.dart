@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../core/providers.dart';
+import '../core/app_lock/app_lock_gate.dart';
 import '../theme/app_theme.dart';
 import 'router.dart';
 
@@ -35,6 +36,9 @@ class DeliveryFlowApp extends ConsumerWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
+      // v27.24: app lock overlay above every route (see AppLockGate).
+      builder: (context, child) =>
+          AppLockGate(child: child ?? const SizedBox()),
       routerConfig: router,
     );
   }
