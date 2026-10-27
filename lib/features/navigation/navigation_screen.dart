@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:deliveryflow/l10n/gen/app_localizations.dart';
 import 'package:flutter_map/flutter_map.dart';
+import '../../core/map/cached_tile_provider.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -836,11 +837,12 @@ class _NavigationScreenState extends State<NavigationScreen>
                   mapController: _mapController,
                   options: _mapOptions,
                   children: [
-                    // Base tiles: plain network tiles (online).
+                    // Base tiles: disk-cached tiles (v27.21).
                     TileLayer(
                       urlTemplate:
                           'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                       userAgentPackageName: 'com.valor.deliveryflow',
+                      tileProvider: CachedTileProvider(),
                     ),
                     // Route alternatives: non-selected in grey underneath,
                     // selected in brand blue on top.

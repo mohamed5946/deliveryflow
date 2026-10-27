@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../core/logging/app_log_service.dart';
+import '../../core/logging/frame_timing_collector.dart';
 import '../../core/providers.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../theme/design_system.dart';
@@ -143,6 +144,26 @@ class _DiagnosticsLogScreenState
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // v27.21: frame-timing snapshot (last 120 frames, read on
+          // demand — refresh button re-reads it). No overlay, no
+          // per-frame work: the collector only appends durations.
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: GlassCard(
+              child: Text(
+                frameTimingCollector.frameCount == 0
+                    ? 'FPS (last 120 frames): —, worst frame: —'
+                    : 'FPS (last 120 frames): '
+                        '${frameTimingCollector.averageFps}, '
+                        'worst frame: '
+                        '${frameTimingCollector.worstFrameMs} ms '
+                        '(${frameTimingCollector.frameCount} frames)',
+                style: text.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
             child: Row(

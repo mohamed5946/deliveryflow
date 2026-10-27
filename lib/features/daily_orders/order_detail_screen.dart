@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:deliveryflow/l10n/gen/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import '../../core/map/cached_tile_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import 'package:latlong2/latlong.dart';
@@ -48,6 +49,23 @@ typedef LegKmEdit = ({bool invalid, double? km, double? gpsKm});
 /// Unique per order id: a shared tag across cards throws
 /// 'multiple heroes share the same tag' (the video's lesson).
 String orderDetailHeroTag(String entryId) => 'order-detail-$entryId';
+
+/// v27.21 performance (DISPLAY ONLY): downsample a polyline to at
+/// most [maxPoints] points with an even stride, always keeping the
+/// first and last point. Stored route/road lists are never touched —
+/// callers pass copies and only the rendered Polyline shrinks, so a
+/// long GPS trail no longer rasterizes thousands of segments per
+/// frame. Lists at or under the cap are returned unchanged.
+List<LatLng> downsamplePolyline(List<LatLng> points, int maxPoints) {
+  if (points.length <= maxPoints || maxPoints < 2) return points;
+  final stride = (points.length - 1) / (maxPoints - 1);
+  final out = <LatLng>[];
+  for (var i = 0; i < maxPoints - 1; i++) {
+    out.add(points[(i * stride).floor()]);
+  }
+  out.add(points.last);
+  return out;
+}
 
 /// v27.20 End Order visibility: ONLY while a trip is actually in
 /// progress — outgoing (toCustomer) or returning (toMart). Hidden
@@ -1973,11 +1991,13 @@ class _DeliveryHeroMapState extends ConsumerState<_DeliveryHeroMap> {
       );
     }
 
-    final points = List<LatLng>.generate(
+    final rawPoints = List<LatLng>.generate(
       n,
       (i) => LatLng(progress.lat[i], progress.lng[i]),
     );
-    final current = points.last;
+    // v27.21: displayed polyline only — progress data untouched.
+    final points = downsamplePolyline(rawPoints, 500);
+    final current = rawPoints.last;
 
     return FlutterMap(
       options: MapOptions(
@@ -1991,6 +2011,7 @@ class _DeliveryHeroMapState extends ConsumerState<_DeliveryHeroMap> {
         TileLayer(
           urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           userAgentPackageName: 'com.valor.deliveryflow',
+          tileProvider: CachedTileProvider(),
         ),
         PolylineLayer(
           polylines: [
@@ -2043,8 +2064,15 @@ class _DeliveryHeroMapState extends ConsumerState<_DeliveryHeroMap> {
   /// blue, mart + customer pins in brand colors.
   Widget _routeMap() {
     final entry = widget.entry;
-    final out = _pts(entry.displayOutLat, entry.displayOutLng);
-    final back = _pts(entry.displayBackLat, entry.displayBackLng);
+    // v27.21: displayed polylines only — stored lists untouched.
+    final out = downsamplePolyline(
+      _pts(entry.displayOutLat, entry.displayOutLng),
+      500,
+    );
+    final back = downsamplePolyline(
+      _pts(entry.displayBackLat, entry.displayBackLng),
+      500,
+    );
     final bounds = LatLngBounds.fromPoints([...out, ...back]);
 
     return FlutterMap(
@@ -2063,6 +2091,7 @@ class _DeliveryHeroMapState extends ConsumerState<_DeliveryHeroMap> {
         TileLayer(
           urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           userAgentPackageName: 'com.valor.deliveryflow',
+          tileProvider: CachedTileProvider(),
         ),
         PolylineLayer(
           polylines: [

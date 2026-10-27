@@ -8,11 +8,16 @@ import 'app/app.dart';
 import 'core/database/database_service.dart';
 import 'core/date_time/week_calendar.dart';
 import 'core/logging/app_log_service.dart';
+import 'core/logging/frame_timing_collector.dart';
 import 'core/notifications/notification_service.dart';
 import 'core/providers.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // v27.21: cheap app-wide frame-timing collection for the
+  // diagnostics log screen (last 120 frames, no per-frame logging).
+  frameTimingCollector.start();
 
   // Communication port for background GPS tracking isolate.
   FlutterForegroundTask.initCommunicationPort();

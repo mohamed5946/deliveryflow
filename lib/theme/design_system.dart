@@ -87,10 +87,15 @@ class GlassCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final card = ClipRRect(
-      borderRadius: BorderRadius.circular(borderRadius),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
+    // v27.21 performance: the blur surface is cached behind a
+    // RepaintBoundary so scrolling/animating does NOT re-rasterize
+    // the backdrop blur of every visible card on every frame.
+    // No visual change: same sigma, colors, radii, padding, layout.
+    final card = RepaintBoundary(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(borderRadius),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
         child: Container(
           padding: padding,
           decoration: BoxDecoration(
@@ -123,6 +128,7 @@ class GlassCard extends StatelessWidget {
             ],
           ),
           child: child,
+        ),
         ),
       ),
     );
@@ -750,10 +756,13 @@ class GlassNavBar extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(30),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+      // v27.21 performance: cache the nav-bar blur behind a
+      // RepaintBoundary (same sigma/colors/layout as before).
+      child: RepaintBoundary(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(30),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
           child: Container(
             padding:
                 const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
@@ -791,6 +800,7 @@ class GlassNavBar extends StatelessWidget {
               ],
             ),
           ),
+        ),
         ),
       ),
     );
@@ -1175,9 +1185,12 @@ class GlassDialog extends StatelessWidget {
       backgroundColor: Colors.transparent,
       insetPadding:
           const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(GlassTokens.radiusL),
-        child: BackdropFilter(
+      // v27.21 performance: cache the dialog blur behind a
+      // RepaintBoundary (same sigma/colors/layout as before).
+      child: RepaintBoundary(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(GlassTokens.radiusL),
+          child: BackdropFilter(
           filter: ImageFilter.blur(
               sigmaX: GlassTokens.blurSigma + 4,
               sigmaY: GlassTokens.blurSigma + 4),
@@ -1243,6 +1256,7 @@ class GlassDialog extends StatelessWidget {
               ],
             ),
           ),
+        ),
         ),
       ),
     );
