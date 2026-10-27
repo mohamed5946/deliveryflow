@@ -63,6 +63,93 @@ abstract class LiquidPalette {
       isDark ? darkSurface : glassTint;
 }
 
+/// Lightweight "liquid glass inspired" overlay — v27.24 trial.
+///
+/// This is an APPROXIMATION, not Apple's real Liquid Glass (iOS-only
+/// system tech, unavailable in Flutter/Android), and nothing here
+/// claims otherwise. It is cheap by design: two gradient layers and a
+/// top edge highlight, no shader, no new BackdropFilter, no animation
+/// loop — so it adds no blur cost on top of the card's existing blur.
+/// The sheen is a fixed diagonal; the "shift with state" is the press
+/// scale on tappable surfaces (and a stronger highlight on them), NOT
+/// per-frame position tracking, which the v27.21 120fps law forbids.
+/// Painted BEHIND the card content (above the glass gradient) so text
+/// never washes out, and wrapped in IgnorePointer so it never eats taps.
+class _LiquidGlassOverlay extends StatelessWidget {
+  const _LiquidGlassOverlay({required this.isDark, this.strong = false});
+
+  final bool isDark;
+  final bool strong;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        // Diagonal specular sheen across the whole surface.
+        Positioned.fill(
+          child: Container(
+            key: const Key('liquidGlassSpecular'),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.white.withValues(alpha: strong ? 0.22 : 0.14),
+                  Colors.white.withValues(alpha: 0.0),
+                  Colors.white.withValues(alpha: 0.0),
+                  Colors.white.withValues(alpha: isDark ? 0.10 : 0.06),
+                ],
+                stops: const [0.0, 0.35, 0.7, 1.0],
+              ),
+            ),
+          ),
+        ),
+        // Bright top edge highlight.
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: Container(
+            key: const Key('liquidGlassEdge'),
+            height: 18,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.white.withValues(alpha: strong ? 0.38 : 0.28),
+                  Colors.white.withValues(alpha: 0.0),
+                ],
+              ),
+            ),
+          ),
+        ),
+        // Soft light glow pooling at the bottom edge.
+        Positioned(
+          bottom: 0,
+          left: 0,
+          right: 0,
+          child: Container(
+            key: const Key('liquidGlassGlow'),
+            height: 28,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  LiquidPalette.primaryBlue.withValues(alpha: 0.0),
+                  LiquidPalette.primaryBlue
+                      .withValues(alpha: strong ? 0.10 : 0.07),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// A translucent frosted-glass card.
 ///
 /// Uses [BackdropFilter] blur over a semi-transparent gradient fill with a
@@ -74,6 +161,13 @@ class GlassCard extends StatelessWidget {
   final VoidCallback? onTap;
   final double blurSigma;
 
+  /// v27.24 trial: when true, the lightweight liquid-glass overlay
+  /// (specular sheen + edge highlight + glow) is painted behind the
+  /// content. Defaults to false so every existing caller keeps the
+  /// exact previous glassmorphism rendering; only the home screen
+  /// opts in. Turning the setting OFF restores this path exactly.
+  final bool liquid;
+
   const GlassCard({
     super.key,
     required this.child,
@@ -81,6 +175,7 @@ class GlassCard extends StatelessWidget {
     this.borderRadius = GlassTokens.radiusM,
     this.onTap,
     this.blurSigma = GlassTokens.blurSigma,
+    this.liquid = false,
   });
 
   @override
@@ -91,6 +186,22 @@ class GlassCard extends StatelessWidget {
     // RepaintBoundary so scrolling/animating does NOT re-rasterize
     // the backdrop blur of every visible card on every frame.
     // No visual change: same sigma, colors, radii, padding, layout.
+    // v27.24 liquid trial: overlay sits BEHIND the content (above the
+    // glass gradient) so layout is unchanged and text stays crisp.
+    // OFF path is untouched: child passes through exactly as before.
+    final content = liquid
+        ? Stack(
+            children: [
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: _LiquidGlassOverlay(
+                      isDark: isDark, strong: onTap != null),
+                ),
+              ),
+              child,
+            ],
+          )
+        : child;
     final card = RepaintBoundary(
       child: ClipRRect(
         borderRadius: BorderRadius.circular(borderRadius),
@@ -127,13 +238,13 @@ class GlassCard extends StatelessWidget {
               ),
             ],
           ),
-          child: child,
+          child: content,
         ),
         ),
       ),
     );
     if (onTap == null) return card;
-    return Material(
+    final tappable = Material(
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(borderRadius),
@@ -141,6 +252,11 @@ class GlassCard extends StatelessWidget {
         child: card,
       ),
     );
+    // v27.24 liquid trial: tappable cards get the gentle press scale.
+    // Pressable(scaleOnly: true) is animation-only and correct here
+    // because the inner InkWell owns the tap (see AGENTS.md lesson).
+    if (!liquid) return tappable;
+    return Pressable(scaleOnly: true, child: tappable);
   }
 }
 
@@ -742,6 +858,12 @@ class GlassNavBar extends StatelessWidget {
   final List<IconData> selectedIcons;
   final List<String> labels;
 
+  /// v27.24 trial: same lightweight liquid overlay as [GlassCard],
+  /// behind the nav items. Defaults to false (exact old rendering);
+  /// the router opts in from the setting. Press response already
+  /// exists via the items' Pressable scale.
+  final bool liquid;
+
   const GlassNavBar({
     super.key,
     required this.selectedIndex,
@@ -749,6 +871,7 @@ class GlassNavBar extends StatelessWidget {
     required this.icons,
     required this.selectedIcons,
     required this.labels,
+    this.liquid = false,
   });
 
   @override
@@ -793,12 +916,30 @@ class GlassNavBar extends StatelessWidget {
                 ),
               ],
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                for (var i = 0; i < labels.length; i++) _item(context, i),
-              ],
-            ),
+            child: liquid
+                ? Stack(
+                    children: [
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: _LiquidGlassOverlay(isDark: isDark),
+                        ),
+                      ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          for (var i = 0; i < labels.length; i++)
+                            _item(context, i),
+                        ],
+                      ),
+                    ],
+                  )
+                : Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      for (var i = 0; i < labels.length; i++)
+                        _item(context, i),
+                    ],
+                  ),
           ),
         ),
         ),

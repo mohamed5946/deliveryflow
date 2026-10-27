@@ -216,22 +216,28 @@ final routerProvider = Provider<GoRouter>((ref) {
                   left: 0,
                   right: 0,
                   bottom: bottomInset,
-                  child: GlassNavBar(
-                    selectedIndex: navigationShell.currentIndex,
-                    onDestinationSelected: (i) =>
-                        navigationShell.goBranch(i),
-                    icons: [
-                      for (var i = 0; i < _paths.length; i++)
-                        _iconFor(i, false),
-                    ],
-                    selectedIcons: [
-                      for (var i = 0; i < _paths.length; i++)
-                        _iconFor(i, true),
-                    ],
-                    labels: [
-                      for (var i = 0; i < _paths.length; i++)
-                        _labelFor(l10n, i),
-                    ],
+                  // v27.24 liquid trial: nav bar opts in only when the
+                  // setting is ON; OFF renders the exact old glass.
+                  child: Consumer(
+                    builder: (context, ref, _) => GlassNavBar(
+                      liquid: ref.watch(settingsProvider
+                          .select((s) => s.liquidGlassEnabled)),
+                      selectedIndex: navigationShell.currentIndex,
+                      onDestinationSelected: (i) =>
+                          navigationShell.goBranch(i),
+                      icons: [
+                        for (var i = 0; i < _paths.length; i++)
+                          _iconFor(i, false),
+                      ],
+                      selectedIcons: [
+                        for (var i = 0; i < _paths.length; i++)
+                          _iconFor(i, true),
+                      ],
+                      labels: [
+                        for (var i = 0; i < _paths.length; i++)
+                          _labelFor(l10n, i),
+                      ],
+                    ),
                   ),
                 ),
               ],

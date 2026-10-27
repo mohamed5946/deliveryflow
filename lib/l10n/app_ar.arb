@@ -135,6 +135,8 @@
   "appLockRetry": "حاول تاني",
   "appLockAuthFailed": "التحقق فشل، حاول تاني",
   "appLockAuthReason": "أكّد هويتك عشان تفتح DeliveryFlow",
+  "liquidGlass": "تأثير الزجاج السائل (تجريبي)",
+  "liquidGlassDesc": "لمسة زجاج سائل خفيفة على شريط التنقل وبطاقات الرئيسية بس — اقفلها لو حسيت بتقل",
   "notificationsSection": "الإشعارات",
   "ok": "حسناً",
   "onBreak": "في راحة",

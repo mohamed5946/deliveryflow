@@ -122,12 +122,18 @@ class DayHoursSection extends StatelessWidget {
   /// therefore locked against delete/break. Empty by default.
   final Set<int> protectedBlockStarts;
 
+  /// v27.24 liquid trial: home-only opt-in for this section's card.
+  /// Defaults to false (exact old glass); the dashboard passes the
+  /// setting. This widget is only used on the home tab.
+  final bool liquid;
+
   const DayHoursSection({
     super.key,
     required this.day,
     required this.selectedDay,
     required this.now,
     required this.timeFormat,
+    this.liquid = false,
     required this.arabic,
     required this.onToggleBreak,
     required this.onDelete,
@@ -278,6 +284,7 @@ class DayHoursSection extends StatelessWidget {
       children: [
         SectionHeader(title: l10n.dayHoursSection),
         GlassCard(
+          liquid: liquid,
           child: d == null
               ? Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,

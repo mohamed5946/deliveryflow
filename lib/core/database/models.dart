@@ -136,6 +136,12 @@ class UserSettings extends HiveObject {
   bool appLockEnabled; // v27.24: fingerprint/device-credential lock on
   // every foreground entry (Instagram-style). Default OFF; missing
   // field on pre-v27.24 rows reads as false, so no migration needed.
+  @HiveField(51)
+  bool liquidGlassEnabled; // v27.24 trial: lightweight liquid-glass
+  // inspired treatment (specular edge + soft glow, gradients only —
+  // NOT Apple's real Liquid Glass, which is iOS-only system tech).
+  // Nav bar + home cards only. Default ON; missing field on
+  // pre-v27.24 rows reads as true, so existing installs get the trial.
 
   /// True once a mart location has been learned and saved.
   bool get hasMart => martLat != null && martLng != null;
@@ -427,6 +433,7 @@ class UserSettings extends HiveObject {
     String? distanceBonusPeriodsJson,
     this.bonusPeriodsMigrated = false,
     this.appLockEnabled = false,
+    this.liquidGlassEnabled = true,
   })  : flatBonusPeriodsJson = flatBonusPeriodsJson ?? '',
         distanceBonusPeriodsJson = distanceBonusPeriodsJson ?? '',
         readNotificationIds = readNotificationIds ?? [],
@@ -485,6 +492,7 @@ class UserSettings extends HiveObject {
         'distanceBonusPeriodsJson': distanceBonusPeriodsJson,
         'bonusPeriodsMigrated': bonusPeriodsMigrated,
         'appLockEnabled': appLockEnabled,
+        'liquidGlassEnabled': liquidGlassEnabled,
         'schemaVersion': kSchemaVersion,
       };
 
@@ -569,6 +577,8 @@ class UserSettings extends HiveObject {
         bonusPeriodsMigrated:
             (json['bonusPeriodsMigrated'] as bool?) ?? false,
         appLockEnabled: (json['appLockEnabled'] as bool?) ?? false,
+        liquidGlassEnabled:
+            (json['liquidGlassEnabled'] as bool?) ?? true,
       );
 }
 
@@ -636,13 +646,14 @@ class UserSettingsAdapter extends TypeAdapter<UserSettings> {
       distanceBonusPeriodsJson: (fields[48] as String?) ?? '',
       bonusPeriodsMigrated: (fields[49] as bool?) ?? false,
       appLockEnabled: (fields[50] as bool?) ?? false,
+      liquidGlassEnabled: (fields[51] as bool?) ?? true,
     );
   }
 
   @override
   void write(BinaryWriter writer, UserSettings obj) {
     writer
-      ..writeByte(51)
+      ..writeByte(52)
       ..writeByte(0)
       ..write(obj.displayName)
       ..writeByte(1)
@@ -744,7 +755,9 @@ class UserSettingsAdapter extends TypeAdapter<UserSettings> {
       ..writeByte(49)
       ..write(obj.bonusPeriodsMigrated)
       ..writeByte(50)
-      ..write(obj.appLockEnabled);
+      ..write(obj.appLockEnabled)
+      ..writeByte(51)
+      ..write(obj.liquidGlassEnabled);
   }
 }
 

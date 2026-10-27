@@ -1309,6 +1309,30 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         ),
       ),
       const SizedBox(height: 4),
+      // v27.24 trial: lightweight liquid-glass look for the nav bar +
+      // home cards only (NOT Apple's real Liquid Glass). Default ON;
+      // OFF restores the exact previous glassmorphism instantly, since
+      // GlassCard/GlassNavBar only add the overlay when the flag is on.
+      _toggleRow(
+        icon: Icons.blur_on_rounded,
+        label: l10n.liquidGlass,
+        value: settings.liquidGlassEnabled,
+        onChanged: (v) async {
+          await notifier.update((s) => s..liquidGlassEnabled = v);
+        },
+      ),
+      Padding(
+        padding: const EdgeInsets.only(left: 38, right: 4, bottom: 4),
+        child: Text(
+          l10n.liquidGlassDesc,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context)
+                  .colorScheme
+                  .onSurface
+                  .withValues(alpha: 0.6)),
+        ),
+      ),
+      const SizedBox(height: 4),
       _timeRow2(
         label: l10n.dailyReminderTime,
         time: dailyTime,

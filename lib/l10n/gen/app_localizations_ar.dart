@@ -431,6 +431,13 @@ class AppLocalizationsAr extends AppLocalizations {
   String get appLockAuthReason => 'أكّد هويتك عشان تفتح DeliveryFlow';
 
   @override
+  String get liquidGlass => 'تأثير الزجاج السائل (تجريبي)';
+
+  @override
+  String get liquidGlassDesc =>
+      'لمسة زجاج سائل خفيفة على شريط التنقل وبطاقات الرئيسية بس — اقفلها لو حسيت بتقل';
+
+  @override
   String get notificationsSection => 'الإشعارات';
 
   @override

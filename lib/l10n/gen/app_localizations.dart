@@ -908,6 +908,18 @@ abstract class AppLocalizations {
   /// **'Confirm your identity to open DeliveryFlow'**
   String get appLockAuthReason;
 
+  /// No description provided for @liquidGlass.
+  ///
+  /// In en, this message translates to:
+  /// **'Liquid glass look (trial)'**
+  String get liquidGlass;
+
+  /// No description provided for @liquidGlassDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'A light liquid-glass touch on the nav bar and home cards only — turn it off if it ever feels slow'**
+  String get liquidGlassDesc;
+
   /// No description provided for @notificationsSection.
   ///
   /// In en, this message translates to:

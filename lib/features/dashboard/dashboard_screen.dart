@@ -212,6 +212,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                     // orders list), the left half shows the date (tappable →
                     // today summary dialog).
                     GlassCard(
+                      // v27.24 liquid trial: home cards opt in.
+                      liquid: settings.liquidGlassEnabled,
                       padding: const EdgeInsets.symmetric(
                           horizontal: 6, vertical: 6),
                       child: Row(
@@ -318,6 +320,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                             l10n.totalOrders,
                             '$selectedTotalOrders',
                             Icons.shopping_bag_rounded,
+                            liquid: settings.liquidGlassEnabled,
                             onTap: () => context.go('/history'),
                           ),
                         ),
@@ -328,6 +331,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                             l10n.weekHours,
                             WeekCalendar.formatHoursMinutes(shownMinutes),
                             Icons.schedule_rounded,
+                            liquid: settings.liquidGlassEnabled,
                             onTap: () =>
                                 context.push('/hours?date=$selectedKey'),
                           ),
@@ -336,8 +340,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                     ),
                     const SizedBox(height: 12),
                     // Week progress ring — always visible like the mockup.
-                    _weekProgressCard(
-                        context, l10n, report, settings.weeklyOrderGoal),
+                    _weekProgressCard(context, l10n, report,
+                        settings.weeklyOrderGoal,
+                        liquid: settings.liquidGlassEnabled),
                     const SizedBox(height: 12),
                     // v27.4: this week's earnings so far — the number he
                     // actually checks daily, no trip to the report needed.
@@ -346,6 +351,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                     // Mini week strip — tapping a day filters the cards above.
                     SectionHeader(title: l10n.scheduleTitle),
                     GlassCard(
+                      liquid: settings.liquidGlassEnabled,
                       child: WeekDayStrip(
                         weekStart: WeekCalendar.weekStart(_today),
                         highlightedDay: _selectedDay,
@@ -415,6 +421,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     return DayHoursSection(
       day: current,
       selectedDay: _selectedDay,
+      liquid: settings.liquidGlassEnabled,
       now: DateTime.now(),
       timeFormat: timeFormatModeFromStored(settings.timeFormat),
       arabic: settings.languageCode == 'ar',
@@ -542,9 +549,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
 
   Widget _statCard(
       BuildContext context, String label, String value, IconData icon,
-      {VoidCallback? onTap}) {
+      {VoidCallback? onTap, bool liquid = false}) {
     final text = Theme.of(context).textTheme;
     final card = GlassCard(
+      liquid: liquid,
       child: Row(
         children: [
           Container(
@@ -612,11 +620,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   }
 
   Widget _weekProgressCard(BuildContext context, AppLocalizations l10n,
-      WeeklyReport report, int? goal) {
+      WeeklyReport report, int? goal, {bool liquid = false}) {
     final text = Theme.of(context).textTheme;
     final g = (goal ?? 0).toDouble();
     final progress = g <= 0 ? 0.0 : (report.totalOrders / g).clamp(0.0, 1.0);
     final card = GlassCard(
+      liquid: liquid,
       child: Row(
         children: [
           Expanded(
@@ -685,6 +694,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     return Pressable(
       onTap: () => context.go(configured ? '/reports' : '/profile'),
       child: GlassCard(
+        liquid: settings.liquidGlassEnabled,
         child: Row(
           children: [
             Container(
@@ -848,6 +858,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
           child: Material(
             type: MaterialType.transparency,
             child: GlassCard(
+              liquid: ref.watch(settingsProvider
+                  .select((s) => s.liquidGlassEnabled)),
           child: Row(
             children: [
               Container(
@@ -911,6 +923,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: GlassCard(
+        liquid:
+            ref.watch(settingsProvider.select((s) => s.liquidGlassEnabled)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

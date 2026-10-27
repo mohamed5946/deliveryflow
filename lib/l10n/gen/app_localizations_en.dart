@@ -432,6 +432,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appLockAuthReason => 'Confirm your identity to open DeliveryFlow';
 
   @override
+  String get liquidGlass => 'Liquid glass look (trial)';
+
+  @override
+  String get liquidGlassDesc =>
+      'A light liquid-glass touch on the nav bar and home cards only — turn it off if it ever feels slow';
+
+  @override
   String get notificationsSection => 'Notifications';
 
   @override

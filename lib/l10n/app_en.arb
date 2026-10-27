@@ -186,6 +186,8 @@
   "appLockRetry": "Try again",
   "appLockAuthFailed": "Verification failed, try again",
   "appLockAuthReason": "Confirm your identity to open DeliveryFlow",
+  "liquidGlass": "Liquid glass look (trial)",
+  "liquidGlassDesc": "A light liquid-glass touch on the nav bar and home cards only — turn it off if it ever feels slow",
   "notificationsSection": "Notifications",
   "ok": "OK",
   "onBreak": "On break",
