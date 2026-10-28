@@ -11,6 +11,7 @@ import '../../core/date_time/week_calendar.dart';
 import '../../core/providers.dart';
 import '../../core/tracking/delivery_tracking_service.dart';
 import '../../theme/design_system.dart';
+import '../../theme/staggered_entrance.dart';
 import '../../theme/bin_eating_delete_button.dart';
 import '../../theme/top_snack_bar.dart';
 import '../../theme/page_transitions.dart';
@@ -112,8 +113,7 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           child: GlassCard(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -188,14 +188,12 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
                           ?.copyWith(fontWeight: FontWeight.w700)),
                   Text(subtitle,
                       style: theme.textTheme.bodySmall?.copyWith(
-                          color:
-                              scheme.onSurface.withValues(alpha: 0.65))),
+                          color: scheme.onSurface.withValues(alpha: 0.65))),
                 ],
               ),
             ),
             Icon(Icons.chevron_right_rounded,
-                size: 20,
-                color: scheme.onSurface.withValues(alpha: 0.35)),
+                size: 20, color: scheme.onSurface.withValues(alpha: 0.35)),
           ],
         ),
       ),
@@ -237,8 +235,7 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
   /// first (a small legacy bare remainder, if any, is adjusted last).
   Future<void> _logBulkCount() async {
     final l10n = AppLocalizations.of(context);
-    final ctrl =
-        TextEditingController(text: _count > 0 ? '$_count' : '');
+    final ctrl = TextEditingController(text: _count > 0 ? '$_count' : '');
     final value = await showDialog<int>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -247,15 +244,13 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(l10n.bulkCountHint,
-                style: Theme.of(ctx).textTheme.bodySmall),
+            Text(l10n.bulkCountHint, style: Theme.of(ctx).textTheme.bodySmall),
             const SizedBox(height: 12),
             TextField(
               controller: ctrl,
               keyboardType: TextInputType.number,
               autofocus: true,
-              decoration:
-                  InputDecoration(hintText: l10n.ordersLabel),
+              decoration: InputDecoration(hintText: l10n.ordersLabel),
             ),
             if (_entries.isNotEmpty) ...[
               const SizedBox(height: 8),
@@ -270,8 +265,7 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
             child: Text(l10n.cancel),
           ),
           TextButton(
-            onPressed: () =>
-                Navigator.pop(ctx, int.tryParse(ctrl.text.trim())),
+            onPressed: () => Navigator.pop(ctx, int.tryParse(ctrl.text.trim())),
             child: Text(l10n.save),
           ),
         ],
@@ -396,8 +390,7 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
   /// day total — only entries whose delivery started count (v27).
   int get _countedEntries => _entries.where((e) => e.status >= 1).length;
 
-  double get _kmOut =>
-      _entries.fold<double>(0, (s, e) => s + e.effectiveKmOut);
+  double get _kmOut => _entries.fold<double>(0, (s, e) => s + e.effectiveKmOut);
   double get _kmBack =>
       _entries.fold<double>(0, (s, e) => s + e.effectiveKmBack);
 
@@ -424,119 +417,120 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
           onPressed: () => context.pop(),
         ),
       ),
-      body: ListView(
-        padding: GlassTokens.screenPadding,
-        children: [
-          // Summary: count + distance.
-          GlassCard(
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    children: [
-                      Text('$_count',
-                          style: text.displaySmall?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              color: scheme.primary)),
-                      const SizedBox(height: 2),
-                      Text(l10n.ordersLabel, style: text.bodySmall),
-                    ],
-                  ),
-                ),
-                Container(
-                    width: 1,
-                    height: 56,
-                    color: Colors.white.withValues(alpha: 0.15)),
-                Expanded(
-                  child: Column(
-                    children: [
-                      Text(_fmtKm(_kmOut + _kmBack),
-                          style: text.displaySmall?.copyWith(
-                              fontWeight: FontWeight.w800)),
-                      const SizedBox(height: 2),
-                      Text(l10n.totalKmLabel, style: text.bodySmall),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          GlassCard(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _kmChip(context, l10n.kmOutLabel, _kmOut, scheme.primary),
-                _kmChip(context, l10n.kmBackLabel, _kmBack, scheme.secondary),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: GlassButton(
-              label: l10n.addOrder,
-              icon: Icons.add_rounded,
-              onPressed: _showAddOrderChoice,
-            ),
-          ),
-          const SizedBox(height: 12),
-          if (_entries.isEmpty)
+      body: StaggeredScope(
+        child: ListView(
+          padding: GlassTokens.screenPadding,
+          children: [
+            // Summary: count + distance.
             GlassCard(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Column(
-                  children: [
-                    Icon(Icons.local_shipping_outlined,
-                        size: 40,
-                        color: scheme.onSurface.withValues(alpha: 0.35)),
-                    const SizedBox(height: 8),
-                    Text(l10n.noOrdersYet,
-                        style: text.bodyMedium?.copyWith(
-                            color: scheme.onSurface
-                                .withValues(alpha: 0.6))),
-                  ],
-                ),
-              ),
-            )
-          else
-            ..._entries.map((e) => e.countOnly
-                ? _countOnlyCard(context, e)
-                : _entryCard(context, e)),
-          if (undetailed > 0) ...[
-            const SizedBox(height: 4),
-            Center(
-              child: Text(
-                l10n.ordersWithoutDetails(undetailed),
-                style: text.bodySmall?.copyWith(
-                    color:
-                        scheme.onSurface.withValues(alpha: 0.55)),
-                textAlign: TextAlign.center,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      children: [
+                        Text('$_count',
+                            style: text.displaySmall?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                color: scheme.primary)),
+                        const SizedBox(height: 2),
+                        Text(l10n.ordersLabel, style: text.bodySmall),
+                      ],
+                    ),
+                  ),
+                  Container(
+                      width: 1,
+                      height: 56,
+                      color: Colors.white.withValues(alpha: 0.15)),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        Text(_fmtKm(_kmOut + _kmBack),
+                            style: text.displaySmall
+                                ?.copyWith(fontWeight: FontWeight.w800)),
+                        const SizedBox(height: 2),
+                        Text(l10n.totalKmLabel, style: text.bodySmall),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
+            const SizedBox(height: 8),
+            GlassCard(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _kmChip(context, l10n.kmOutLabel, _kmOut, scheme.primary),
+                  _kmChip(context, l10n.kmBackLabel, _kmBack, scheme.secondary),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: GlassButton(
+                label: l10n.addOrder,
+                icon: Icons.add_rounded,
+                onPressed: _showAddOrderChoice,
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (_entries.isEmpty)
+              GlassCard(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Column(
+                    children: [
+                      Icon(Icons.local_shipping_outlined,
+                          size: 40,
+                          color: scheme.onSurface.withValues(alpha: 0.35)),
+                      const SizedBox(height: 8),
+                      Text(l10n.noOrdersYet,
+                          style: text.bodyMedium?.copyWith(
+                              color: scheme.onSurface.withValues(alpha: 0.6))),
+                    ],
+                  ),
+                ),
+              )
+            else
+              ..._entries.asMap().entries.map((en) => StaggeredItem(
+                  index: en.key,
+                  child: en.value.countOnly
+                      ? _countOnlyCard(context, en.value)
+                      : _entryCard(context, en.value))),
+            if (undetailed > 0) ...[
+              const SizedBox(height: 4),
+              Center(
+                child: Text(
+                  l10n.ordersWithoutDetails(undetailed),
+                  style: text.bodySmall?.copyWith(
+                      color: scheme.onSurface.withValues(alpha: 0.55)),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            GlassCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(l10n.orderNotesHint, style: text.titleSmall),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _notes,
+                    focusNode: _notesFocus,
+                    maxLines: 3,
+                    decoration: InputDecoration(hintText: l10n.notesOptional),
+                    onChanged: (_) => _notesDirty = true,
+                    onSubmitted: (_) => _saveNotes(),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
           ],
-          const SizedBox(height: 12),
-          GlassCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(l10n.orderNotesHint, style: text.titleSmall),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _notes,
-                  focusNode: _notesFocus,
-                  maxLines: 3,
-                  decoration:
-                      InputDecoration(hintText: l10n.notesOptional),
-                  onChanged: (_) => _notesDirty = true,
-                  onSubmitted: (_) => _saveNotes(),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-        ],
+        ),
       ),
     );
   }
@@ -553,8 +547,7 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('${_fmtKm(value)} ${AppLocalizations.of(context).kmUnit}',
-                style: text.titleSmall
-                    ?.copyWith(fontWeight: FontWeight.w800)),
+                style: text.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
             Text(label,
                 style: text.bodySmall?.copyWith(
                     color: Theme.of(context)
@@ -576,40 +569,35 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
     final text = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
     final locale = ref.watch(settingsProvider.select((s) => s.languageCode));
-    final time = DateFormat.Hm(locale == 'ar' ? 'ar' : 'en')
-        .format(entry.timestamp);
+    final time =
+        DateFormat.Hm(locale == 'ar' ? 'ar' : 'en').format(entry.timestamp);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: GlassCard(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 10, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
                 color: scheme.primary.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(time,
                   style: text.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: scheme.primary)),
+                      fontWeight: FontWeight.w800, color: scheme.primary)),
             ),
             const SizedBox(width: 8),
             Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 8, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
                 color: Colors.green.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(l10n.statusCompleted,
                   style: text.bodySmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: Colors.green)),
+                      fontWeight: FontWeight.w700, color: Colors.green)),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -617,8 +605,7 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
                 children: [
                   Icon(Icons.numbers_rounded,
                       size: 18,
-                      color:
-                          scheme.onSurface.withValues(alpha: 0.55)),
+                      color: scheme.onSurface.withValues(alpha: 0.55)),
                   const SizedBox(width: 6),
                   Text(l10n.countOnlyOrder,
                       style: text.bodyMedium
@@ -644,8 +631,8 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
     final text = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
     final locale = ref.watch(settingsProvider.select((s) => s.languageCode));
-    final time = DateFormat.Hm(locale == 'ar' ? 'ar' : 'en')
-        .format(entry.timestamp);
+    final time =
+        DateFormat.Hm(locale == 'ar' ? 'ar' : 'en').format(entry.timestamp);
 
     // Status badge: makes the tracking state visible at a glance.
     final (statusLabel, statusColor) = switch (entry.status) {
@@ -660,131 +647,129 @@ class _OrderEntryScreenState extends ConsumerState<OrderEntryScreen> {
       child: Pressable(
         scaleOnly: true,
         child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: () async {
-          await Navigator.of(context).push(
-            SmoothPageRoute(
-              builder: (_) => OrderDetailScreen(
-                dateKey: _dateKey,
-                entryId: entry.id,
+          borderRadius: BorderRadius.circular(18),
+          onTap: () async {
+            await Navigator.of(context).push(
+              SmoothPageRoute(
+                builder: (_) => OrderDetailScreen(
+                  dateKey: _dateKey,
+                  entryId: entry.id,
+                ),
+              ),
+            );
+            if (mounted) _load();
+          },
+          // v27.20 Hero source: this card flies to the detail trip
+          // card. Tag is unique per order id (see orderDetailHeroTag).
+          child: Hero(
+            tag: orderDetailHeroTag(entry.id),
+            child: Material(
+              type: MaterialType.transparency,
+              child: GlassCard(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: scheme.primary.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(time,
+                              style: text.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: scheme.primary)),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: statusColor.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(statusLabel,
+                              style: text.bodySmall?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  color: statusColor)),
+                        ),
+                        // v27.5: subtle manual-bonus indicator on the row.
+                        if (entry.manualBonusEgp > 0) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                                '+${formatMoney(entry.manualBonusEgp)} ${l10n.egpUnit}',
+                                style: text.bodySmall?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.green)),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                entry.isPending
+                                    ? l10n.tapToStartTracking
+                                    : '${l10n.kmOutLabel}: ${_fmtKm(entry.effectiveKmOut)} • ${l10n.kmBackLabel}: ${_fmtKm(entry.effectiveKmBack)} ${l10n.kmUnit}',
+                                style: text.bodyMedium?.copyWith(
+                                  color:
+                                      entry.isPending ? scheme.primary : null,
+                                  fontWeight:
+                                      entry.isPending ? FontWeight.w700 : null,
+                                ),
+                              ),
+                              if (entry.notes.isNotEmpty)
+                                Text(entry.notes,
+                                    style: text.bodySmall?.copyWith(
+                                        color: scheme.onSurface
+                                            .withValues(alpha: 0.6)),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis),
+                            ],
+                          ),
+                        ),
+                        Text(_fmtKm(entry.effectiveKmTotal),
+                            style: text.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                color: scheme.secondary)),
+                        const SizedBox(width: 4),
+                        IconButton(
+                          icon: const Icon(Icons.edit_outlined, size: 20),
+                          onPressed: () => _editEntry(entry),
+                          tooltip: l10n.edit,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.delete_outline_rounded,
+                              size: 20, color: scheme.error),
+                          onPressed: () => _deleteEntry(entry),
+                          tooltip: l10n.delete,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
-          );
-          if (mounted) _load();
-        },
-        // v27.20 Hero source: this card flies to the detail trip
-        // card. Tag is unique per order id (see orderDetailHeroTag).
-        child: Hero(
-          tag: orderDetailHeroTag(entry.id),
-          child: Material(
-            type: MaterialType.transparency,
-            child: GlassCard(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: scheme.primary.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(time,
-                      style: text.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: scheme.primary)),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(statusLabel,
-                      style: text.bodySmall?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: statusColor)),
-                ),
-                // v27.5: subtle manual-bonus indicator on the row.
-                if (entry.manualBonusEgp > 0) ...[
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.green.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                        '+${formatMoney(entry.manualBonusEgp)} ${l10n.egpUnit}',
-                        style: text.bodySmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: Colors.green)),
-                  ),
-                ],
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    entry.isPending
-                        ? l10n.tapToStartTracking
-                        : '${l10n.kmOutLabel}: ${_fmtKm(entry.effectiveKmOut)} • ${l10n.kmBackLabel}: ${_fmtKm(entry.effectiveKmBack)} ${l10n.kmUnit}',
-                    style: text.bodyMedium?.copyWith(
-                      color: entry.isPending
-                          ? scheme.primary
-                          : null,
-                      fontWeight: entry.isPending
-                          ? FontWeight.w700
-                          : null,
-                    ),
-                  ),
-                  if (entry.notes.isNotEmpty)
-                    Text(entry.notes,
-                        style: text.bodySmall?.copyWith(
-                            color: scheme.onSurface
-                                .withValues(alpha: 0.6)),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis),
-                ],
-              ),
-            ),
-            Text(_fmtKm(entry.effectiveKmTotal),
-                style: text.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: scheme.secondary)),
-            const SizedBox(width: 4),
-            IconButton(
-              icon: const Icon(Icons.edit_outlined, size: 20),
-              onPressed: () => _editEntry(entry),
-              tooltip: l10n.edit,
-              visualDensity: VisualDensity.compact,
-            ),
-            IconButton(
-              icon: Icon(Icons.delete_outline_rounded,
-                  size: 20, color: scheme.error),
-              onPressed: () => _deleteEntry(entry),
-              tooltip: l10n.delete,
-              visualDensity: VisualDensity.compact,
-            ),
-          ],
-            ),
-          ],
+          ),
         ),
-        ),
-        ),
-        ),
-      ),
       ),
     );
   }
@@ -867,8 +852,8 @@ class _EntryFormSheetState extends ConsumerState<_EntryFormSheet> {
     if (picked == null) return;
     final day = WeekCalendar.parseDateKey(widget.dateKey);
     setState(() {
-      _time = DateTime(
-          day.year, day.month, day.day, picked.hour, picked.minute);
+      _time =
+          DateTime(day.year, day.month, day.day, picked.hour, picked.minute);
     });
   }
 
@@ -893,15 +878,12 @@ class _EntryFormSheetState extends ConsumerState<_EntryFormSheet> {
     final l10n = AppLocalizations.of(context);
     final text = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
-    final locale =
-        ref.watch(settingsProvider.select((s) => s.languageCode));
-    final timeLabel = DateFormat.Hm(locale == 'ar' ? 'ar' : 'en')
-        .format(_time);
+    final locale = ref.watch(settingsProvider.select((s) => s.languageCode));
+    final timeLabel = DateFormat.Hm(locale == 'ar' ? 'ar' : 'en').format(_time);
     return Container(
       decoration: BoxDecoration(
         color: scheme.surface,
-        borderRadius:
-            const BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       padding: EdgeInsets.only(
         left: 20,
@@ -927,8 +909,7 @@ class _EntryFormSheetState extends ConsumerState<_EntryFormSheet> {
             const SizedBox(height: 12),
             Text(
               widget.entry == null ? l10n.addOrder : l10n.editOrder,
-              style:
-                  text.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+              style: text.titleLarge?.copyWith(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 12),
             Row(
@@ -949,8 +930,7 @@ class _EntryFormSheetState extends ConsumerState<_EntryFormSheet> {
                   child: TextField(
                     controller: _kmOut,
                     keyboardType:
-                        const TextInputType.numberWithOptions(
-                            decimal: true),
+                        const TextInputType.numberWithOptions(decimal: true),
                     decoration: InputDecoration(
                       labelText: '${l10n.kmOutLabel} (${l10n.kmUnit})',
                       hintText: '0',
@@ -962,8 +942,7 @@ class _EntryFormSheetState extends ConsumerState<_EntryFormSheet> {
                   child: TextField(
                     controller: _kmBack,
                     keyboardType:
-                        const TextInputType.numberWithOptions(
-                            decimal: true),
+                        const TextInputType.numberWithOptions(decimal: true),
                     decoration: InputDecoration(
                       labelText: '${l10n.kmBackLabel} (${l10n.kmUnit})',
                       hintText: '0',
@@ -975,8 +954,7 @@ class _EntryFormSheetState extends ConsumerState<_EntryFormSheet> {
             const SizedBox(height: 12),
             TextField(
               controller: _notes,
-              decoration:
-                  InputDecoration(hintText: l10n.notesOptional),
+              decoration: InputDecoration(hintText: l10n.notesOptional),
               maxLines: 1,
             ),
             if (_error != null) ...[

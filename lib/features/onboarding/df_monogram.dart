@@ -1,17 +1,23 @@
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
-/// v27.30: DF monogram splash mark, modelled on the DailyFlutterUI
-/// reference intro Mohamed sent: a letter logo that draws itself
-/// stroke-by-stroke, then fills, then the app name appears.
+/// v27.31: COMBINED DF monogram splash mark — ONE mark, exactly as in
+/// the DailyFlutterUI reference video Mohamed sent (frames verified by
+/// the parent), replacing the v27.30 side-by-side D + F letters.
 ///
-/// CORRECTED colour spec (supersedes any earlier note): the drawn
-/// stroke is WHITE for both letters; then the D fills WHITE and the
-/// F fills BLUE (LiquidPalette.primaryBlue). The splash background is
-/// dark navy, so both the white stroke/fill and the blue fill read
-/// clearly at every stage — never white-on-white or blue-on-blue.
+/// The mark, in order:
+/// 1. A thin WHITE line draws the outline path of a bold D
+///    (stroke-draw path animation, top-to-bottom with the D's curve).
+/// 2. The D then FILLS solid WHITE (bold white D block).
+/// 3. Inside the D's bowl, a BLUE stylized F appears (slanted stem
+///    with a top bar + a mid bar, nested inside the D — the video's
+///    final mark: white D, blue F inside it).
+///
+/// The splash background is dark navy, so the white stroke/D-fill and
+/// the blue F-fill all read clearly at every stage — never
+/// white-on-white or blue-on-blue. The old side-by-side mark is gone;
+/// exactly one mark exists, never two stacked marks.
 
 /// Splash stages in order. Pure function of animation progress so
 /// widget tests can assert the sequence without pumping painters.
@@ -24,47 +30,49 @@ DfSplashStage dfSplashStageFor(double t) {
   return DfSplashStage.exiting;
 }
 
-/// The monogram's own coordinate space (215 x 120). The painter scales
+/// The monogram's own coordinate space (160 x 160). The painter scales
 /// it uniformly into whatever box it is given.
-const Size _kMarkSpace = Size(215, 120);
+const Size _kMarkSpace = Size(160, 160);
 
-/// D as one closed blob: stem + bowl. Stroking it draws the D outline;
-/// filling it paints the solid D.
-Path _dPath() {
+/// The bold D as one closed blob: stem + bowl. Stroking it draws the D
+/// outline; filling it paints the solid white D. Public so widget tests
+/// can assert the F sits geometrically inside it.
+Path monogramDPath() {
   final p = Path();
-  p.moveTo(20, 10);
-  p.lineTo(20, 110);
-  p.lineTo(60, 110);
-  p.cubicTo(95, 110, 115, 88, 115, 60);
-  p.cubicTo(115, 32, 95, 10, 60, 10);
+  p.moveTo(24, 16);
+  p.lineTo(24, 144);
+  p.lineTo(72, 144);
+  p.cubicTo(120, 144, 140, 118, 140, 80);
+  p.cubicTo(140, 42, 120, 16, 72, 16);
   p.close();
   return p;
 }
 
-/// F as three strokes: stem, top bar, mid bar.
-Path _fPath() {
+/// The stylized F nested inside the D's bowl: slanted stem, top bar,
+/// mid bar. Painted in blue on top of the solid white D. Its bounds
+/// sit strictly inside the D's bounds (see the widget test).
+Path monogramFPath() {
   final p = Path();
-  p.moveTo(150, 10);
-  p.lineTo(150, 110);
-  p.moveTo(150, 10);
-  p.lineTo(195, 10);
-  p.moveTo(150, 60);
-  p.lineTo(178, 60);
+  // Slanted stem (top-right to bottom-left, like the video's mark).
+  p.moveTo(72, 50);
+  p.lineTo(62, 118);
+  // Top bar.
+  p.moveTo(72, 50);
+  p.lineTo(112, 50);
+  // Mid bar.
+  p.moveTo(68, 84);
+  p.lineTo(100, 84);
   return p;
 }
 
-/// Draws the first [progress] fraction of [paths], in order, as one
-/// continuous stroke (D first, then F).
-Path _partialPaths(List<Path> paths, double progress) {
+/// Draws the first [progress] fraction of [path] as one stroke.
+Path _partialPath(Path path, double progress) {
   final out = Path();
   if (progress <= 0) return out;
-  final metrics = <ui.PathMetric>[];
+  final metrics = path.computeMetrics().toList();
   var total = 0.0;
-  for (final path in paths) {
-    for (final m in path.computeMetrics()) {
-      metrics.add(m);
-      total += m.length;
-    }
+  for (final m in metrics) {
+    total += m.length;
   }
   var remaining = total * progress.clamp(0.0, 1.0);
   for (final m in metrics) {
@@ -83,11 +91,12 @@ class DfMonogramPainter extends CustomPainter {
     required this.fillBlue,
   });
 
-  /// 0..1: how much of the white stroke has been drawn.
+  /// 0..1: how much of the white D outline has been drawn.
   final double drawProgress;
 
   /// 0..1: how much of the solid fill has faded in (stroke fades out
-  /// by the same amount).
+  /// by the same amount; the blue F fades in during the second part
+  /// of the fill so the order is stroke -> white D -> blue F).
   final double fillProgress;
 
   final Color fillBlue;
@@ -106,30 +115,36 @@ class DfMonogramPainter extends CustomPainter {
 
     final fill = fillProgress.clamp(0.0, 1.0);
     final strokeAlpha = (1.0 - fill).clamp(0.0, 1.0);
+    // F appears once the D fill is a quarter in, fully in by fill end.
+    final fAlpha = ((fill - 0.25) / 0.75).clamp(0.0, 1.0);
 
-    // Solid fills fade in: D white, F blue (thick strokes).
+    // Solid white D fades in.
     if (fill > 0) {
       canvas.drawPath(
-        _dPath(),
+        monogramDPath(),
         Paint()
           ..color = Colors.white.withValues(alpha: fill)
           ..style = PaintingStyle.fill,
       );
+    }
+
+    // Blue F inside the D's bowl fades in after the D fill starts.
+    if (fAlpha > 0) {
       canvas.drawPath(
-        _fPath(),
+        monogramFPath(),
         Paint()
-          ..color = fillBlue.withValues(alpha: fill)
+          ..color = fillBlue.withValues(alpha: fAlpha)
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 14
+          ..strokeWidth = 13
           ..strokeCap = StrokeCap.round
           ..strokeJoin = StrokeJoin.round,
       );
     }
 
-    // White stroke draws first, then fades out as the fill lands.
+    // White D outline draws first, then fades out as the fill lands.
     if (strokeAlpha > 0 && drawProgress > 0) {
-      final drawn = _partialPaths(
-        [_dPath(), _fPath()],
+      final drawn = _partialPath(
+        monogramDPath(),
         drawProgress.clamp(0.0, 1.0),
       );
       canvas.drawPath(
@@ -152,9 +167,9 @@ class DfMonogramPainter extends CustomPainter {
       old.fillBlue != fillBlue;
 }
 
-/// The DF mark itself. [drawProgress]/[fillProgress] are driven by the
-/// splash's single controller; pass 1/1 for the static (reduce-motion)
-/// rendering.
+/// The combined DF mark itself. [drawProgress]/[fillProgress] are driven
+/// by the splash's single controller; pass 1/1 for the static
+/// (reduce-motion) rendering.
 class DfMonogram extends StatelessWidget {
   const DfMonogram({
     super.key,
@@ -171,7 +186,7 @@ class DfMonogram extends StatelessWidget {
   Widget build(BuildContext context) {
     return RepaintBoundary(
       child: CustomPaint(
-        size: const Size(200, 112),
+        size: const Size(180, 180),
         painter: DfMonogramPainter(
           drawProgress: drawProgress,
           fillProgress: fillProgress,

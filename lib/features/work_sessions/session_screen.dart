@@ -11,6 +11,7 @@ import '../../core/date_time/day_rollover.dart';
 import '../../core/date_time/week_calendar.dart';
 import '../../core/providers.dart';
 import '../../theme/design_system.dart';
+import '../../theme/staggered_entrance.dart';
 import '../../theme/top_snack_bar.dart';
 
 /// Working-hours tracker:
@@ -46,8 +47,8 @@ class _SessionScreenState extends ConsumerState<SessionScreen> {
     _rollover.start();
     final db = ref.read(databaseServiceProvider);
     _mBreak.text = db.settings.defaultBreakDurationMinutes.toString();
-    _ticker = Timer.periodic(
-        const Duration(seconds: 1), (_) => setState(() {}));
+    _ticker =
+        Timer.periodic(const Duration(seconds: 1), (_) => setState(() {}));
   }
 
   /// v26 midnight rollover: follow into the new day only when this screen
@@ -165,8 +166,7 @@ class _SessionScreenState extends ConsumerState<SessionScreen> {
     final l10n = AppLocalizations.of(context);
     final text = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
-    final locale =
-        ref.watch(settingsProvider.select((s) => s.languageCode));
+    final locale = ref.watch(settingsProvider.select((s) => s.languageCode));
     final date = WeekCalendar.parseDateKey(_dateKey);
     final dateLabel =
         DateFormat.yMMMMEEEEd(locale == 'ar' ? 'ar' : 'en').format(date);
@@ -198,195 +198,197 @@ class _SessionScreenState extends ConsumerState<SessionScreen> {
           onPressed: () => context.pop(),
         ),
       ),
-      body: ListView(
-        padding: GlassTokens.screenPadding,
-        children: [
-          Text(dateLabel,
-              style:
-                  text.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 12),
-          // Daily summary
-          GlassCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(l10n.dailySummary,
-                    style: text.titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w700)),
-                const SizedBox(height: 8),
-                _row(l10n.netHours,
-                    WeekCalendar.formatHours(netMinutes / 60.0), text),
-                _row(l10n.todayOrders,
-                    order == null
-                        ? l10n.unrecorded
-                        : '${order.completedOrders}',
-                    text),
-                if (ordersPerHour != null)
-                  _row(l10n.ordersPerHour,
-                      ordersPerHour.toStringAsFixed(1), text),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          // Timer
-          GlassCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(l10n.sessionTimer,
-                    style: text.titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w700)),
-                const SizedBox(height: 10),
-                if (active == null) ...[
-                  Center(
-                    child: GlassButton(
-                      label: l10n.startWork,
-                      icon: Icons.play_arrow_rounded,
-                      onPressed: _startSession,
-                    ),
-                  ),
-                ] else ...[
-                  Center(
-                    child: Text(
-                      _fmtDur(DateTime.now().millisecondsSinceEpoch -
-                          active.startMillis -
-                          active.breakMillis),
-                      style: text.displaySmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: scheme.primary),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Center(
-                    child: Text(
-                      active.isOnBreak
-                          ? l10n.onBreak
-                          : l10n.activeSession,
-                      style: text.bodyMedium,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Center(
-                    child: Text(
-                      '${l10n.breakTime}: ${WeekCalendar.formatMinutes((active.breakMillis / 60000).round())}',
-                      style: text.bodySmall,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      GlassButton(
-                        label: active.isOnBreak
-                            ? l10n.resumeWork
-                            : l10n.takeBreak,
-                        primary: false,
-                        icon: active.isOnBreak
-                            ? Icons.play_arrow_rounded
-                            : Icons.pause_rounded,
-                        onPressed: () => _toggleBreak(active),
-                      ),
-                      const SizedBox(width: 10),
-                      GlassButton(
-                        label: l10n.finishWork,
-                        icon: Icons.stop_rounded,
-                        onPressed: () => _finish(active),
-                      ),
-                    ],
-                  ),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          // Manual entry
-          GlassCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(l10n.manualEntry,
-                    style: text.titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w700)),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _timeField(context, l10n.startTime,
-                          _mStart, (t) => setState(() => _mStart = t)),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _timeField(context, l10n.endTime, _mEnd,
-                          (t) => setState(() => _mEnd = t)),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: _mBreak,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                      labelText: l10n.breakMinutes),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: _mNotes,
-                  maxLines: 2,
-                  decoration: InputDecoration(
-                      labelText: l10n.notesOptional),
-                ),
-                if (_mError != null) ...[
+      body: StaggeredScope(
+        child: ListView(
+          padding: GlassTokens.screenPadding,
+          children: [
+            Text(dateLabel,
+                style: text.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 12),
+            // Daily summary
+            GlassCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(l10n.dailySummary,
+                      style: text.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w700)),
                   const SizedBox(height: 8),
-                  Text(_mError!,
-                      style: TextStyle(color: scheme.error)),
+                  _row(l10n.netHours,
+                      WeekCalendar.formatHours(netMinutes / 60.0), text),
+                  _row(
+                      l10n.todayOrders,
+                      order == null
+                          ? l10n.unrecorded
+                          : '${order.completedOrders}',
+                      text),
+                  if (ordersPerHour != null)
+                    _row(l10n.ordersPerHour, ordersPerHour.toStringAsFixed(1),
+                        text),
                 ],
-                const SizedBox(height: 12),
-                Center(
-                  child: GlassButton(
-                    label: l10n.saveRecord,
-                    icon: Icons.check_rounded,
-                    onPressed: _saveManual,
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          // Finished sessions list
-          if (sessions.where((s) => s.status == 2).isNotEmpty) ...[
-            Text(l10n.dailySummary,
-                style:
-                    text.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
-            const SizedBox(height: 8),
-            for (final s in sessions.where((s) => s.status == 2))
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: GlassCard(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 10),
-                  child: Row(
-                    mainAxisAlignment:
-                        MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        s.isManual
-                            ? l10n.manualEntry
-                            : l10n.sessionTimer,
+            const SizedBox(height: 12),
+            // Timer
+            GlassCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(l10n.sessionTimer,
+                      style: text.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 10),
+                  if (active == null) ...[
+                    Center(
+                      child: GlassButton(
+                        label: l10n.startWork,
+                        icon: Icons.play_arrow_rounded,
+                        onPressed: _startSession,
+                      ),
+                    ),
+                  ] else ...[
+                    Center(
+                      child: Text(
+                        _fmtDur(DateTime.now().millisecondsSinceEpoch -
+                            active.startMillis -
+                            active.breakMillis),
+                        style: text.displaySmall?.copyWith(
+                            fontWeight: FontWeight.w800, color: scheme.primary),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Center(
+                      child: Text(
+                        active.isOnBreak ? l10n.onBreak : l10n.activeSession,
                         style: text.bodyMedium,
                       ),
-                      Text(
-                        WeekCalendar.formatHours(
-                            s.netMinutes / 60.0),
-                        style: text.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 4),
+                    Center(
+                      child: Text(
+                        '${l10n.breakTime}: ${WeekCalendar.formatMinutes((active.breakMillis / 60000).round())}',
+                        style: text.bodySmall,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        GlassButton(
+                          label: active.isOnBreak
+                              ? l10n.resumeWork
+                              : l10n.takeBreak,
+                          primary: false,
+                          icon: active.isOnBreak
+                              ? Icons.play_arrow_rounded
+                              : Icons.pause_rounded,
+                          onPressed: () => _toggleBreak(active),
+                        ),
+                        const SizedBox(width: 10),
+                        GlassButton(
+                          label: l10n.finishWork,
+                          icon: Icons.stop_rounded,
+                          onPressed: () => _finish(active),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            // Manual entry
+            GlassCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(l10n.manualEntry,
+                      style: text.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _timeField(context, l10n.startTime, _mStart,
+                            (t) => setState(() => _mStart = t)),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _timeField(context, l10n.endTime, _mEnd,
+                            (t) => setState(() => _mEnd = t)),
                       ),
                     ],
                   ),
-                ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _mBreak,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(labelText: l10n.breakMinutes),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _mNotes,
+                    maxLines: 2,
+                    decoration: InputDecoration(labelText: l10n.notesOptional),
+                  ),
+                  if (_mError != null) ...[
+                    const SizedBox(height: 8),
+                    Text(_mError!, style: TextStyle(color: scheme.error)),
+                  ],
+                  const SizedBox(height: 12),
+                  Center(
+                    child: GlassButton(
+                      label: l10n.saveRecord,
+                      icon: Icons.check_rounded,
+                      onPressed: _saveManual,
+                    ),
+                  ),
+                ],
               ),
+            ),
+            const SizedBox(height: 12),
+            // Finished sessions list
+            if (sessions.where((s) => s.status == 2).isNotEmpty) ...[
+              Text(l10n.dailySummary,
+                  style:
+                      text.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+              const SizedBox(height: 8),
+              for (final en in sessions
+                  .where((s) => s.status == 2)
+                  .toList()
+                  .asMap()
+                  .entries)
+                StaggeredItem(
+                  index: en.key,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: GlassCard(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 10),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            en.value.isManual
+                                ? l10n.manualEntry
+                                : l10n.sessionTimer,
+                            style: text.bodyMedium,
+                          ),
+                          Text(
+                            WeekCalendar.formatHours(
+                                en.value.netMinutes / 60.0),
+                            style: text.titleSmall
+                                ?.copyWith(fontWeight: FontWeight.w800),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+            const SizedBox(height: 24),
           ],
-          const SizedBox(height: 24),
-        ],
+        ),
       ),
     );
   }
@@ -399,8 +401,7 @@ class _SessionScreenState extends ConsumerState<SessionScreen> {
         children: [
           Text(label, style: text.bodyMedium),
           Text(value,
-              style: text.bodyMedium
-                  ?.copyWith(fontWeight: FontWeight.w700)),
+              style: text.bodyMedium?.copyWith(fontWeight: FontWeight.w700)),
         ],
       ),
     );

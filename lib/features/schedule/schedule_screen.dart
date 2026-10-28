@@ -12,6 +12,7 @@ import '../../core/date_time/schedule_normalizer.dart';
 import '../../core/date_time/week_calendar.dart';
 import '../../core/providers.dart';
 import '../../theme/design_system.dart';
+import '../../theme/staggered_entrance.dart';
 import '../../theme/top_snack_bar.dart';
 import '../../theme/pressable.dart';
 
@@ -130,8 +131,8 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(AppLocalizations.of(ctx).breakMinutes),
-        content: TextField(
-            controller: ctrl, keyboardType: TextInputType.number),
+        content:
+            TextField(controller: ctrl, keyboardType: TextInputType.number),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx),
@@ -158,8 +159,7 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
         content: TextField(controller: ctrl, maxLines: 3),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text(l10n.cancel)),
+              onPressed: () => Navigator.pop(ctx), child: Text(l10n.cancel)),
           TextButton(
               onPressed: () => Navigator.pop(ctx, ctrl.text),
               child: Text(l10n.ok)),
@@ -208,8 +208,7 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
         setState(() => _error = l10n.invalidTimeRange);
         return;
       }
-      if (d.breakDurationMinutes < 0 ||
-          d.breakDurationMinutes > gross) {
+      if (d.breakDurationMinutes < 0 || d.breakDurationMinutes > gross) {
         setState(() => _error = l10n.invalidBreak);
         return;
       }
@@ -221,8 +220,7 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
     final sched = WorkSchedule(
       id: existing?.id ?? 'sch_${WeekCalendar.dateKey(start)}',
       weekStartKey: WeekCalendar.dateKey(start),
-      weekEndKey:
-          WeekCalendar.dateKey(WeekCalendar.addDays(start, 6)),
+      weekEndKey: WeekCalendar.dateKey(WeekCalendar.addDays(start, 6)),
       dailySchedules: _days,
       createdAtMillis: existing?.createdAtMillis ?? now,
       updatedAtMillis: now,
@@ -255,8 +253,7 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
     final text = Theme.of(context).textTheme;
     if (!_loaded) return const Scaffold(body: GlassLoading());
     final start = WeekCalendar.weekStart(_weekAnchor);
-    final locale =
-        ref.watch(settingsProvider.select((s) => s.languageCode));
+    final locale = ref.watch(settingsProvider.select((s) => s.languageCode));
     // Rebuild badges when order records / sessions change.
     ref.watch(dataVersionProvider);
     final loc = locale == 'ar' ? 'ar' : 'en';
@@ -265,67 +262,74 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.scheduleTitle)),
-      body: ListView(
-        padding: GlassTokens.screenPadding,
-        children: [
-          // Week navigator (mockup): [›] [range] [‹] in RTL.
-          GlassCard(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            child: Row(
-              children: [
-                IconButton(
-                  tooltip: l10n.previousWeek,
-                  icon: const Icon(Icons.chevron_left_rounded),
-                  onPressed: _prevWeek,
+      body: TabReplayScope(
+        tabIndex: 1,
+        child: StaggeredScope(
+          child: ListView(
+            padding: GlassTokens.screenPadding,
+            children: [
+              // Week navigator (mockup): [›] [range] [‹] in RTL.
+              GlassCard(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                child: Row(
+                  children: [
+                    IconButton(
+                      tooltip: l10n.previousWeek,
+                      icon: const Icon(Icons.chevron_left_rounded),
+                      onPressed: _prevWeek,
+                    ),
+                    Expanded(
+                      child: Text(
+                        rangeLabel,
+                        textAlign: TextAlign.center,
+                        style: text.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: l10n.nextWeek,
+                      icon: const Icon(Icons.chevron_right_rounded),
+                      onPressed: _nextWeek,
+                    ),
+                  ],
                 ),
-                Expanded(
-                  child: Text(
-                    rangeLabel,
-                    textAlign: TextAlign.center,
-                    style: text.titleMedium
-                        ?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 8),
+              if (_error != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(_error!,
+                      style: TextStyle(
+                          color: Theme.of(context).colorScheme.error)),
+                ),
+              // v27.31: day cards stagger in on every entry (tab replay
+              // included — TabReplayScope above bumps the generation).
+              for (var i = 0; i < _days.length; i++)
+                StaggeredItem(index: i, child: _dayCard(context, i, l10n)),
+              const SizedBox(height: 16),
+              if (_editing)
+                SizedBox(
+                  width: double.infinity,
+                  child: GlassButton(
+                    label: l10n.saveSchedule,
+                    icon: Icons.check_rounded,
+                    onPressed: _save,
+                  ),
+                )
+              else
+                SizedBox(
+                  width: double.infinity,
+                  child: GlassButton(
+                    label: l10n.editSchedule,
+                    icon: Icons.edit_rounded,
+                    primary: false,
+                    onPressed: () => setState(() => _editing = true),
                   ),
                 ),
-                IconButton(
-                  tooltip: l10n.nextWeek,
-                  icon: const Icon(Icons.chevron_right_rounded),
-                  onPressed: _nextWeek,
-                ),
-              ],
-            ),
+              const SizedBox(height: 24),
+            ],
           ),
-          const SizedBox(height: 8),
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text(_error!,
-                  style: TextStyle(
-                      color: Theme.of(context).colorScheme.error)),
-            ),
-          for (var i = 0; i < _days.length; i++) _dayCard(context, i, l10n),
-          const SizedBox(height: 16),
-          if (_editing)
-            SizedBox(
-              width: double.infinity,
-              child: GlassButton(
-                label: l10n.saveSchedule,
-                icon: Icons.check_rounded,
-                onPressed: _save,
-              ),
-            )
-          else
-            SizedBox(
-              width: double.infinity,
-              child: GlassButton(
-                label: l10n.editSchedule,
-                icon: Icons.edit_rounded,
-                primary: false,
-                onPressed: () => setState(() => _editing = true),
-              ),
-            ),
-          const SizedBox(height: 24),
-        ],
+        ),
       ),
     );
   }
@@ -343,8 +347,7 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
       child: _editing
           ? card
           : Pressable(
-              onTap: () =>
-                  context.push('/orders?date=${_days[i].dateKey}'),
+              onTap: () => context.push('/orders?date=${_days[i].dateKey}'),
               child: card,
             ),
     );
@@ -353,8 +356,7 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
   Widget _dayCardBody(BuildContext context, int i, AppLocalizations l10n) {
     final d = _days[i];
     final date = WeekCalendar.parseDateKey(d.dateKey);
-    final locale =
-        ref.watch(settingsProvider.select((s) => s.languageCode));
+    final locale = ref.watch(settingsProvider.select((s) => s.languageCode));
     // v27.12: rebuild rows when the time-format setting changes.
     ref.watch(settingsProvider.select((s) => s.timeFormat));
     final loc = locale == 'ar' ? 'ar' : 'en';
@@ -363,103 +365,93 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
     final text = Theme.of(context).textTheme;
 
     return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(dayName,
-                          style: text.titleSmall
-                              ?.copyWith(fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 2),
-                      Text(dayDate,
-                          style: text.bodySmall?.copyWith(
-                              color: text.bodySmall?.color
-                                  ?.withValues(alpha: 0.65))),
-                    ],
-                  ),
-                ),
-                if (_editing)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        tooltip: l10n.copyDay,
-                        icon: const Icon(Icons.content_copy_rounded,
-                            size: 20),
-                        onPressed: () => _copyDay(i),
-                      ),
-                      Switch(
-                        value: d.isWorkingDay,
-                        onChanged: (v) =>
-                            setState(() => d.isWorkingDay = v),
-                      ),
-                    ],
-                  )
-                else ...[
-                  // v27.12 view mode: working days always show their
-                  // start–end times opposite the day name (previously
-                  // times appeared only in edit mode). Day-off rows
-                  // show Day off here only when the status chip does
-                  // not already say so (a scheduled day off that got
-                  // worked shows the completed chip instead) — the
-                  // chip itself is untouched.
-                  if (d.isWorkingDay) ...[
-                    Text(
-                      '${_fmtTime(context, d.startMinutes)} - '
-                      '${_fmtTime(context, d.endMinutes)}',
-                      style: text.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w800),
-                    ),
-                    const SizedBox(width: 10),
-                  ] else if (_chipFor(i) != ScheduleDayChip.dayOff) ...[
-                    Text(
-                      l10n.dayOff,
-                      style: text.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w800),
-                    ),
-                    const SizedBox(width: 10),
-                  ],
-                  _dayStatus(context, i, l10n),
-                  const SizedBox(width: 10),
-                  Icon(
-                    Icons.chevron_right_rounded,
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurface
-                        .withValues(alpha: 0.35),
-                  ),
-                ],
-              ],
-            ),
-            if (_editing && d.isWorkingDay) ...[
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _timeChip(context, l10n.startTime,
-                      _fmtTime(context, d.startMinutes),
-                      () => _pickTime(i, true)),
-                  _timeChip(context, l10n.endTime,
-                      _fmtTime(context, d.endMinutes),
-                      () => _pickTime(i, false)),
-                  _timeChip(
-                      context,
-                      l10n.breakMinutes,
-                      '${d.breakDurationMinutes}',
-                      () => _editBreak(i)),
-                  _timeChip(context, l10n.notesOptional,
-                      d.notes.isEmpty ? '–' : d.notes,
-                      () => _editNotes(i)),
+                  Text(dayName,
+                      style: text.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 2),
+                  Text(dayDate,
+                      style: text.bodySmall?.copyWith(
+                          color:
+                              text.bodySmall?.color?.withValues(alpha: 0.65))),
                 ],
+              ),
+            ),
+            if (_editing)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    tooltip: l10n.copyDay,
+                    icon: const Icon(Icons.content_copy_rounded, size: 20),
+                    onPressed: () => _copyDay(i),
+                  ),
+                  Switch(
+                    value: d.isWorkingDay,
+                    onChanged: (v) => setState(() => d.isWorkingDay = v),
+                  ),
+                ],
+              )
+            else ...[
+              // v27.12 view mode: working days always show their
+              // start–end times opposite the day name (previously
+              // times appeared only in edit mode). Day-off rows
+              // show Day off here only when the status chip does
+              // not already say so (a scheduled day off that got
+              // worked shows the completed chip instead) — the
+              // chip itself is untouched.
+              if (d.isWorkingDay) ...[
+                Text(
+                  '${_fmtTime(context, d.startMinutes)} - '
+                  '${_fmtTime(context, d.endMinutes)}',
+                  style: text.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(width: 10),
+              ] else if (_chipFor(i) != ScheduleDayChip.dayOff) ...[
+                Text(
+                  l10n.dayOff,
+                  style: text.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(width: 10),
+              ],
+              _dayStatus(context, i, l10n),
+              const SizedBox(width: 10),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: Theme.of(context)
+                    .colorScheme
+                    .onSurface
+                    .withValues(alpha: 0.35),
               ),
             ],
           ],
-        );
+        ),
+        if (_editing && d.isWorkingDay) ...[
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _timeChip(context, l10n.startTime,
+                  _fmtTime(context, d.startMinutes), () => _pickTime(i, true)),
+              _timeChip(context, l10n.endTime, _fmtTime(context, d.endMinutes),
+                  () => _pickTime(i, false)),
+              _timeChip(context, l10n.breakMinutes, '${d.breakDurationMinutes}',
+                  () => _editBreak(i)),
+              _timeChip(context, l10n.notesOptional,
+                  d.notes.isEmpty ? '–' : d.notes, () => _editNotes(i)),
+            ],
+          ),
+        ],
+      ],
+    );
   }
 
   /// Status badge + completed-orders count for a day (view mode).
@@ -479,15 +471,14 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
     return scheduleDayChipFor(
       countedOrders: count,
       isWorkingDay: d.isWorkingDay,
-      workStartedToday: d.dateKey == todayKey &&
-          _workStartedToday(db, d.dateKey, record),
+      workStartedToday:
+          d.dateKey == todayKey && _workStartedToday(db, d.dateKey, record),
       date: WeekCalendar.parseDateKey(d.dateKey),
       today: DateTime.now(),
     );
   }
 
-  Widget _dayStatus(
-      BuildContext context, int i, AppLocalizations l10n) {
+  Widget _dayStatus(BuildContext context, int i, AppLocalizations l10n) {
     final db = ref.read(databaseServiceProvider);
     final d = _days[i];
     final record = db.orderRecord(d.dateKey);
@@ -518,8 +509,7 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
             color: color.withValues(alpha: 0.14),
             borderRadius: BorderRadius.circular(20),
@@ -538,8 +528,7 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
           Text(
             l10n.completedOrdersChip(count),
             style: text.bodySmall?.copyWith(
-                color:
-                    text.bodySmall?.color?.withValues(alpha: 0.65)),
+                color: text.bodySmall?.color?.withValues(alpha: 0.65)),
           ),
         ],
       ],
@@ -555,28 +544,23 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
     return entries.any((e) => e.status >= 1 && e.status <= 3);
   }
 
-  Widget _timeChip(BuildContext context, String label, String value,
-      VoidCallback onTap) {
+  Widget _timeChip(
+      BuildContext context, String label, String value, VoidCallback onTap) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-              color: Theme.of(context)
-                  .colorScheme
-                  .outline
-                  .withValues(alpha: 0.4)),
+              color:
+                  Theme.of(context).colorScheme.outline.withValues(alpha: 0.4)),
         ),
         child: Column(
           children: [
-            Text(label,
-                style: Theme.of(context).textTheme.labelSmall),
-            Text(value,
-                style: const TextStyle(fontWeight: FontWeight.w700)),
+            Text(label, style: Theme.of(context).textTheme.labelSmall),
+            Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
           ],
         ),
       ),
@@ -613,29 +597,35 @@ class _DayPickerDialogState extends State<_DayPickerDialog> {
       title: Text(widget.title),
       content: SizedBox(
         width: double.maxFinite,
-        child: ListView.builder(
-          shrinkWrap: true,
-          itemCount: 7,
-          itemBuilder: (ctx, i) {
-            if (i == widget.exclude) return const SizedBox.shrink();
-            return CheckboxListTile(
-              title: Text(names[i]),
-              value: _sel.contains(i),
-              onChanged: (v) => setState(() {
-                if (v == true) {
-                  _sel.add(i);
-                } else {
-                  _sel.remove(i);
-                }
-              }),
-            );
-          },
+        // v27.31: weekday rows stagger in on every dialog open
+        // (dialog remounts each time, so this replays naturally).
+        child: StaggeredScope(
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: 7,
+            itemBuilder: (ctx, i) {
+              if (i == widget.exclude) return const SizedBox.shrink();
+              return StaggeredItem(
+                index: i,
+                child: CheckboxListTile(
+                  title: Text(names[i]),
+                  value: _sel.contains(i),
+                  onChanged: (v) => setState(() {
+                    if (v == true) {
+                      _sel.add(i);
+                    } else {
+                      _sel.remove(i);
+                    }
+                  }),
+                ),
+              );
+            },
+          ),
         ),
       ),
       actions: [
         TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(l10n.cancel)),
+            onPressed: () => Navigator.pop(context), child: Text(l10n.cancel)),
         TextButton(
             onPressed: () => Navigator.pop(context, _sel.toList()),
             child: Text(l10n.ok)),

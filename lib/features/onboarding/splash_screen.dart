@@ -7,10 +7,11 @@ import 'package:go_router/go_router.dart';
 import '../../theme/design_system.dart';
 import 'df_monogram.dart';
 
-/// v27.30 splash/entry, modelled on the DailyFlutterUI reference intro
-/// Mohamed sent: the DF monogram draws itself stroke-by-stroke (WHITE
-/// stroke), then fills (D WHITE, F BLUE), then "DeliveryFlow" appears,
-/// then the app enters with a smooth fade/slide.
+/// v27.31 splash/entry: the COMBINED DF mark — one bold D whose outline
+/// draws itself in a thin WHITE stroke, then fills solid WHITE, with a
+/// BLUE stylized F appearing inside its bowl (exactly the reference
+/// video's mark) — then "DeliveryFlow" appears, then the app enters
+/// with a smooth fade/slide. Replaces the v27.30 side-by-side letters.
 ///
 /// SPEED IS A HARD REQUIREMENT: the whole sequence is 1250ms — inside
 /// the 1–1.5s budget — never blocks on network, and under OS

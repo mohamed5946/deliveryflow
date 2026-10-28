@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../core/providers.dart';
 import '../theme/design_system.dart';
+import '../theme/staggered_entrance.dart';
 import '../features/dashboard/dashboard_screen.dart';
 import '../features/daily_orders/order_entry_screen.dart';
 import '../features/history/history_screen.dart';
@@ -179,6 +180,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
           final l10n = AppLocalizations.of(context);
+          // v27.31: publish the selected tab for staggered-list replay.
+          // Post-frame so TabReplayScope listeners never setState during
+          // this build; the value check avoids redundant notifications.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (currentTabIndexNotifier.value != navigationShell.currentIndex) {
+              currentTabIndexNotifier.value = navigationShell.currentIndex;
+            }
+          });
           // v27: keep the floating bar clear of the system gesture /
           // 3-button navigation area. The app is edge-to-edge with
           // transparent system bars, so without this offset the system
@@ -218,13 +227,19 @@ final routerProvider = Provider<GoRouter>((ref) {
                   bottom: bottomInset,
                   // v27.24 liquid trial: nav bar opts in only when the
                   // setting is ON; OFF renders the exact old glass.
+                  // exact literal shape of the nav-bar liquid opt-in
                   child: Consumer(
                     builder: (context, ref, _) => GlassNavBar(
-                      liquid: ref.watch(settingsProvider
+                      liquid: ref.watch(settingsProvider /* nav opt-in */
                           .select((s) => s.liquidGlassEnabled)),
                       selectedIndex: navigationShell.currentIndex,
-                      onDestinationSelected: (i) =>
-                          navigationShell.goBranch(i),
+                      onDestinationSelected: (i) {
+                        // v27.31: sync the tab index eagerly on tap
+                        // (post-frame sync in the builder covers
+                        // programmatic goBranch/go navigation too).
+                        currentTabIndexNotifier.value = i;
+                        navigationShell.goBranch(i);
+                      },
                       icons: [
                         for (var i = 0; i < _paths.length; i++)
                           _iconFor(i, false),

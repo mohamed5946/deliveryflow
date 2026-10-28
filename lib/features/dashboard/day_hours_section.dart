@@ -325,63 +325,67 @@ class DayHoursSection extends StatelessWidget {
     final summary = summarizeBlocks(day: d, dayDate: selectedDay, now: now);
     final dayName = WeekCalendar.dateKey(selectedDay);
 
-    return StaggeredScope(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Always-visible header: start–end + worked/remaining summary.
-        Text(
-          // Generated placeholders are alphabetical: (end, start).
-          l10n.dayShiftRange(_fmt(context, effectiveEndMinutes(d)),
-              _fmt(context, d.startMinutes)),
-          style: text.titleSmall?.copyWith(fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          // Generated placeholders are alphabetical: (remaining, worked).
-          l10n.workedRemaining(summary.remaining, summary.worked),
-          style: text.bodyMedium,
-        ),
-        if (breaks.isNotEmpty) ...[
-          const SizedBox(height: 2),
-          Text(l10n.breakHoursCount(breaks.length),
-              style: text.bodySmall?.copyWith(
-                  color: Colors.orange.shade700, fontWeight: FontWeight.w700)),
-        ],
-        if (d.breakDurationMinutes > 0) ...[
-          const SizedBox(height: 2),
-          Text(l10n.registeredBreak(d.breakDurationMinutes),
-              style: text.bodySmall?.copyWith(
-                  color: text.bodySmall?.color?.withValues(alpha: 0.65))),
-        ],
-        const SizedBox(height: 10),
-        // Legend (small, if space allows — a single wrapping row).
-        Wrap(
-          spacing: 12,
-          runSpacing: 4,
+    return TabReplayScope(
+      tabIndex: 0,
+      child: StaggeredScope(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _legendDot(LiquidPalette.success, l10n.hourWorked),
-            _legendDot(LiquidPalette.primaryBlue, l10n.hourCurrent),
-            _legendDot(Colors.grey, l10n.hourUpcoming),
-            _legendDot(Colors.orange, l10n.hourBreak),
+            // Always-visible header: start–end + worked/remaining summary.
+            Text(
+              // Generated placeholders are alphabetical: (end, start).
+              l10n.dayShiftRange(_fmt(context, effectiveEndMinutes(d)),
+                  _fmt(context, d.startMinutes)),
+              style: text.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              // Generated placeholders are alphabetical: (remaining, worked).
+              l10n.workedRemaining(summary.remaining, summary.worked),
+              style: text.bodyMedium,
+            ),
+            if (breaks.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(l10n.breakHoursCount(breaks.length),
+                  style: text.bodySmall?.copyWith(
+                      color: Colors.orange.shade700,
+                      fontWeight: FontWeight.w700)),
+            ],
+            if (d.breakDurationMinutes > 0) ...[
+              const SizedBox(height: 2),
+              Text(l10n.registeredBreak(d.breakDurationMinutes),
+                  style: text.bodySmall?.copyWith(
+                      color: text.bodySmall?.color?.withValues(alpha: 0.65))),
+            ],
+            const SizedBox(height: 10),
+            // Legend (small, if space allows — a single wrapping row).
+            Wrap(
+              spacing: 12,
+              runSpacing: 4,
+              children: [
+                _legendDot(LiquidPalette.success, l10n.hourWorked),
+                _legendDot(LiquidPalette.primaryBlue, l10n.hourCurrent),
+                _legendDot(Colors.grey, l10n.hourUpcoming),
+                _legendDot(Colors.orange, l10n.hourBreak),
+              ],
+            ),
+            const SizedBox(height: 10),
+            // Hour blocks, full width, one per work hour, swipeable.
+            for (final start in starts)
+              StaggeredItem(
+                index: starts.indexOf(start),
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: _block(context, d, start, breaks.contains(start), l10n,
+                      keySuffix: dayName),
+                ),
+              ),
+            const SizedBox(height: 2),
+            // Assign: the only way to add a new work hour (v27.13).
+            _assignButton(context, l10n),
           ],
         ),
-        const SizedBox(height: 10),
-        // Hour blocks, full width, one per work hour, swipeable.
-        for (final start in starts)
-          StaggeredItem(
-            index: starts.indexOf(start),
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: _block(context, d, start, breaks.contains(start), l10n,
-                  keySuffix: dayName),
-            ),
-          ),
-        const SizedBox(height: 2),
-        // Assign: the only way to add a new work hour (v27.13).
-        _assignButton(context, l10n),
-      ],
-    ),
+      ),
     );
   }
 
@@ -641,8 +645,7 @@ class _SwipeableBlockState extends State<_SwipeableBlock>
   void _onDragUpdate(DragUpdateDetails details) {
     _snapController.stop();
     setState(() {
-      _offset =
-          (_offset + details.delta.dx).clamp(_minOffset, _maxOffset);
+      _offset = (_offset + details.delta.dx).clamp(_minOffset, _maxOffset);
     });
   }
 
@@ -740,8 +743,7 @@ class _SwipeableBlockState extends State<_SwipeableBlock>
       width: width,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onHorizontalDragUpdate:
-            widget.isProtected ? null : _onDragUpdate,
+        onHorizontalDragUpdate: widget.isProtected ? null : _onDragUpdate,
         onHorizontalDragEnd: widget.isProtected ? null : _onDragEnd,
         child: ClipRRect(
           borderRadius: radius,
@@ -821,10 +823,8 @@ class _SwipeableBlockState extends State<_SwipeableBlock>
             ),
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onHorizontalDragUpdate:
-                  widget.isProtected ? null : _onDragUpdate,
-              onHorizontalDragEnd:
-                  widget.isProtected ? null : _onDragEnd,
+              onHorizontalDragUpdate: widget.isProtected ? null : _onDragUpdate,
+              onHorizontalDragEnd: widget.isProtected ? null : _onDragEnd,
               // Tapping a panel-open block just closes it; tapping a
               // closed block is handled by the child's own tap
               // (no-op, or the protection explanation).

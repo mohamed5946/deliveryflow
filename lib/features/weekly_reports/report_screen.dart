@@ -15,6 +15,7 @@ import '../../core/date_time/week_calendar.dart';
 import '../../core/logging/app_log_service.dart';
 import '../../core/providers.dart';
 import '../../theme/design_system.dart';
+import '../../theme/staggered_entrance.dart';
 import '../../theme/top_snack_bar.dart';
 import '../../theme/page_transitions.dart';
 import 'past_weeks_report.dart';
@@ -107,254 +108,293 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
           final end = WeekCalendar.parseDateKey(r.weekEndKey);
           final range =
               '${DateFormat.yMMMd(loc).format(start)} – ${DateFormat.yMMMd(loc).format(end)}';
-          return ListView(
-            padding: GlassTokens.screenPadding,
-            children: [
-              Text(range,
-                  style:
-                      text.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-              const SizedBox(height: 4),
-              if (r.missingRecordDates.isNotEmpty)
-                Text(
-                  '${l10n.incompleteWeek} (${l10n.missingRecords}: ${r.missingRecordDates.length})',
-                  style: text.bodySmall?.copyWith(
-                      color: scheme.tertiary, fontWeight: FontWeight.w600),
-                ),
-              const SizedBox(height: 12),
-              // Day summary (mockup's "ملخص اليوم") — current week only.
-              if (WeekCalendar.isSameWeek(_anchor, DateTime.now()))
-                _daySummaryCard(context, ref, l10n, text),
-              if (WeekCalendar.isSameWeek(_anchor, DateTime.now()))
-                const SizedBox(height: 12),
-              // Totals
-              Row(
+          // v27.31: section cards stagger in on every entry, tab
+          // switches included (TabReplayScope bumps the generation).
+          return TabReplayScope(
+            tabIndex: 2,
+            child: StaggeredScope(
+              child: ListView(
+                padding: GlassTokens.screenPadding,
                 children: [
-                  Expanded(
-                    child: StatTile(
-                      label: l10n.totalOrders,
-                      value: '${r.totalOrders}',
-                      icon: Icons.shopping_bag_rounded,
-                      accent: LiquidPalette.skyBlue,
+                  Text(range,
+                      style: text.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 4),
+                  if (r.missingRecordDates.isNotEmpty)
+                    Text(
+                      '${l10n.incompleteWeek} (${l10n.missingRecords}: ${r.missingRecordDates.length})',
+                      style: text.bodySmall?.copyWith(
+                          color: scheme.tertiary, fontWeight: FontWeight.w600),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: StatTile(
-                      label: l10n.totalRecordedHours,
-                      value: WeekCalendar.formatHours(r.totalRecordedHours),
-                      icon: Icons.schedule_rounded,
-                      accent: LiquidPalette.primaryBlue,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: StatTile(
-                      label: l10n.totalPlannedHoursLabel,
-                      value: WeekCalendar.formatHours(r.totalPlannedHours),
-                      icon: Icons.event_note_rounded,
-                      accent: LiquidPalette.primaryBlue,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: StatTile(
-                      label: l10n.ordersPerHour,
-                      value: r.ordersPerWorkingHour == null
-                          ? '–'
-                          : r.ordersPerWorkingHour!.toStringAsFixed(1),
-                      icon: Icons.speed_rounded,
-                      accent: LiquidPalette.success,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: StatTile(
-                      label: l10n.avgOrdersWorkingDay,
-                      value: r.averageOrdersPerWorkingDay == null
-                          ? '–'
-                          : r.averageOrdersPerWorkingDay!.toStringAsFixed(1),
-                      icon: Icons.trending_up_rounded,
-                      accent: LiquidPalette.warning,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: StatTile(
-                      label: l10n.avgHoursWorkingDay,
-                      value: r.averageHoursPerWorkingDay == null
-                          ? '–'
-                          : WeekCalendar.formatHours(
-                              r.averageHoursPerWorkingDay!),
-                      icon: Icons.timelapse_rounded,
-                      accent: LiquidPalette.accentViolet,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              // Distance totals
-              GlassCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.route_rounded,
-                            size: 20, color: LiquidPalette.skyBlue),
-                        const SizedBox(width: 8),
-                        Text(l10n.weekKmLabel,
-                            style: text.titleSmall
-                                ?.copyWith(fontWeight: FontWeight.w800)),
-                        const Spacer(),
-                        Text(
-                          '${WeekCalendar.formatKm(r.totalKm)} ${l10n.kmUnit}',
-                          style: text.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              color: LiquidPalette.skyBlue),
-                        ),
-                      ],
-                    ),
+                  const SizedBox(height: 12),
+                  // Day summary (mockup's "ملخص اليوم") — current week only.
+                  if (WeekCalendar.isSameWeek(_anchor, DateTime.now()))
+                    StaggeredItem(
+                        index: 0,
+                        child: _daySummaryCard(context, ref, l10n, text)),
+                  if (WeekCalendar.isSameWeek(_anchor, DateTime.now()))
                     const SizedBox(height: 12),
-                    Row(
+                  // Totals
+                  StaggeredItem(
+                    index: 1,
+                    child: Row(
                       children: [
                         Expanded(
-                          child: _kmStat(context, l10n.kmOutLabel,
-                              WeekCalendar.formatKm(r.totalKmOut), l10n),
+                          child: StatTile(
+                            label: l10n.totalOrders,
+                            value: '${r.totalOrders}',
+                            icon: Icons.shopping_bag_rounded,
+                            accent: LiquidPalette.skyBlue,
+                          ),
                         ),
+                        const SizedBox(width: 12),
                         Expanded(
-                          child: _kmStat(context, l10n.kmBackLabel,
-                              WeekCalendar.formatKm(r.totalKmBack), l10n),
-                        ),
-                        Expanded(
-                          child: _kmStat(
-                              context,
-                              l10n.avgKmPerDay,
-                              r.recordedDaysCount == 0
-                                  ? '–'
-                                  : WeekCalendar.formatKm(
-                                      r.totalKm / r.recordedDaysCount),
-                              l10n),
+                          child: StatTile(
+                            label: l10n.totalRecordedHours,
+                            value:
+                                WeekCalendar.formatHours(r.totalRecordedHours),
+                            icon: Icons.schedule_rounded,
+                            accent: LiquidPalette.primaryBlue,
+                          ),
                         ),
                       ],
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              // Weekly salary
-              _salaryCard(context, ref, l10n, r, text, scheme),
-              const SizedBox(height: 12),
-              // v27.5: this week's distance-bonus on/off (per-week
-              // override of the global default).
-              _distanceBonusWeekCard(context, ref, l10n, r, text, scheme),
-              const SizedBox(height: 12),
-              // Best day + comparison
-              GlassCard(
-                child: Column(
-                  children: [
-                    _kv(
-                        l10n.bestDay,
-                        r.bestDayKey == null
-                            ? '–'
-                            : DateFormat.EEEE(loc).format(
-                                WeekCalendar.parseDateKey(r.bestDayKey!)),
-                        text),
-                    const Divider(height: 16),
-                    prevAsync.when(
-                      loading: () => const SizedBox.shrink(),
-                      error: (_, __) => const SizedBox.shrink(),
-                      data: (p) => Column(
+                  ),
+                  const SizedBox(height: 12),
+                  StaggeredItem(
+                    index: 2,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: StatTile(
+                            label: l10n.totalPlannedHoursLabel,
+                            value:
+                                WeekCalendar.formatHours(r.totalPlannedHours),
+                            icon: Icons.event_note_rounded,
+                            accent: LiquidPalette.primaryBlue,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: StatTile(
+                            label: l10n.ordersPerHour,
+                            value: r.ordersPerWorkingHour == null
+                                ? '–'
+                                : r.ordersPerWorkingHour!.toStringAsFixed(1),
+                            icon: Icons.speed_rounded,
+                            accent: LiquidPalette.success,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  StaggeredItem(
+                    index: 3,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: StatTile(
+                            label: l10n.avgOrdersWorkingDay,
+                            value: r.averageOrdersPerWorkingDay == null
+                                ? '–'
+                                : r.averageOrdersPerWorkingDay!
+                                    .toStringAsFixed(1),
+                            icon: Icons.trending_up_rounded,
+                            accent: LiquidPalette.warning,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: StatTile(
+                            label: l10n.avgHoursWorkingDay,
+                            value: r.averageHoursPerWorkingDay == null
+                                ? '–'
+                                : WeekCalendar.formatHours(
+                                    r.averageHoursPerWorkingDay!),
+                            icon: Icons.timelapse_rounded,
+                            accent: LiquidPalette.accentViolet,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Distance totals
+                  StaggeredItem(
+                    index: 4,
+                    child: GlassCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _kv('${l10n.totalOrders} (${l10n.vsLastWeek})',
-                              _delta(r.totalOrders, p.totalOrders), text),
-                          _kv(
-                              '${l10n.totalRecordedHours} (${l10n.vsLastWeek})',
-                              _deltaHours(
-                                  r.totalRecordedHours, p.totalRecordedHours),
-                              text),
+                          Row(
+                            children: [
+                              const Icon(Icons.route_rounded,
+                                  size: 20, color: LiquidPalette.skyBlue),
+                              const SizedBox(width: 8),
+                              Text(l10n.weekKmLabel,
+                                  style: text.titleSmall
+                                      ?.copyWith(fontWeight: FontWeight.w800)),
+                              const Spacer(),
+                              Text(
+                                '${WeekCalendar.formatKm(r.totalKm)} ${l10n.kmUnit}',
+                                style: text.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                    color: LiquidPalette.skyBlue),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _kmStat(context, l10n.kmOutLabel,
+                                    WeekCalendar.formatKm(r.totalKmOut), l10n),
+                              ),
+                              Expanded(
+                                child: _kmStat(context, l10n.kmBackLabel,
+                                    WeekCalendar.formatKm(r.totalKmBack), l10n),
+                              ),
+                              Expanded(
+                                child: _kmStat(
+                                    context,
+                                    l10n.avgKmPerDay,
+                                    r.recordedDaysCount == 0
+                                        ? '–'
+                                        : WeekCalendar.formatKm(
+                                            r.totalKm / r.recordedDaysCount),
+                                    l10n),
+                              ),
+                            ],
+                          ),
                         ],
                       ),
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              // Daily breakdown chart
-              GlassCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(l10n.dailyBreakdown,
-                        style: text.titleSmall
-                            ?.copyWith(fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 12),
-                    RepaintBoundary(
-                      child:
-                          SizedBox(height: 180, child: _ordersChart(r, scheme)),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              // Daily rows
-              for (final d in r.days) _dayRow(context, d, l10n, loc),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: GlassButton(
-                      label: l10n.shareSummary,
-                      primary: false,
-                      icon: Icons.share_rounded,
-                      onPressed: () {
-                        final db = ref.read(databaseServiceProvider);
-                        SharePlus.instance.share(ShareParams(
-                            text: db.reportShareText(r,
-                                dayLabel: (k) => DateFormat.EEEE(loc)
-                                    .format(WeekCalendar.parseDateKey(k)))));
-                      },
+                  ),
+                  const SizedBox(height: 12),
+                  // Weekly salary
+                  StaggeredItem(
+                      index: 5,
+                      child: _salaryCard(context, ref, l10n, r, text, scheme)),
+                  const SizedBox(height: 12),
+                  // v27.5: this week's distance-bonus on/off (per-week
+                  // override of the global default).
+                  StaggeredItem(
+                      index: 6,
+                      child: _distanceBonusWeekCard(
+                          context, ref, l10n, r, text, scheme)),
+                  const SizedBox(height: 12),
+                  // Best day + comparison
+                  StaggeredItem(
+                    index: 7,
+                    child: GlassCard(
+                      child: Column(
+                        children: [
+                          _kv(
+                              l10n.bestDay,
+                              r.bestDayKey == null
+                                  ? '–'
+                                  : DateFormat.EEEE(loc).format(
+                                      WeekCalendar.parseDateKey(r.bestDayKey!)),
+                              text),
+                          const Divider(height: 16),
+                          prevAsync.when(
+                            loading: () => const SizedBox.shrink(),
+                            error: (_, __) => const SizedBox.shrink(),
+                            data: (p) => Column(
+                              children: [
+                                _kv('${l10n.totalOrders} (${l10n.vsLastWeek})',
+                                    _delta(r.totalOrders, p.totalOrders), text),
+                                _kv(
+                                    '${l10n.totalRecordedHours} (${l10n.vsLastWeek})',
+                                    _deltaHours(r.totalRecordedHours,
+                                        p.totalRecordedHours),
+                                    text),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: GlassButton(
-                      label: l10n.exportCsv,
-                      primary: false,
-                      icon: Icons.download_rounded,
-                      onPressed: () async {
-                        final db = ref.read(databaseServiceProvider);
-                        final csv = db.exportCsv();
-                        await SharePlus.instance.share(ShareParams(
-                            text: csv, subject: 'deliveryflow.csv'));
-                        if (context.mounted) {
-                          showTopSnackBar(context, l10n.csvExported);
-                        }
-                      },
+                  const SizedBox(height: 12),
+                  // Daily breakdown chart
+                  StaggeredItem(
+                    index: 8,
+                    child: GlassCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(l10n.dailyBreakdown,
+                              style: text.titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.w700)),
+                          const SizedBox(height: 12),
+                          RepaintBoundary(
+                            child: SizedBox(
+                                height: 180, child: _ordersChart(r, scheme)),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
+                  const SizedBox(height: 12),
+                  // Daily rows
+                  for (var i = 0; i < r.days.length; i++)
+                    StaggeredItem(
+                        index: 9 + i,
+                        child: _dayRow(context, r.days[i], l10n, loc)),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: GlassButton(
+                          label: l10n.shareSummary,
+                          primary: false,
+                          icon: Icons.share_rounded,
+                          onPressed: () {
+                            final db = ref.read(databaseServiceProvider);
+                            SharePlus.instance.share(ShareParams(
+                                text: db.reportShareText(r,
+                                    dayLabel: (k) => DateFormat.EEEE(loc)
+                                        .format(
+                                            WeekCalendar.parseDateKey(k)))));
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: GlassButton(
+                          label: l10n.exportCsv,
+                          primary: false,
+                          icon: Icons.download_rounded,
+                          onPressed: () async {
+                            final db = ref.read(databaseServiceProvider);
+                            final csv = db.exportCsv();
+                            await SharePlus.instance.share(ShareParams(
+                                text: csv, subject: 'deliveryflow.csv'));
+                            if (context.mounted) {
+                              showTopSnackBar(context, l10n.csvExported);
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  // v27.4: one-tap PDF of the recorded weeks (organized,
+                  // per-day tables + week/grand totals), shared as a file.
+                  // v27.5: the button first asks the scope — all weeks,
+                  // or one picked week exported on its own.
+                  GlassButton(
+                    label: l10n.exportPdfAllWeeks,
+                    primary: false,
+                    icon: Icons.picture_as_pdf_rounded,
+                    onPressed: _choosePdfScope,
+                  ),
+                  const SizedBox(height: 24),
                 ],
               ),
-              const SizedBox(height: 10),
-              // v27.4: one-tap PDF of the recorded weeks (organized,
-              // per-day tables + week/grand totals), shared as a file.
-              // v27.5: the button first asks the scope — all weeks,
-              // or one picked week exported on its own.
-              GlassButton(
-                label: l10n.exportPdfAllWeeks,
-                primary: false,
-                icon: Icons.picture_as_pdf_rounded,
-                onPressed: _choosePdfScope,
-              ),
-              const SizedBox(height: 24),
-            ],
+            ),
           );
         },
       ),
@@ -382,40 +422,45 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           child: GlassCard(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: ConstrainedBox(
               constraints: BoxConstraints(
-                maxHeight:
-                    MediaQuery.of(sheetContext).size.height * 0.6,
+                maxHeight: MediaQuery.of(sheetContext).size.height * 0.6,
               ),
-              child: ListView(
-                shrinkWrap: true,
-                children: [
-                  Text(l10n.pdfExportScopeTitle,
-                      style: Theme.of(sheetContext)
-                          .textTheme
-                          .titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 8),
-                  _pdfScopeRow(
-                    sheetContext,
-                    icon: Icons.picture_as_pdf_rounded,
-                    title: l10n.pdfAllWeeksOption,
-                    onTap: () =>
-                        Navigator.of(sheetContext).pop('all'),
-                  ),
-                  for (final w in weeks) ...[
-                    const Divider(height: 8),
-                    _pdfScopeRow(
-                      sheetContext,
-                      icon: Icons.date_range_rounded,
-                      title: w.rangeLabel,
-                      onTap: () => Navigator.of(sheetContext)
-                          .pop(w.weekStartKey),
+              child: StaggeredScope(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    Text(l10n.pdfExportScopeTitle,
+                        style: Theme.of(sheetContext)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 8),
+                    StaggeredItem(
+                      index: 0,
+                      child: _pdfScopeRow(
+                        sheetContext,
+                        icon: Icons.picture_as_pdf_rounded,
+                        title: l10n.pdfAllWeeksOption,
+                        onTap: () => Navigator.of(sheetContext).pop('all'),
+                      ),
                     ),
+                    for (var i = 0; i < weeks.length; i++) ...[
+                      const Divider(height: 8),
+                      StaggeredItem(
+                        index: 1 + i,
+                        child: _pdfScopeRow(
+                          sheetContext,
+                          icon: Icons.date_range_rounded,
+                          title: weeks[i].rangeLabel,
+                          onTap: () => Navigator.of(sheetContext)
+                              .pop(weeks[i].weekStartKey),
+                        ),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ),
@@ -423,8 +468,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
       ),
     );
     if (!mounted || choice == null) return;
-    await _exportPdf(
-        onlyWeekStartKey: choice == 'all' ? null : choice);
+    await _exportPdf(onlyWeekStartKey: choice == 'all' ? null : choice);
   }
 
   Widget _pdfScopeRow(
@@ -446,8 +490,8 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
             const SizedBox(width: 12),
             Expanded(
               child: Text(title,
-                  style: text.titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w600)),
+                  style:
+                      text.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
             ),
           ],
         ),
@@ -817,8 +861,12 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
   /// resolving its own override ?? global, so toggling one week never
   /// rewrites another week's earnings. The switch reflects the
   /// report's own resolved flag, so what it shows is what was paid.
-  Widget _distanceBonusWeekCard(BuildContext context, WidgetRef ref,
-      AppLocalizations l10n, WeeklyReport r, TextTheme text,
+  Widget _distanceBonusWeekCard(
+      BuildContext context,
+      WidgetRef ref,
+      AppLocalizations l10n,
+      WeeklyReport r,
+      TextTheme text,
       ColorScheme scheme) {
     // v27.16: the switch is only live for weeks inside an active
     // distance period. For a week outside every period it is
@@ -835,8 +883,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
           const SizedBox(width: 8),
           Expanded(
             child: Text(l10n.distanceBonusWeekLabel,
-                style:
-                    text.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+                style: text.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
           ),
           Switch(
             value: r.distanceBonusEnabled,
@@ -852,8 +899,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
   Future<void> _setWeekDistanceBonus(String weekStartKey, bool value) async {
     final log = ref.read(appLogServiceProvider);
     await ref.read(settingsProvider.notifier).update((s) {
-      final overrides =
-          Map<String, bool>.from(s.distanceBonusWeekOverrides);
+      final overrides = Map<String, bool>.from(s.distanceBonusWeekOverrides);
       // v27.16: within a period-covered week, the override is a pure
       // exception — ON means "back to the period default" (so the
       // override is cleared, never frozen), OFF stores false for

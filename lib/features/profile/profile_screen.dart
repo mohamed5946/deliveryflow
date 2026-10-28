@@ -24,6 +24,7 @@ import '../../core/notifications/battery_optimization.dart';
 import '../../core/providers.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/design_system.dart';
+import '../../theme/staggered_entrance.dart';
 import '../../theme/theme_reveal.dart';
 import '../../theme/bin_eating_delete_button.dart';
 import '../../theme/top_snack_bar.dart';
@@ -651,87 +652,183 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               // ── بطاقة الهوية ───────────────────────────────
               _identityCard(l10n, settings),
               const SizedBox(height: 12),
-              // ── قائمة الأقسام ──────────────────────────────
-              GlassCard(
-                child: Column(
-                  children: [
-                    _hubRow(
-                      icon: Icons.apps_rounded,
-                      title: l10n.appSection,
-                      sectionId: 'quick',
-                      bodyBuilder: _quickLinksBody,
-                    ),
-                    const SizedBox(height: 4),
-                    _hubRow(
-                      icon: Icons.palette_rounded,
-                      title: l10n.appearanceSection,
-                      sectionId: 'appearance',
-                      bodyBuilder: _appearanceBody,
-                    ),
-                    const SizedBox(height: 4),
-                    _hubRow(
-                      icon: Icons.navigation_rounded,
-                      title: l10n.autoNavSection,
-                      sectionId: 'autoNav',
-                      bodyBuilder: _autoNavBody,
-                    ),
-                    const SizedBox(height: 4),
-                    _hubRow(
-                      icon: Icons.notifications_rounded,
-                      title: l10n.notificationsSection,
-                      sectionId: 'notifications',
-                      bodyBuilder: _notificationsBody,
-                    ),
-                    const SizedBox(height: 4),
-                    _hubRow(
-                      icon: Icons.language_rounded,
-                      title: l10n.languageSection,
-                      sectionId: 'language',
-                      bodyBuilder: _languageBody,
-                    ),
-                    const SizedBox(height: 4),
-                    _hubRow(
-                      icon: Icons.schedule_rounded,
-                      title: l10n.timeFormatSection,
-                      sectionId: 'timeFormat',
-                      bodyBuilder: _timeFormatBody,
-                    ),
-                    const SizedBox(height: 4),
-                    _hubRow(
-                      icon: Icons.work_outline_rounded,
-                      title: l10n.workPrefsSection,
-                      sectionId: 'workPrefs',
-                      bodyBuilder: _workPrefsBody,
-                    ),
-                    const SizedBox(height: 4),
-                    _hubRow(
-                      icon: Icons.payments_rounded,
-                      title: l10n.salarySection,
-                      sectionId: 'salary',
-                      bodyBuilder: _salaryBody,
-                    ),
-                    const SizedBox(height: 4),
-                    _hubRow(
-                      icon: Icons.folder_copy_rounded,
-                      title: l10n.dataSection,
-                      sectionId: 'data',
-                      bodyBuilder: _dataBody,
-                    ),
-                    const SizedBox(height: 4),
-                    _hubRow(
-                      icon: Icons.info_rounded,
-                      title: l10n.aboutApp,
-                      sectionId: 'about',
-                      bodyBuilder: _aboutBody,
-                    ),
-                    const SizedBox(height: 4),
-                    _hubRow(
-                      icon: Icons.code_rounded,
-                      title: l10n.developerMode,
-                      sectionId: 'developer',
-                      bodyBuilder: _developerBody,
-                    ),
-                  ],
+              // ── قائمة الأقسام: بطاقة مستقلة لكل قسم ──
+              // v27.31: separated cards (one card per section,
+              // like the Weekly schedule day cards) + staggered
+              // entrance with tab replay (TabReplayScope).
+              TabReplayScope(
+                tabIndex: 4,
+                child: StaggeredScope(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      StaggeredItem(
+                        index: 0,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: GlassCard(
+                            key: const ValueKey('hubCard-quick'),
+                            child: _hubRow(
+                              icon: Icons.apps_rounded,
+                              title: l10n.appSection,
+                              sectionId: 'quick',
+                              bodyBuilder: _quickLinksBody,
+                            ),
+                          ),
+                        ),
+                      ),
+                      StaggeredItem(
+                        index: 1,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: GlassCard(
+                            key: const ValueKey('hubCard-appearance'),
+                            child: _hubRow(
+                              icon: Icons.palette_rounded,
+                              title: l10n.appearanceSection,
+                              sectionId: 'appearance',
+                              bodyBuilder: _appearanceBody,
+                            ),
+                          ),
+                        ),
+                      ),
+                      StaggeredItem(
+                        index: 2,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: GlassCard(
+                            key: const ValueKey('hubCard-autoNav'),
+                            child: _hubRow(
+                              icon: Icons.navigation_rounded,
+                              title: l10n.autoNavSection,
+                              sectionId: 'autoNav',
+                              bodyBuilder: _autoNavBody,
+                            ),
+                          ),
+                        ),
+                      ),
+                      StaggeredItem(
+                        index: 3,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: GlassCard(
+                            key: const ValueKey('hubCard-notifications'),
+                            child: _hubRow(
+                              icon: Icons.notifications_rounded,
+                              title: l10n.notificationsSection,
+                              sectionId: 'notifications',
+                              bodyBuilder: _notificationsBody,
+                            ),
+                          ),
+                        ),
+                      ),
+                      StaggeredItem(
+                        index: 4,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: GlassCard(
+                            key: const ValueKey('hubCard-language'),
+                            child: _hubRow(
+                              icon: Icons.language_rounded,
+                              title: l10n.languageSection,
+                              sectionId: 'language',
+                              bodyBuilder: _languageBody,
+                            ),
+                          ),
+                        ),
+                      ),
+                      StaggeredItem(
+                        index: 5,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: GlassCard(
+                            key: const ValueKey('hubCard-timeFormat'),
+                            child: _hubRow(
+                              icon: Icons.schedule_rounded,
+                              title: l10n.timeFormatSection,
+                              sectionId: 'timeFormat',
+                              bodyBuilder: _timeFormatBody,
+                            ),
+                          ),
+                        ),
+                      ),
+                      StaggeredItem(
+                        index: 6,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: GlassCard(
+                            key: const ValueKey('hubCard-workPrefs'),
+                            child: _hubRow(
+                              icon: Icons.work_outline_rounded,
+                              title: l10n.workPrefsSection,
+                              sectionId: 'workPrefs',
+                              bodyBuilder: _workPrefsBody,
+                            ),
+                          ),
+                        ),
+                      ),
+                      StaggeredItem(
+                        index: 7,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: GlassCard(
+                            key: const ValueKey('hubCard-salary'),
+                            child: _hubRow(
+                              icon: Icons.payments_rounded,
+                              title: l10n.salarySection,
+                              sectionId: 'salary',
+                              bodyBuilder: _salaryBody,
+                            ),
+                          ),
+                        ),
+                      ),
+                      StaggeredItem(
+                        index: 8,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: GlassCard(
+                            key: const ValueKey('hubCard-data'),
+                            child: _hubRow(
+                              icon: Icons.folder_copy_rounded,
+                              title: l10n.dataSection,
+                              sectionId: 'data',
+                              bodyBuilder: _dataBody,
+                            ),
+                          ),
+                        ),
+                      ),
+                      StaggeredItem(
+                        index: 9,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: GlassCard(
+                            key: const ValueKey('hubCard-about'),
+                            child: _hubRow(
+                              icon: Icons.info_rounded,
+                              title: l10n.aboutApp,
+                              sectionId: 'about',
+                              bodyBuilder: _aboutBody,
+                            ),
+                          ),
+                        ),
+                      ),
+                      StaggeredItem(
+                        index: 10,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: GlassCard(
+                            key: const ValueKey('hubCard-developer'),
+                            child: _hubRow(
+                              icon: Icons.code_rounded,
+                              title: l10n.developerMode,
+                              sectionId: 'developer',
+                              bodyBuilder: _developerBody,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 24),
@@ -968,8 +1065,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             onTap: () => _askNumber(
               title: l10n.weeklyOrderGoalLabel,
               initial: settings.weeklyOrderGoal?.toString() ?? '',
-              onDone: (v) => notifier
-                  .update((s) => s..weeklyOrderGoal = v?.toInt()),
+              onDone: (v) =>
+                  notifier.update((s) => s..weeklyOrderGoal = v?.toInt()),
             ),
           ),
           const SizedBox(height: 4),
@@ -981,8 +1078,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               title: l10n.weeklyHoursGoalLabel,
               initial: settings.weeklyWorkHoursGoal?.toString() ?? '',
               decimal: true,
-              onDone: (v) =>
-                  notifier.update((s) => s..weeklyWorkHoursGoal = v),
+              onDone: (v) => notifier.update((s) => s..weeklyWorkHoursGoal = v),
             ),
           ),
           const SizedBox(height: 4),
@@ -993,8 +1089,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             onTap: () => _askNumber(
               title: l10n.defaultBreakLabel,
               initial: settings.defaultBreakDurationMinutes.toString(),
-              onDone: (v) => notifier.update((s) =>
-                  s..defaultBreakDurationMinutes = v?.toInt() ?? 30),
+              onDone: (v) => notifier.update(
+                  (s) => s..defaultBreakDurationMinutes = v?.toInt() ?? 30),
             ),
           ),
         ],
@@ -1506,8 +1602,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           final service = ref.read(appLockServiceProvider);
           final log = ref.read(appLogServiceProvider);
           final enrolled = await service.enrolledBiometrics();
-          final enrolledNames =
-              enrolled.map((b) => b.name).join(', ');
+          final enrolledNames = enrolled.map((b) => b.name).join(', ');
           log.info(
             AppLogCategory.settings,
             'App lock enable: enrolled biometrics before attempt: '
@@ -1540,8 +1635,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   'failed without an error)'}; enrolled before attempt: '
               '${enrolledNames.isEmpty ? '(none)' : enrolledNames}',
             );
-            showTopSnackBar(
-                context, _appLockFailureMessage(l10n, result));
+            showTopSnackBar(context, _appLockFailureMessage(l10n, result));
           }
         },
       ),
