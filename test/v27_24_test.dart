@@ -195,14 +195,16 @@ void main() {
       expect(find.byIcon(Icons.delete_outline_rounded), findsWidgets);
 
       await tester.tap(find.byType(BinEatingDeleteButton));
-      // Letter gap for 6 letters: 700~/6 = 116 -> clamped to 90ms.
+      // v27.28 sequence is 1400 ms: nothing deleted mid-animation.
       for (var i = 0; i < 6; i++) {
-        await tester.pump(const Duration(milliseconds: 90));
+        await tester.pump(const Duration(milliseconds: 150));
         expect(confirmed, 0, reason: 'nothing deleted mid-animation');
       }
-      // Shrink (300ms) then onConfirmed.
-      await tester.pump(const Duration(milliseconds: 400));
+      // Check drawn, then onConfirmed (margin past the 1400 ms run).
+      await tester.pump(const Duration(milliseconds: 900));
       expect(confirmed, 1);
+      // One more frame so the implicit width tween settles.
+      await tester.pump(const Duration(milliseconds: 300));
       // Circle state: the button shrinks to a 48-wide circle.
       final size = tester.getSize(find.byType(AnimatedContainer).first);
       expect(size.width, 48);
@@ -214,10 +216,7 @@ void main() {
       await tester.tap(find.byType(BinEatingDeleteButton));
       await tester.pump(const Duration(milliseconds: 90));
       await tester.tap(find.byType(BinEatingDeleteButton));
-      for (var i = 0; i < 5; i++) {
-        await tester.pump(const Duration(milliseconds: 90));
-      }
-      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(milliseconds: 1800));
       expect(confirmed, 1);
     });
 

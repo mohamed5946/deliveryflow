@@ -122,13 +122,14 @@ void main() {
       await tester.tap(deleteKey(840));
       await tester.pump();
       expect(find.text('هل أنت متأكد من حذف البلوكاية؟'), findsOneWidget);
-      // v27.24: the Yes button is now the bin-eats-label button:
-      // 'نعم' letters are eaten at 90ms each, then it shrinks (300ms).
+      // v27.28: the Yes button is the bin-eats-label button:
+      // lid -> flight -> lid -> check, 1400 ms total.
       await tester.tap(find.byType(BinEatingDeleteButton));
-      await tester.pump(const Duration(milliseconds: 90));
-      await tester.pump(const Duration(milliseconds: 90));
-      await tester.pump(const Duration(milliseconds: 90));
-      await tester.pump(const Duration(milliseconds: 400));
+      // v27.28: lid -> flight -> lid -> check sequence, 1400 ms total.
+      // Two pumps: the ticker starts on the first frame after the tap,
+      // so a single pump would only start it, never advance it.
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 2000));
       expect(deleted, [840]);
       expect(toggled, isEmpty);
     });
@@ -200,13 +201,14 @@ void main() {
       await tester.tap(deleteKey(840));
       await tester.pump();
       expect(find.text('هل أنت متأكد من حذف البلوكاية؟'), findsOneWidget);
-      // v27.24: the Yes button is now the bin-eats-label button:
-      // 'نعم' letters are eaten at 90ms each, then it shrinks (300ms).
+      // v27.28: the Yes button is the bin-eats-label button:
+      // lid -> flight -> lid -> check, 1400 ms total.
       await tester.tap(find.byType(BinEatingDeleteButton));
-      await tester.pump(const Duration(milliseconds: 90));
-      await tester.pump(const Duration(milliseconds: 90));
-      await tester.pump(const Duration(milliseconds: 90));
-      await tester.pump(const Duration(milliseconds: 400));
+      // v27.28: lid -> flight -> lid -> check sequence, 1400 ms total.
+      // Two pumps: the ticker starts on the first frame after the tap,
+      // so a single pump would only start it, never advance it.
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 2000));
       expect(deleted, [840]);
       expect(toggled, isEmpty);
     });
@@ -734,13 +736,14 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(deleteKey(900));
       await tester.pump();
-      // v27.24: the Yes button is now the bin-eats-label button:
-      // 'نعم' letters are eaten at 90ms each, then it shrinks (300ms).
+      // v27.28: the Yes button is the bin-eats-label button:
+      // lid -> flight -> lid -> check, 1400 ms total.
       await tester.tap(find.byType(BinEatingDeleteButton));
-      await tester.pump(const Duration(milliseconds: 90));
-      await tester.pump(const Duration(milliseconds: 90));
-      await tester.pump(const Duration(milliseconds: 90));
-      await tester.pump(const Duration(milliseconds: 400));
+      // v27.28: lid -> flight -> lid -> check sequence, 1400 ms total.
+      // Two pumps: the ticker starts on the first frame after the tap,
+      // so a single pump would only start it, never advance it.
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 2000));
       expect(deleted, [900]);
       expect(toggled, isEmpty);
     });
