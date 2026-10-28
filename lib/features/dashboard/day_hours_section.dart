@@ -6,6 +6,7 @@ import '../../core/date_time/hour_blocks.dart';
 import '../../core/date_time/time_format.dart';
 import '../../core/date_time/week_calendar.dart';
 import '../../theme/design_system.dart';
+import '../../theme/staggered_entrance.dart';
 import '../../theme/bin_eating_delete_button.dart';
 
 /// v27.13 Home hour blocks for one selected day, full screen width.
@@ -324,10 +325,11 @@ class DayHoursSection extends StatelessWidget {
     final summary = summarizeBlocks(day: d, dayDate: selectedDay, now: now);
     final dayName = WeekCalendar.dateKey(selectedDay);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // Always-visible header: start–end + worked/remaining summary.
+    return StaggeredScope(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Always-visible header: start–end + worked/remaining summary.
         Text(
           // Generated placeholders are alphabetical: (end, start).
           l10n.dayShiftRange(_fmt(context, effectiveEndMinutes(d)),
@@ -367,15 +369,19 @@ class DayHoursSection extends StatelessWidget {
         const SizedBox(height: 10),
         // Hour blocks, full width, one per work hour, swipeable.
         for (final start in starts)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: _block(context, d, start, breaks.contains(start), l10n,
-                keySuffix: dayName),
+          StaggeredItem(
+            index: starts.indexOf(start),
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _block(context, d, start, breaks.contains(start), l10n,
+                  keySuffix: dayName),
+            ),
           ),
         const SizedBox(height: 2),
         // Assign: the only way to add a new work hour (v27.13).
         _assignButton(context, l10n),
       ],
+    ),
     );
   }
 

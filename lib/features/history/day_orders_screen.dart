@@ -8,6 +8,7 @@ import '../../core/date_time/week_calendar.dart';
 import '../../core/money_format.dart';
 import '../../core/providers.dart';
 import '../../theme/design_system.dart';
+import '../../theme/staggered_entrance.dart';
 import '../../theme/bin_eating_delete_button.dart';
 import '../../theme/top_snack_bar.dart';
 import '../../theme/page_transitions.dart';
@@ -82,7 +83,7 @@ class DayOrdersScreen extends ConsumerWidget {
                       ),
               ),
             )
-          : ListView.builder(
+          : StaggeredList(
               padding: GlassTokens.screenPadding,
               itemCount: entries.length,
               itemBuilder: (ctx, i) {

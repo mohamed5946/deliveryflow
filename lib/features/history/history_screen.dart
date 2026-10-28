@@ -8,6 +8,7 @@ import '../../core/date_time/week_calendar.dart';
 import '../../core/providers.dart';
 import '../../core/tracking/delivery_tracking_service.dart';
 import '../../theme/design_system.dart';
+import '../../theme/staggered_entrance.dart';
 import '../../theme/bin_eating_delete_button.dart';
 import '../../theme/page_transitions.dart';
 import '../../theme/pressable.dart';
@@ -44,7 +45,7 @@ class HistoryScreen extends ConsumerWidget {
               ),
             );
           }
-          return ListView.builder(
+          return StaggeredList(
             padding: GlassTokens.screenPadding,
             itemCount: weeks.length,
             itemBuilder: (ctx, i) {

@@ -7,6 +7,7 @@ import '../../core/database/models.dart';
 import '../../core/date_time/week_calendar.dart';
 import '../../core/providers.dart';
 import '../../theme/design_system.dart';
+import '../../theme/staggered_entrance.dart';
 import '../../theme/top_snack_bar.dart';
 import '../../theme/page_transitions.dart';
 import '../../theme/pressable.dart';
@@ -129,7 +130,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           ? const GlassLoading()
           : items.isEmpty
               ? _EmptyNotifications(l10n: l10n, text: text)
-              : ListView.builder(
+              : StaggeredList(
                   padding: GlassTokens.screenPadding,
                   itemCount: items.length,
                   itemBuilder: (ctx, i) {

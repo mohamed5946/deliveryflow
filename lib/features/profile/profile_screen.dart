@@ -2069,6 +2069,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   /// flex children and single-line with ellipsis: the label can never
   /// collapse, the value truncates instead of overflowing, and no text
   /// ever stacks or overlaps.
+  ///
+  /// v27.30 split-half fix: the v27.26 flex children were both loose,
+  /// so a SHORT value sat right next to the label in the middle of
+  /// the row instead of at the far edge. Now the label/value pair
+  /// lives in a full-width inner Row with spaceBetween: the label is
+  /// pinned to the start edge and the value to the end edge (mirrored
+  /// automatically in RTL), with clear separation between them.
   Widget _valueRow({
     required IconData icon,
     required String label,
@@ -2086,22 +2093,29 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           children: [
             Icon(icon, color: LiquidPalette.primaryBlue, size: 22),
             const SizedBox(width: 12),
-            Flexible(
-              flex: 1,
-              child: Text(label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style:
-                      text.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
-            ),
-            const SizedBox(width: 8),
-            Flexible(
-              flex: 2,
-              child: Text(value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.end,
-                  style: const TextStyle(fontWeight: FontWeight.w700)),
+            Expanded(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Flexible(
+                    flex: 1,
+                    child: Text(label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: text.titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w600)),
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    flex: 2,
+                    child: Text(value,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.end,
+                        style: const TextStyle(fontWeight: FontWeight.w700)),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(width: 4),
             Icon(
@@ -2157,6 +2171,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   /// [wrapValue] (v27.4) lets the value wrap onto multiple lines in
   /// full — used by the designer credit, which used to truncate with
   /// an ellipsis on narrow phones.
+  ///
+  /// v27.30 split-half fix: the old layout gave the label a tight
+  /// [Expanded] and the value a loose [Flexible], so a SHORT value's
+  /// box sat right after the label's half-width box — i.e. in the
+  /// middle of the row — instead of at the far edge. Now the pair
+  /// lives in a full-width inner Row with spaceBetween, exactly like
+  /// [_valueRow]: label pinned to the start edge, value pinned to the
+  /// end edge (mirrored automatically in RTL).
   Widget _infoRow({
     required IconData icon,
     required String label,
@@ -2173,17 +2195,33 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           Icon(icon, color: LiquidPalette.primaryBlue, size: 22),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(label,
-                style: text.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
-          ),
-          // v23: value must never paint outside the row on narrow phones.
-          Flexible(
-            child: Text(value,
-                maxLines: wrapValue ? null : 1,
-                overflow:
-                    wrapValue ? TextOverflow.visible : TextOverflow.ellipsis,
-                textAlign: TextAlign.end,
-                style: const TextStyle(fontWeight: FontWeight.w700)),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: wrapValue
+                  ? CrossAxisAlignment.start
+                  : CrossAxisAlignment.center,
+              children: [
+                Flexible(
+                  flex: 1,
+                  child: Text(label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: text.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w600)),
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  flex: 2,
+                  child: Text(value,
+                      maxLines: wrapValue ? null : 1,
+                      overflow: wrapValue
+                          ? TextOverflow.visible
+                          : TextOverflow.ellipsis,
+                      textAlign: TextAlign.end,
+                      style: const TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ],
+            ),
           ),
         ],
       ),

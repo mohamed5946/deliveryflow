@@ -7,6 +7,7 @@ import '../../core/database/models.dart';
 import '../../core/date_time/week_calendar.dart';
 import '../../core/providers.dart';
 import '../../theme/design_system.dart';
+import '../../theme/staggered_entrance.dart';
 import '../../theme/page_transitions.dart';
 import '../../theme/pressable.dart';
 import '../daily_orders/order_detail_screen.dart';
@@ -145,7 +146,7 @@ class _CustomerSearchScreenState
                           ? _EmptyHint(
                               message: l10n.noCustomersFound,
                             )
-                          : ListView.builder(
+                          : StaggeredList(
                               itemCount: suggestions.length,
                               itemBuilder: (ctx, i) {
                                 final phone = suggestions[i];
@@ -234,7 +235,7 @@ class _ResultsList extends ConsumerWidget {
       return _EmptyHint(message: l10n.noCustomersFound);
     }
 
-    return ListView.builder(
+    return StaggeredList(
       itemCount: results.length + 1,
       itemBuilder: (ctx, i) {
         if (i == 0) {

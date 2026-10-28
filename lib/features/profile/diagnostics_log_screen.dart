@@ -9,6 +9,7 @@ import '../../core/logging/frame_timing_collector.dart';
 import '../../core/providers.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../theme/design_system.dart';
+import '../../theme/staggered_entrance.dart';
 import '../../theme/bin_eating_delete_button.dart';
 import '../../theme/top_snack_bar.dart';
 
@@ -241,7 +242,7 @@ class _DiagnosticsLogScreenState
                       ),
                     ),
                   )
-                : ListView.builder(
+                : StaggeredList(
                     padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
                     itemCount: _entries.length,
                     itemBuilder: (context, i) => _LogEntryTile(

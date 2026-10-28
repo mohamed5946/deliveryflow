@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:local_auth/local_auth.dart';
@@ -235,6 +236,21 @@ class AppLockState {
 
 final appLockServiceProvider = Provider<AppLockService>((ref) {
   return AppLockService(LocalAuthClient());
+});
+
+/// Shared app-lock gate status, owned (written) by [AppLockGate] and
+/// read by widgets that must wait for unlock — currently the splash
+/// entry (v27.30 lock-first ordering).
+///
+/// Value true means the app is NOT currently locked: either the lock
+/// setting is off (or the gates are unpassed, so the lock suppresses
+/// itself) or the user just unlocked. Value false means the lock
+/// screen is showing. Initial value true is only a placeholder: the
+/// gate syncs it in its own initState, which runs before any route
+/// widget (including the splash) mounts, so readers never observe a
+/// stale "open" on a locked cold start.
+final appLockGateOpenProvider = Provider<ValueNotifier<bool>>((ref) {
+  return ValueNotifier<bool>(true);
 });
 
 /// Thin service around [AppLockAuthClient] for screens to call.

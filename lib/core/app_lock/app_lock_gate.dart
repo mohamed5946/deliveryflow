@@ -72,6 +72,10 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
         settings.registered &&
         settings.onboardingDone;
     _state = AppLockState(enabled: active);
+    // v27.30 lock-first ordering: publish the gate status before any
+    // route widget mounts, so the splash can wait for unlock instead
+    // of animating behind the lock screen.
+    ref.read(appLockGateOpenProvider).value = !_state.locked;
     // Cold start: the first frame only renders once the activity is
     // resumed, so arming here cannot fire before resume.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -206,6 +210,10 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
     if (active != _state.enabled) {
       _state.setEnabled(active);
     }
+    // v27.30 lock-first ordering: keep the published gate status in
+    // sync on every build (covers unlock success, re-lock on
+    // backgrounding, and setting changes). Readers only listen.
+    ref.read(appLockGateOpenProvider).value = !_state.locked;
     if (!active || !_state.locked) return widget.child;
 
     // Auto-prompt once per lock appearance and only while armed (v27.28:
