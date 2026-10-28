@@ -8,7 +8,7 @@ import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
 import android.view.WindowManager
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
@@ -21,7 +21,7 @@ import io.flutter.plugin.common.MethodChannel
 /// Amazon Flex driver app), this also captures https Google Maps
 /// VIEW intents and ACTION_SEND share-sheet text (Google Maps links
 /// shared as text). Dart decides what is usable.
-class MainActivity : FlutterActivity() {
+class MainActivity : FlutterFragmentActivity() {
     private var pendingNavUri: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
