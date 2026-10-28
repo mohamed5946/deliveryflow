@@ -26,8 +26,7 @@ import 'package:hive/hive.dart';
 Widget _splashApp(GoRouter router, {ValueNotifier<bool>? gateOpen}) {
   return ProviderScope(
     overrides: [
-      if (gateOpen != null)
-        appLockGateOpenProvider.overrideWithValue(gateOpen),
+      if (gateOpen != null) appLockGateOpenProvider.overrideWithValue(gateOpen),
     ],
     child: MaterialApp.router(
       locale: const Locale('ar'),
@@ -69,8 +68,7 @@ Future<void> _pumpDbScreen(
     ProviderScope(
       overrides: [
         databaseServiceProvider.overrideWithValue(db),
-        notificationServiceProvider
-            .overrideWithValue(NotificationService()),
+        notificationServiceProvider.overrideWithValue(NotificationService()),
       ],
       child: MaterialApp(
         theme: AppTheme.light(),
@@ -107,21 +105,20 @@ void main() {
     });
 
     test('splash stages still run in order with the new mark', () {
+      // SUPERSEDED by v27.32: draw -> diagonal sweep -> name.
       expect(dfSplashStageFor(0.0), DfSplashStage.drawing);
-      expect(dfSplashStageFor(0.55), DfSplashStage.drawing);
-      expect(dfSplashStageFor(0.56), DfSplashStage.filling);
-      expect(dfSplashStageFor(0.79), DfSplashStage.filling);
+      expect(dfSplashStageFor(0.39), DfSplashStage.drawing);
+      expect(dfSplashStageFor(0.40), DfSplashStage.sweeping);
+      expect(dfSplashStageFor(0.79), DfSplashStage.sweeping);
       expect(dfSplashStageFor(0.80), DfSplashStage.name);
-      expect(dfSplashStageFor(0.91), DfSplashStage.name);
-      expect(dfSplashStageFor(0.92), DfSplashStage.exiting);
+      expect(dfSplashStageFor(0.99), DfSplashStage.name);
       expect(dfSplashStageFor(1.0), DfSplashStage.exiting);
     });
 
     test('total entry time still inside the 1-1.5s budget', () {
-      expect(SplashScreen.totalDuration.inMilliseconds,
-          greaterThanOrEqualTo(1000));
-      expect(SplashScreen.totalDuration.inMilliseconds,
-          lessThanOrEqualTo(1500));
+      // SUPERSEDED by v27.32: exactly 2500ms (draw 1000 + sweep
+      // 1000 + name fade 500).
+      expect(SplashScreen.totalDuration.inMilliseconds, 2500);
     });
 
     testWidgets('combined mark renders, name appears, home enters',
@@ -136,14 +133,14 @@ void main() {
             .opacity,
         0.0,
       );
-      await tester.pump(const Duration(milliseconds: 1100));
+      await tester.pump(const Duration(milliseconds: 2100));
       expect(
         tester
             .widget<Opacity>(find.byKey(const ValueKey('dfSplashName')))
             .opacity,
         greaterThan(0.0),
       );
-      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 500));
       await tester.pump();
       expect(find.text('home-screen'), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -167,14 +164,14 @@ void main() {
       );
       gateOpen.value = true;
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 1100));
+      await tester.pump(const Duration(milliseconds: 2100));
       expect(
         tester
             .widget<Opacity>(find.byKey(const ValueKey('dfSplashName')))
             .opacity,
         greaterThan(0.0),
       );
-      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 500));
       await tester.pump();
       expect(find.text('home-screen'), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -283,8 +280,7 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('reduce-motion still shows items immediately',
-        (tester) async {
+    testWidgets('reduce-motion still shows items immediately', (tester) async {
       currentTabIndexNotifier.value = 0;
       await tester.pumpWidget(
         MaterialApp(
@@ -322,8 +318,7 @@ void main() {
     late DatabaseService db;
 
     setUp(() async {
-      tmp = Directory(
-          '/tmp/df_v2731_${DateTime.now().microsecondsSinceEpoch}');
+      tmp = Directory('/tmp/df_v2731_${DateTime.now().microsecondsSinceEpoch}');
       tmp.createSync(recursive: true);
       db = DatabaseService();
       await db.init(hivePath: tmp.path);

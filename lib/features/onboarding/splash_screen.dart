@@ -7,15 +7,21 @@ import 'package:go_router/go_router.dart';
 import '../../theme/design_system.dart';
 import 'df_monogram.dart';
 
-/// v27.31 splash/entry: the COMBINED DF mark — one bold D whose outline
-/// draws itself in a thin WHITE stroke, then fills solid WHITE, with a
-/// BLUE stylized F appearing inside its bowl (exactly the reference
-/// video's mark) — then "DeliveryFlow" appears, then the app enters
-/// with a smooth fade/slide. Replaces the v27.30 side-by-side letters.
+/// v27.32 splash/entry: the COMBINED DF mark rebuilt to match the
+/// reference video's actual motion (v27.31's instant outline -> solid
+/// switch with a popping F was judged "very very very bad compared
+/// to the video"): a THIN WHITE outline draws itself with a glowing
+/// tip dot and anchor dots, then a DIAGONAL wipe sweeps bottom-left
+/// to top-right progressively revealing the solid WHITE D with the
+/// BLUE stylized F inside its bowl — the F emerges via the same
+/// sweep, never as a separate pop-in — on a NEAR-BLACK background,
+/// then "DeliveryFlow" fades in, then the app enters.
 ///
-/// SPEED IS A HARD REQUIREMENT: the whole sequence is 1250ms — inside
-/// the 1–1.5s budget — never blocks on network, and under OS
-/// reduce-motion it shows the static filled mark and enters immediately.
+/// TOTAL ENTRY is exactly 2500ms (Mohamed's correction, superseding
+/// the 2000ms note and v27.30's 1.25s budget): draw 1000ms + sweep
+/// 1000ms + name fade 500ms. The sequence never blocks on network,
+/// and under OS reduce-motion it shows the static filled mark and
+/// enters immediately.
 ///
 /// LOCK-FIRST ORDERING (v27.30, Mohamed's explicit spec): the
 /// animation must NEVER start while the app lock is showing. The
@@ -32,8 +38,9 @@ import 'df_monogram.dart';
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
-  /// Total entry time. Kept public so tests can assert the budget.
-  static const totalDuration = Duration(milliseconds: 1250);
+  /// Total entry time: EXACTLY 2500ms (draw 1000 + sweep 1000 +
+  /// name fade 500). Kept public so tests can assert the budget.
+  static const totalDuration = Duration(milliseconds: 2500);
 
   @override
   ConsumerState<SplashScreen> createState() => _SplashScreenState();
@@ -43,9 +50,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   late final Animation<double> _draw;
-  late final Animation<double> _fill;
+  late final Animation<double> _sweep;
   late final Animation<double> _name;
-  late final Animation<double> _exit;
   bool _navigated = false;
   bool _started = false;
   ValueNotifier<bool>? _gateOpen;
@@ -79,16 +85,13 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       duration: SplashScreen.totalDuration,
     );
     _draw = _controller.drive(
-      CurveTween(curve: const Interval(0.0, 0.56, curve: Curves.easeOut)),
+      CurveTween(curve: const Interval(0.0, 0.40, curve: Curves.easeOut)),
     );
-    _fill = _controller.drive(
-      CurveTween(curve: const Interval(0.56, 0.80, curve: Curves.easeInOut)),
+    _sweep = _controller.drive(
+      CurveTween(curve: const Interval(0.40, 0.80, curve: Curves.easeInOut)),
     );
     _name = _controller.drive(
-      CurveTween(curve: const Interval(0.72, 0.92, curve: Curves.easeOut)),
-    );
-    _exit = _controller.drive(
-      CurveTween(curve: const Interval(0.92, 1.0, curve: Curves.easeInOut)),
+      CurveTween(curve: const Interval(0.80, 1.0, curve: Curves.easeOut)),
     );
     _controller.addStatusListener((status) {
       if (status == AnimationStatus.completed) _goHome();
@@ -114,60 +117,53 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     final l10n = AppLocalizations.of(context);
     final text = Theme.of(context).textTheme;
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
-    // Dark navy background: the white stroke/D-fill and the blue
-    // F-fill both read clearly against it at every stage.
-    const background = Color(0xFF0B1D3A);
+    // Near-black background, matching the reference video, so the
+    // white D reads exactly like the video at every stage.
+    const background = Color(0xFF0A0A0A);
     return Scaffold(
       backgroundColor: background,
       body: AnimatedBuilder(
         animation: _controller,
         builder: (context, _) {
           final draw = reduceMotion ? 1.0 : _draw.value;
-          final fill = reduceMotion ? 1.0 : _fill.value;
+          final sweep = reduceMotion ? 1.0 : _sweep.value;
           final nameOpacity = reduceMotion ? 1.0 : _name.value;
-          final exit = reduceMotion ? 0.0 : _exit.value;
-          return Opacity(
-            opacity: 1.0 - exit,
-            child: Transform.translate(
-              offset: Offset(0, -16 * exit),
-              child: SafeArea(
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      DfMonogram(
-                        key: const ValueKey('dfMonogram'),
-                        drawProgress: draw,
-                        fillProgress: fill,
-                        fillBlue: LiquidPalette.primaryBlue,
-                      ),
-                      const SizedBox(height: 24),
-                      Opacity(
-                        key: const ValueKey('dfSplashName'),
-                        opacity: nameOpacity,
-                        child: Text(
-                          'DeliveryFlow',
-                          style: text.headlineMedium?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                            letterSpacing: -0.5,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Opacity(
-                        opacity: nameOpacity,
-                        child: Text(
-                          l10n.workSmarterTagline,
-                          style: text.bodyMedium?.copyWith(
-                            color: Colors.white.withValues(alpha: 0.7),
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
+          return SafeArea(
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DfMonogram(
+                    key: const ValueKey('dfMonogram'),
+                    drawProgress: draw,
+                    sweepProgress: sweep,
+                    fillBlue: LiquidPalette.primaryBlue,
                   ),
-                ),
+                  const SizedBox(height: 24),
+                  Opacity(
+                    key: const ValueKey('dfSplashName'),
+                    opacity: nameOpacity,
+                    child: Text(
+                      'DeliveryFlow',
+                      style: text.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Opacity(
+                    opacity: nameOpacity,
+                    child: Text(
+                      l10n.workSmarterTagline,
+                      style: text.bodyMedium?.copyWith(
+                        color: Colors.white.withValues(alpha: 0.7),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           );
