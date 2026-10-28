@@ -192,7 +192,10 @@ void main() {
       var confirmed = 0;
       await pumpButton(tester, () => confirmed++);
       expect(find.text('D'), findsOneWidget);
-      expect(find.byIcon(Icons.delete_outline_rounded), findsWidgets);
+      // v27.29: the bin is custom-drawn (open-top body + one flush lid);
+      // the old outline icon — and its floating lid line — are gone.
+      expect(find.byKey(const Key('binBody')), findsOneWidget);
+      expect(find.byKey(const Key('binLid')), findsOneWidget);
 
       await tester.tap(find.byType(BinEatingDeleteButton));
       // v27.28 sequence is 1400 ms: nothing deleted mid-animation.

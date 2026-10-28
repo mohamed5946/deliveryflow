@@ -229,24 +229,32 @@ void main() {
       await pumpBin(tester, onConfirmed: () => confirmed++);
       final firstCenter =
           tester.getCenter(find.byKey(const Key('binLetter_0')));
+      final idleLidCenter =
+          tester.getCenter(find.byKey(const Key('binLid')));
       await tester.tap(find.byType(BinEatingDeleteButton));
+      // Settle pump: tap's onTap fires on the next frame, so the
+      // controller starts here; later pumps then measure real time.
+      await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
-      // Stage 1: lid visibly open.
+      // Stage 1: lid visibly lifted straight up (center above idle).
       expect(
-        tester.widget<AnimatedRotation>(find.byKey(const Key('binLid'))).turns,
-        -0.25,
+        tester.getCenter(find.byKey(const Key('binLid'))).dy,
+        lessThan(idleLidCenter.dy - 2),
       );
       // Stage 2: first letter has travelled toward the bin (LTR: +x).
       await tester.pump(const Duration(milliseconds: 400));
       final midCenter =
           tester.getCenter(find.byKey(const Key('binLetter_0')));
       expect(midCenter.dx, greaterThan(firstCenter.dx));
-      // Stage 3: lid shut again once letters are inside.
+      // Stage 3: lid coming back down once letters are inside
+      // (t = 1100 ms is inside the 0.70 → 0.82 close window: below the
+      // raised position, above the idle rim; full close coincides with
+      // the check replacing the bin, asserted in stage 4).
       await tester.pump(const Duration(milliseconds: 600));
-      expect(
-        tester.widget<AnimatedRotation>(find.byKey(const Key('binLid'))).turns,
-        0,
-      );
+      final closingLidCenter =
+          tester.getCenter(find.byKey(const Key('binLid')));
+      expect(closingLidCenter.dy, lessThan(idleLidCenter.dy));
+      expect(closingLidCenter.dy, greaterThan(idleLidCenter.dy - 14));
       // Stage 4: success check appears and draws.
       await tester.pump(const Duration(milliseconds: 200));
       expect(find.byKey(const Key('binSuccessCheck')), findsOneWidget);
