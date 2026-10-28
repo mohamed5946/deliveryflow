@@ -24,6 +24,7 @@ import '../../core/notifications/battery_optimization.dart';
 import '../../core/providers.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/design_system.dart';
+import '../../theme/theme_reveal.dart';
 import '../../theme/bin_eating_delete_button.dart';
 import '../../theme/top_snack_bar.dart';
 import '../../theme/pressable.dart';
@@ -440,6 +441,50 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   // ── Bottom sheets ──────────────────────────────────────────
 
+  /// v27.25: animated circular-reveal theme switch. The tapped row's
+  /// centre is the reveal origin; the choice is persisted only when the
+  /// reveal animation finishes (see theme_reveal.dart). DeliveryFlow has
+  /// a single theme control (these Settings rows); there is no separate
+  /// home-screen theme toggle to wrap.
+  Future<void> _onThemeModeTap(int mode, BuildContext rowCtx) async {
+    final settings = ref.read(settingsProvider);
+    if (settings.themeMode == mode) return;
+    final controller = ref.read(themeRevealControllerProvider);
+    if (controller.busy) return;
+    final targetBrightness = switch (mode) {
+      1 => Brightness.light,
+      2 => Brightness.dark,
+      // System: resolve the OS brightness right now; mid-session OS
+      // flips are still followed natively by themeMode: system.
+      _ => MediaQuery.platformBrightnessOf(rowCtx),
+    };
+    final targetTheme = targetBrightness == Brightness.dark
+        ? AppTheme.dark(settings.themePreset)
+        : AppTheme.light(settings.themePreset);
+    final box = rowCtx.findRenderObject() as RenderBox?;
+    final origin = box == null
+        ? MediaQuery.sizeOf(rowCtx).center(Offset.zero)
+        : box.localToGlobal(Offset(box.size.width / 2, box.size.height / 2));
+    final pixelRatio = MediaQuery.devicePixelRatioOf(rowCtx);
+    await performThemeReveal(
+      controller: controller,
+      origin: origin,
+      isToDark: targetBrightness == Brightness.dark,
+      targetTheme: targetTheme,
+      animationsDisabled: MediaQuery.disableAnimationsOf(rowCtx),
+      capture: () => captureThemeRevealImage(pixelRatio),
+      setOverride: (theme) =>
+          ref.read(themeOverrideProvider.notifier).state = theme,
+      clearOverride: () =>
+          ref.read(themeOverrideProvider.notifier).state = null,
+      persist: () async {
+        await ref
+            .read(settingsProvider.notifier)
+            .update((s) => s..themeMode = mode);
+      },
+    );
+  }
+
   Future<void> _showSheet(Widget body) {
     return showModalBottomSheet<void>(
       context: context,
@@ -602,25 +647,31 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               GlassCard(
                 child: Column(
                   children: [
-                    _radioRow(
-                      icon: Icons.brightness_auto_rounded,
-                      label: l10n.themeSystem,
-                      selected: settings.themeMode == 0,
-                      onTap: () => notifier.update((s) => s..themeMode = 0),
+                    Builder(
+                      builder: (rowCtx) => _radioRow(
+                        icon: Icons.brightness_auto_rounded,
+                        label: l10n.themeSystem,
+                        selected: settings.themeMode == 0,
+                        onTap: () => _onThemeModeTap(0, rowCtx),
+                      ),
                     ),
                     const SizedBox(height: 4),
-                    _radioRow(
-                      icon: Icons.wb_sunny_rounded,
-                      label: l10n.themeLight,
-                      selected: settings.themeMode == 1,
-                      onTap: () => notifier.update((s) => s..themeMode = 1),
+                    Builder(
+                      builder: (rowCtx) => _radioRow(
+                        icon: Icons.wb_sunny_rounded,
+                        label: l10n.themeLight,
+                        selected: settings.themeMode == 1,
+                        onTap: () => _onThemeModeTap(1, rowCtx),
+                      ),
                     ),
                     const SizedBox(height: 4),
-                    _radioRow(
-                      icon: Icons.nightlight_rounded,
-                      label: l10n.themeDark,
-                      selected: settings.themeMode == 2,
-                      onTap: () => notifier.update((s) => s..themeMode = 2),
+                    Builder(
+                      builder: (rowCtx) => _radioRow(
+                        icon: Icons.nightlight_rounded,
+                        label: l10n.themeDark,
+                        selected: settings.themeMode == 2,
+                        onTap: () => _onThemeModeTap(2, rowCtx),
+                      ),
                     ),
                   ],
                 ),
