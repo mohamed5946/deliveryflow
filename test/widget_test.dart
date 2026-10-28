@@ -202,6 +202,10 @@ void main() {
         tester.view.resetDevicePixelRatio();
       });
       await pumpScreen(tester, const ProfileScreen(), db: db);
+      // v27.26: theme rows live in the appearance detail screen.
+      await tester.tap(find.text('المظهر'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
       await tester.runAsync(() async {
         await tester.tap(find.text('الوضع الداكن'));
         for (var i = 0; i < 50; i++) {
@@ -213,7 +217,19 @@ void main() {
     });
 
     testWidgets('language switch is offered', (tester) async {
+      tester.view.physicalSize = const Size(800, 4000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
       await pumpScreen(tester, const ProfileScreen(), db: db);
+      // v27.26: language rows live in the language detail screen.
+      await tester.ensureVisible(find.text('اللغة'));
+      await tester.pump();
+      await tester.tap(find.text('اللغة'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
       expect(find.text('العربية', skipOffstage: false), findsOneWidget);
       expect(find.text('English', skipOffstage: false), findsOneWidget);
     });
@@ -227,6 +243,10 @@ void main() {
         tester.view.resetDevicePixelRatio();
       });
       await pumpScreen(tester, const ProfileScreen(), db: db);
+      // v27.26: notification rows live in the notifications detail screen.
+      await tester.tap(find.text('الإشعارات'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
       expect(find.text('تفعيل الإشعارات'), findsOneWidget);
       expect(find.text('تذكير الأوردرات اليومي'), findsOneWidget);
     });

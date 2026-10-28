@@ -432,6 +432,26 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appLockAuthReason => 'Confirm your identity to open DeliveryFlow';
 
   @override
+  String get appLockNoBiometrics =>
+      'No fingerprint is enrolled on this phone — enroll one in the phone settings first';
+
+  @override
+  String get appLockHardwareUnavailable =>
+      'The fingerprint sensor is not available right now — try again';
+
+  @override
+  String get appLockLockedOut =>
+      'Fingerprint is temporarily locked after too many failed attempts — wait a bit or use the device lock';
+
+  @override
+  String get appLockBusy =>
+      'A verification is already running — wait a second and try again';
+
+  @override
+  String get appLockAuthCancelled =>
+      'Verification cancelled — the lock stays off';
+
+  @override
   String get liquidGlass => 'Liquid glass look (trial)';
 
   @override

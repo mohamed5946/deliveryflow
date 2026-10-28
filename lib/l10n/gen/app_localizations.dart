@@ -908,6 +908,36 @@ abstract class AppLocalizations {
   /// **'Confirm your identity to open DeliveryFlow'**
   String get appLockAuthReason;
 
+  /// No description provided for @appLockNoBiometrics.
+  ///
+  /// In en, this message translates to:
+  /// **'No fingerprint is enrolled on this phone — enroll one in the phone settings first'**
+  String get appLockNoBiometrics;
+
+  /// No description provided for @appLockHardwareUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'The fingerprint sensor is not available right now — try again'**
+  String get appLockHardwareUnavailable;
+
+  /// No description provided for @appLockLockedOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Fingerprint is temporarily locked after too many failed attempts — wait a bit or use the device lock'**
+  String get appLockLockedOut;
+
+  /// No description provided for @appLockBusy.
+  ///
+  /// In en, this message translates to:
+  /// **'A verification is already running — wait a second and try again'**
+  String get appLockBusy;
+
+  /// No description provided for @appLockAuthCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Verification cancelled — the lock stays off'**
+  String get appLockAuthCancelled;
+
   /// No description provided for @liquidGlass.
   ///
   /// In en, this message translates to:

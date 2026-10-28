@@ -77,15 +77,41 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   /// v27.24: probe OS auth capability once for the toggle's enabled state.
+  /// v27.26: probe failures are logged (they used to vanish silently).
   Future<void> _loadAppLockAvailability() async {
     try {
       final ok = await ref.read(appLockServiceProvider).canUseLock();
       if (!mounted) return;
+      if (!ok) {
+        ref.read(appLogServiceProvider).warn(
+              AppLogCategory.settings,
+              'App lock capability probe: OS reports no auth capability',
+            );
+      }
       setState(() => _appLockAvailable = ok);
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
+      ref.read(appLogServiceProvider).error(
+            AppLogCategory.settings,
+            'App lock capability probe failed',
+            error: e,
+          );
       setState(() => _appLockAvailable = false);
     }
+  }
+
+  /// v27.26: maps a structured auth failure to the specific user
+  /// message. The generic toast survives only for unknown failures.
+  String _appLockFailureMessage(
+      AppLocalizations l10n, AppLockAuthResult result) {
+    return switch (result.failure) {
+      AppLockFailure.notEnrolled => l10n.appLockNoBiometrics,
+      AppLockFailure.notAvailable => l10n.appLockHardwareUnavailable,
+      AppLockFailure.lockedOut => l10n.appLockLockedOut,
+      AppLockFailure.busy => l10n.appLockBusy,
+      AppLockFailure.cancelled => l10n.appLockAuthCancelled,
+      _ => l10n.appLockAuthFailed,
+    };
   }
 
   /// v23: reads the real version (e.g. 23.0.0+25) from the installed APK.
@@ -582,14 +608,25 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   // ── Build ──────────────────────────────────────────────────
 
   @override
+  // ── Build: profile hub (v27.26) ─────────────────────────────
+  //
+  // v27.26 restructure: the old build was one ~1000-line scroll with a
+  // dozen titled boxes. The hub now keeps the identity card on top and
+  // a menu of the section titles; tapping a title pushes a dedicated
+  // detail page ([_ProfileDetailPage]) holding EXACTLY that section's
+  // controls, moved not duplicated. Section list (11 rows — Mohamed
+  // said "ten" approximately; these are the actual sections in code):
+  // quick links, appearance (+ theme presets), automatic navigation,
+  // notifications, language, time format, work preferences, salary,
+  // data management, about, developer mode. Appearance merges the
+  // theme rows and the presets grid (the "اختار الثيم" heading is kept
+  // inside that screen); the about row uses the existing aboutApp
+  // label so it does not duplicate the quick-links "التطبيق" title.
+
+  @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final settings = ref.watch(settingsProvider);
-    final notifier = ref.read(settingsProvider.notifier);
-    final db = ref.watch(databaseServiceProvider);
-    final counts = db.recordCounts();
-    final dailyTime = TimeOfDay(
-        hour: settings.dailyReminderHour, minute: settings.dailyReminderMinute);
 
     // Keep the header name field in sync with the stored name when it
     // changes elsewhere (e.g. the first-run setup card below).
@@ -598,8 +635,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
 
     return GlassScaffold(
-      // SafeArea for breathing space below the status bar on pushed
-      // routes; on the tab shell it is harmless.
       body: SafeArea(
         top: true,
         bottom: false,
@@ -616,451 +651,585 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               // ── بطاقة الهوية ───────────────────────────────
               _identityCard(l10n, settings),
               const SizedBox(height: 12),
-              // ── روابط سريعة ────────────────────────────────
-              _section(l10n.appSection),
+              // ── قائمة الأقسام ──────────────────────────────
               GlassCard(
                 child: Column(
                   children: [
-                    _menuRow(
-                      icon: Icons.bar_chart_rounded,
-                      label: l10n.reportsMenu,
-                      onTap: () => context.go('/reports'),
+                    _hubRow(
+                      icon: Icons.apps_rounded,
+                      title: l10n.appSection,
+                      sectionId: 'quick',
+                      bodyBuilder: _quickLinksBody,
                     ),
                     const SizedBox(height: 4),
-                    _menuRow(
-                      icon: Icons.notifications_none_rounded,
-                      label: l10n.notificationsSection,
-                      onTap: () => _showNotificationsSheet(settings),
+                    _hubRow(
+                      icon: Icons.palette_rounded,
+                      title: l10n.appearanceSection,
+                      sectionId: 'appearance',
+                      bodyBuilder: _appearanceBody,
                     ),
                     const SizedBox(height: 4),
-                    _menuRow(
-                      icon: Icons.support_agent_rounded,
-                      label: l10n.helpSupport,
-                      onTap: _showHelpSheet,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              // ── المظهر ────────────────────────────────────
-              _section(l10n.appearanceSection),
-              GlassCard(
-                child: Column(
-                  children: [
-                    Builder(
-                      builder: (rowCtx) => _radioRow(
-                        icon: Icons.brightness_auto_rounded,
-                        label: l10n.themeSystem,
-                        selected: settings.themeMode == 0,
-                        onTap: () => _onThemeModeTap(0, rowCtx),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Builder(
-                      builder: (rowCtx) => _radioRow(
-                        icon: Icons.wb_sunny_rounded,
-                        label: l10n.themeLight,
-                        selected: settings.themeMode == 1,
-                        onTap: () => _onThemeModeTap(1, rowCtx),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Builder(
-                      builder: (rowCtx) => _radioRow(
-                        icon: Icons.nightlight_rounded,
-                        label: l10n.themeDark,
-                        selected: settings.themeMode == 2,
-                        onTap: () => _onThemeModeTap(2, rowCtx),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              _section(l10n.chooseTheme),
-              _presetsGrid(settings, notifier),
-              const SizedBox(height: 12),
-              // ── الملاحة التلقائية ─────────────────────────
-              _section(l10n.autoNavSection),
-              GlassCard(
-                child: Column(
-                  children: [
-                    _radioRow(
+                    _hubRow(
                       icon: Icons.navigation_rounded,
-                      label: l10n.autoNavInApp,
-                      selected: settings.autoNavMode == 0,
-                      onTap: () => notifier.update((s) => s..autoNavMode = 0),
+                      title: l10n.autoNavSection,
+                      sectionId: 'autoNav',
+                      bodyBuilder: _autoNavBody,
                     ),
                     const SizedBox(height: 4),
-                    _radioRow(
-                      icon: Icons.map_rounded,
-                      label: l10n.autoNavGoogleMaps,
-                      selected: settings.autoNavMode == 1,
-                      onTap: () => notifier.update((s) => s..autoNavMode = 1),
+                    _hubRow(
+                      icon: Icons.notifications_rounded,
+                      title: l10n.notificationsSection,
+                      sectionId: 'notifications',
+                      bodyBuilder: _notificationsBody,
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      l10n.autoNavGoogleMapsDesc,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.color
-                                ?.withValues(alpha: 0.6),
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              // ── الإشعارات ─────────────────────────────────
-              _section(l10n.notificationsSection),
-              GlassCard(
-                child: Column(
-                  children: _notificationRows(
-                    l10n: l10n,
-                    settings: settings,
-                    notifier: notifier,
-                    dailyTime: dailyTime,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              // ── اللغة ────────────────────────────────────
-              _section(l10n.languageSection),
-              GlassCard(
-                child: Column(
-                  children: [
-                    _radioRow(
+                    const SizedBox(height: 4),
+                    _hubRow(
                       icon: Icons.language_rounded,
-                      label: 'العربية',
-                      selected: settings.languageCode == 'ar',
-                      onTap: () =>
-                          notifier.update((s) => s..languageCode = 'ar'),
+                      title: l10n.languageSection,
+                      sectionId: 'language',
+                      bodyBuilder: _languageBody,
                     ),
                     const SizedBox(height: 4),
-                    _radioRow(
-                      icon: Icons.language_rounded,
-                      label: 'English',
-                      selected: settings.languageCode == 'en',
-                      onTap: () =>
-                          notifier.update((s) => s..languageCode = 'en'),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              // ── صيغة الوقت (v27.12) ─────────────────────────
-              // Default "حسب الجهاز" preserves the pre-v27.12
-              // TimeOfDay.format rendering exactly; 24/12-hour
-              // options apply to Home hour blocks + schedule rows.
-              _section(l10n.timeFormatSection),
-              GlassCard(
-                child: Column(
-                  children: [
-                    _radioRow(
+                    _hubRow(
                       icon: Icons.schedule_rounded,
-                      label: l10n.timeFormatSystem,
-                      selected: settings.timeFormat == 0,
-                      onTap: () =>
-                          notifier.update((s) => s..timeFormat = 0),
+                      title: l10n.timeFormatSection,
+                      sectionId: 'timeFormat',
+                      bodyBuilder: _timeFormatBody,
                     ),
                     const SizedBox(height: 4),
-                    _radioRow(
-                      icon: Icons.schedule_rounded,
-                      label: l10n.timeFormat24,
-                      selected: settings.timeFormat == 1,
-                      onTap: () =>
-                          notifier.update((s) => s..timeFormat = 1),
+                    _hubRow(
+                      icon: Icons.work_outline_rounded,
+                      title: l10n.workPrefsSection,
+                      sectionId: 'workPrefs',
+                      bodyBuilder: _workPrefsBody,
                     ),
                     const SizedBox(height: 4),
-                    _radioRow(
-                      icon: Icons.schedule_rounded,
-                      label: l10n.timeFormat12,
-                      selected: settings.timeFormat == 2,
-                      onTap: () =>
-                          notifier.update((s) => s..timeFormat = 2),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              // ── تفضيلات العمل ─────────────────────────────
-              _section(l10n.workPrefsSection),
-              GlassCard(
-                child: Column(
-                  children: [
-                    _valueRow(
-                      icon: Icons.flag_rounded,
-                      label: l10n.weeklyOrderGoalLabel,
-                      value: settings.weeklyOrderGoal?.toString() ?? '–',
-                      onTap: () => _askNumber(
-                        title: l10n.weeklyOrderGoalLabel,
-                        initial: settings.weeklyOrderGoal?.toString() ?? '',
-                        onDone: (v) => notifier
-                            .update((s) => s..weeklyOrderGoal = v?.toInt()),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    _valueRow(
-                      icon: Icons.schedule_rounded,
-                      label: l10n.weeklyHoursGoalLabel,
-                      value: settings.weeklyWorkHoursGoal?.toString() ?? '–',
-                      onTap: () => _askNumber(
-                        title: l10n.weeklyHoursGoalLabel,
-                        initial: settings.weeklyWorkHoursGoal?.toString() ?? '',
-                        decimal: true,
-                        onDone: (v) =>
-                            notifier.update((s) => s..weeklyWorkHoursGoal = v),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    _valueRow(
-                      icon: Icons.coffee_rounded,
-                      label: l10n.defaultBreakLabel,
-                      value: '${settings.defaultBreakDurationMinutes}',
-                      onTap: () => _askNumber(
-                        title: l10n.defaultBreakLabel,
-                        initial:
-                            settings.defaultBreakDurationMinutes.toString(),
-                        onDone: (v) => notifier.update((s) =>
-                            s..defaultBreakDurationMinutes = v?.toInt() ?? 30),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              // ── الراتب ────────────────────────────────────
-              _section(l10n.salarySection),
-              GlassCard(
-                child: Column(
-                  children: [
-                    _valueRow(
+                    _hubRow(
                       icon: Icons.payments_rounded,
-                      label: l10n.orderPriceLabel,
-                      value: settings.orderPrice?.toString() ?? '–',
-                      onTap: () => _askNumber(
-                        title: l10n.orderPriceLabel,
-                        initial: settings.orderPrice?.toString() ?? '',
-                        decimal: true,
-                        onDone: (v) =>
-                            notifier.update((s) => s..orderPrice = v),
-                      ),
+                      title: l10n.salarySection,
+                      sectionId: 'salary',
+                      bodyBuilder: _salaryBody,
                     ),
                     const SizedBox(height: 4),
-                    _valueRow(
-                      icon: Icons.wallet_rounded,
-                      label: l10n.dailyFixedLabel,
-                      value: settings.dailyFixedPay?.toString() ?? '–',
-                      onTap: () => _askNumber(
-                        title: l10n.dailyFixedLabel,
-                        initial: settings.dailyFixedPay?.toString() ?? '',
-                        decimal: true,
-                        onDone: (v) =>
-                            notifier.update((s) => s..dailyFixedPay = v),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    // v27.5: distance bonus — global default toggle
-                    // (a week can override it on the report screen)
-                    // plus the three editable tiers.
-                    _toggleRow(
-                      icon: Icons.route_rounded,
-                      label: l10n.distanceBonusLabel,
-                      value: settings.distanceBonusEnabled,
-                      onChanged: (v) async {
-                        // v27.17: enabling opens a distance period
-                        // from THIS INSTANT; disabling closes it at
-                        // this instant. Orders created before now
-                        // keep the old state — even same-day ones.
-                        final toggleAt =
-                            DateTime.now().millisecondsSinceEpoch;
-                        await notifier.update((s) {
-                          s.applyDistanceToggle(v, toggleAt);
-                          return s;
-                        });
-                        ref.read(appLogServiceProvider).info(
-                              AppLogCategory.settings,
-                              'Distance bonus -> ${v ? 'ON' : 'OFF'} '
-                              '(effective at $toggleAt; orders '
-                              'created before now keep their period)',
-                            );
-                      },
-                    ),
-                    if (settings.distanceBonusEnabled)
-                      for (var i = 0; i < 3; i++) ...[
-                        const SizedBox(height: 4),
-                        _valueRow(
-                          icon: Icons.toll_rounded,
-                          label: l10n.distanceBonusTier(i + 1),
-                          value:
-                              '${_fmtNum(settings.distanceBonusTiers[i].fromKm)}+ ${l10n.kmUnit} • ${formatMoney(settings.distanceBonusTiers[i].bonusEgp)} ${l10n.egpUnit}',
-                          onTap: () => _editDistanceBonusTier(i),
-                        ),
-                      ],
-                    const SizedBox(height: 4),
-                    // v27.6: flat bonus on every counted order — a
-                    // plain amount (0 / empty = off), independent of
-                    // the distance-bonus tiers and toggles.
-                    _valueRow(
-                      icon: Icons.paid_rounded,
-                      label: l10n.flatOrderBonusLabel,
-                      value: settings.flatOrderBonusEgp > 0
-                          ? '${formatMoney(settings.flatOrderBonusEgp)} ${l10n.egpUnit}'
-                          : l10n.extraBonusNone,
-                      onTap: () => _askNumber(
-                        title: l10n.flatOrderBonusLabel,
-                        initial: settings.flatOrderBonusEgp > 0
-                            ? _fmtNum(settings.flatOrderBonusEgp)
-                            : '',
-                        decimal: true,
-                        onDone: (v) async {
-                          final amount =
-                              (v == null || v < 0) ? 0.0 : v;
-                          // v27.17: setting/deleting the flat bonus
-                          // opens/closes a period at THIS INSTANT —
-                          // orders created before now keep whatever
-                          // was active at their own moment (even
-                          // same-day ones), orders created from now
-                          // on get the new value (or 0 after a
-                          // deletion).
-                          final flatAt =
-                              DateTime.now().millisecondsSinceEpoch;
-                          await notifier.update((s) {
-                            s.applyFlatBonus(amount, flatAt);
-                            return s;
-                          });
-                          ref.read(appLogServiceProvider).info(
-                                AppLogCategory.settings,
-                                'Flat order bonus -> $amount EGP per '
-                                'counted order (effective at $flatAt; '
-                                'orders created before now keep '
-                                'their period)',
-                              );
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    // v27.8: the learned mart location — the return
-                    // leg's arrival geofence target. Learned from trip
-                    // start points + confirmed return endpoints.
-                    // v27.9: tapping opens the map picker, where the
-                    // mart can also be pinned by hand (a manual pin
-                    // freezes learning) or cleared entirely.
-                    _valueRow(
-                      icon: Icons.store_rounded,
-                      label: l10n.martLocationLabel,
-                      value: settings.hasMart
-                          ? '${settings.martLat!.toStringAsFixed(5)}, '
-                              '${settings.martLng!.toStringAsFixed(5)}'
-                          : l10n.martNotSaved,
-                      onTap: () => context.push('/mart-picker'),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              // ── البيانات ──────────────────────────────────
-              _section(l10n.dataSection),
-              GlassCard(
-                child: Column(
-                  children: [
-                    _actionRow(
-                      icon: Icons.download_rounded,
-                      label: l10n.exportRecordsCsv,
-                      onTap: _exportCsv,
-                    ),
-                    const SizedBox(height: 4),
-                    _actionRow(
-                      icon: Icons.backup_rounded,
-                      label: l10n.backupData,
-                      onTap: _backup,
-                    ),
-                    const SizedBox(height: 4),
-                    _actionRow(
-                      icon: Icons.restore_rounded,
-                      label: l10n.restoreBackup,
-                      onTap: _restore,
-                    ),
-                    const SizedBox(height: 4),
-                    _infoRow(
+                    _hubRow(
                       icon: Icons.folder_copy_rounded,
-                      label: l10n.recordCounts,
-                      value:
-                          '${counts['schedules']}/${counts['orderRecords']}/${counts['sessions']}',
+                      title: l10n.dataSection,
+                      sectionId: 'data',
+                      bodyBuilder: _dataBody,
                     ),
                     const SizedBox(height: 4),
-                    _actionRow(
-                      icon: Icons.delete_forever_rounded,
-                      label: l10n.clearAllData,
-                      destructive: true,
-                      onTap: _clearAll,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              // ── عن التطبيق ────────────────────────────────
-              _section(l10n.appSection),
-              GlassCard(
-                child: Column(
-                  children: [
-                    _infoRow(
+                    _hubRow(
                       icon: Icons.info_rounded,
-                      label: l10n.aboutApp,
-                      value: _versionValue(l10n),
+                      title: l10n.aboutApp,
+                      sectionId: 'about',
+                      bodyBuilder: _aboutBody,
                     ),
                     const SizedBox(height: 4),
-                    _infoRow(
-                      icon: Icons.brush_rounded,
-                      label: l10n.designedBy,
-                      value: l10n.designerName,
-                      wrapValue: true,
+                    _hubRow(
+                      icon: Icons.code_rounded,
+                      title: l10n.developerMode,
+                      sectionId: 'developer',
+                      bodyBuilder: _developerBody,
                     ),
-                    const SizedBox(height: 4),
-                    _valueRow(
-                      icon: Icons.email_rounded,
-                      label: l10n.emailLabel,
-                      value: _supportEmail,
-                      onTap: _openSupportEmail,
-                    ),
-                    const SizedBox(height: 4),
-                    _infoRow(
-                      icon: Icons.phone_rounded,
-                      label: l10n.contactLabel,
-                      value: '01557887719',
-                    ),
-                    const SizedBox(height: 4),
-                    // v27.20: portfolio website row (same destination
-                    // as the help sheet button).
-                    _valueRow(
-                      icon: Icons.language_rounded,
-                      label: l10n.portfolioWebsite,
-                      value: 'mohamed5946.github.io/portfolio',
-                      onTap: _openPortfolioWebsite,
-                    ),
-                    const SizedBox(height: 4),
-                    _aboutRow(l10n),
                   ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              // ── نسخة المطور (v27.4: بوابة أدوات التشخيص) ────
-              GlassCard(
-                child: _valueRow(
-                  icon: Icons.code_rounded,
-                  label: l10n.developerMode,
-                  value: settings.developerModeUnlocked
-                      ? l10n.developerModeOn
-                      : l10n.developerModeOff,
-                  onTap: _onDeveloperModeTap,
                 ),
               ),
               const SizedBox(height: 24),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  /// One hub menu row: icon + section title + chevron. Tapping pushes
+  /// the section's detail page; back returns to this hub.
+  Widget _hubRow({
+    required IconData icon,
+    required String title,
+    required String sectionId,
+    required _SectionBodyBuilder bodyBuilder,
+  }) {
+    return _menuRow(
+      icon: icon,
+      label: title,
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => _ProfileDetailPage(
+            title: title,
+            bodyBuilder: bodyBuilder,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Detail-screen bodies (moved, not rewritten) ───────────────
+  //
+  // Each body is built inside the detail page with live settings
+  // (ref.watch), so toggles and values stay current after any change
+  // — the hub only passes the builder, never a snapshot.
+
+  Widget _quickLinksBody(BuildContext ctx, WidgetRef ref) {
+    final l10n = AppLocalizations.of(ctx);
+    final settings = ref.watch(settingsProvider);
+    return GlassCard(
+      child: Column(
+        children: [
+          _menuRow(
+            icon: Icons.bar_chart_rounded,
+            label: l10n.reportsMenu,
+            onTap: () => ctx.go('/reports'),
+          ),
+          const SizedBox(height: 4),
+          _menuRow(
+            icon: Icons.notifications_none_rounded,
+            label: l10n.notificationsSection,
+            onTap: () => _showNotificationsSheet(settings),
+          ),
+          const SizedBox(height: 4),
+          _menuRow(
+            icon: Icons.support_agent_rounded,
+            label: l10n.helpSupport,
+            onTap: _showHelpSheet,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _appearanceBody(BuildContext ctx, WidgetRef ref) {
+    final l10n = AppLocalizations.of(ctx);
+    final settings = ref.watch(settingsProvider);
+    final notifier = ref.read(settingsProvider.notifier);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        GlassCard(
+          child: Column(
+            children: [
+              Builder(
+                builder: (rowCtx) => _radioRow(
+                  icon: Icons.brightness_auto_rounded,
+                  label: l10n.themeSystem,
+                  selected: settings.themeMode == 0,
+                  onTap: () => _onThemeModeTap(0, rowCtx),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Builder(
+                builder: (rowCtx) => _radioRow(
+                  icon: Icons.wb_sunny_rounded,
+                  label: l10n.themeLight,
+                  selected: settings.themeMode == 1,
+                  onTap: () => _onThemeModeTap(1, rowCtx),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Builder(
+                builder: (rowCtx) => _radioRow(
+                  icon: Icons.nightlight_rounded,
+                  label: l10n.themeDark,
+                  selected: settings.themeMode == 2,
+                  onTap: () => _onThemeModeTap(2, rowCtx),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        _section(l10n.chooseTheme),
+        _presetsGrid(settings, notifier),
+      ],
+    );
+  }
+
+  Widget _autoNavBody(BuildContext ctx, WidgetRef ref) {
+    final l10n = AppLocalizations.of(ctx);
+    final settings = ref.watch(settingsProvider);
+    final notifier = ref.read(settingsProvider.notifier);
+    return GlassCard(
+      child: Column(
+        children: [
+          _radioRow(
+            icon: Icons.navigation_rounded,
+            label: l10n.autoNavInApp,
+            selected: settings.autoNavMode == 0,
+            onTap: () => notifier.update((s) => s..autoNavMode = 0),
+          ),
+          const SizedBox(height: 4),
+          _radioRow(
+            icon: Icons.map_rounded,
+            label: l10n.autoNavGoogleMaps,
+            selected: settings.autoNavMode == 1,
+            onTap: () => notifier.update((s) => s..autoNavMode = 1),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            l10n.autoNavGoogleMapsDesc,
+            style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(ctx)
+                      .textTheme
+                      .bodySmall
+                      ?.color
+                      ?.withValues(alpha: 0.6),
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _notificationsBody(BuildContext ctx, WidgetRef ref) {
+    final l10n = AppLocalizations.of(ctx);
+    final settings = ref.watch(settingsProvider);
+    final notifier = ref.read(settingsProvider.notifier);
+    final dailyTime = TimeOfDay(
+        hour: settings.dailyReminderHour, minute: settings.dailyReminderMinute);
+    return GlassCard(
+      child: Column(
+        children: _notificationRows(
+          l10n: l10n,
+          settings: settings,
+          notifier: notifier,
+          dailyTime: dailyTime,
+        ),
+      ),
+    );
+  }
+
+  Widget _languageBody(BuildContext ctx, WidgetRef ref) {
+    final settings = ref.watch(settingsProvider);
+    final notifier = ref.read(settingsProvider.notifier);
+    return GlassCard(
+      child: Column(
+        children: [
+          _radioRow(
+            icon: Icons.language_rounded,
+            label: 'العربية',
+            selected: settings.languageCode == 'ar',
+            onTap: () => notifier.update((s) => s..languageCode = 'ar'),
+          ),
+          const SizedBox(height: 4),
+          _radioRow(
+            icon: Icons.language_rounded,
+            label: 'English',
+            selected: settings.languageCode == 'en',
+            onTap: () => notifier.update((s) => s..languageCode = 'en'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _timeFormatBody(BuildContext ctx, WidgetRef ref) {
+    final l10n = AppLocalizations.of(ctx);
+    final settings = ref.watch(settingsProvider);
+    final notifier = ref.read(settingsProvider.notifier);
+    return GlassCard(
+      child: Column(
+        children: [
+          _radioRow(
+            icon: Icons.schedule_rounded,
+            label: l10n.timeFormatSystem,
+            selected: settings.timeFormat == 0,
+            onTap: () => notifier.update((s) => s..timeFormat = 0),
+          ),
+          const SizedBox(height: 4),
+          _radioRow(
+            icon: Icons.schedule_rounded,
+            label: l10n.timeFormat24,
+            selected: settings.timeFormat == 1,
+            onTap: () => notifier.update((s) => s..timeFormat = 1),
+          ),
+          const SizedBox(height: 4),
+          _radioRow(
+            icon: Icons.schedule_rounded,
+            label: l10n.timeFormat12,
+            selected: settings.timeFormat == 2,
+            onTap: () => notifier.update((s) => s..timeFormat = 2),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _workPrefsBody(BuildContext ctx, WidgetRef ref) {
+    final l10n = AppLocalizations.of(ctx);
+    final settings = ref.watch(settingsProvider);
+    final notifier = ref.read(settingsProvider.notifier);
+    return GlassCard(
+      child: Column(
+        children: [
+          _valueRow(
+            icon: Icons.flag_rounded,
+            label: l10n.weeklyOrderGoalLabel,
+            value: settings.weeklyOrderGoal?.toString() ?? '–',
+            onTap: () => _askNumber(
+              title: l10n.weeklyOrderGoalLabel,
+              initial: settings.weeklyOrderGoal?.toString() ?? '',
+              onDone: (v) => notifier
+                  .update((s) => s..weeklyOrderGoal = v?.toInt()),
+            ),
+          ),
+          const SizedBox(height: 4),
+          _valueRow(
+            icon: Icons.schedule_rounded,
+            label: l10n.weeklyHoursGoalLabel,
+            value: settings.weeklyWorkHoursGoal?.toString() ?? '–',
+            onTap: () => _askNumber(
+              title: l10n.weeklyHoursGoalLabel,
+              initial: settings.weeklyWorkHoursGoal?.toString() ?? '',
+              decimal: true,
+              onDone: (v) =>
+                  notifier.update((s) => s..weeklyWorkHoursGoal = v),
+            ),
+          ),
+          const SizedBox(height: 4),
+          _valueRow(
+            icon: Icons.coffee_rounded,
+            label: l10n.defaultBreakLabel,
+            value: '${settings.defaultBreakDurationMinutes}',
+            onTap: () => _askNumber(
+              title: l10n.defaultBreakLabel,
+              initial: settings.defaultBreakDurationMinutes.toString(),
+              onDone: (v) => notifier.update((s) =>
+                  s..defaultBreakDurationMinutes = v?.toInt() ?? 30),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _salaryBody(BuildContext ctx, WidgetRef ref) {
+    final l10n = AppLocalizations.of(ctx);
+    final settings = ref.watch(settingsProvider);
+    final notifier = ref.read(settingsProvider.notifier);
+    return GlassCard(
+      child: Column(
+        children: [
+          _valueRow(
+            icon: Icons.payments_rounded,
+            label: l10n.orderPriceLabel,
+            value: settings.orderPrice?.toString() ?? '–',
+            onTap: () => _askNumber(
+              title: l10n.orderPriceLabel,
+              initial: settings.orderPrice?.toString() ?? '',
+              decimal: true,
+              onDone: (v) => notifier.update((s) => s..orderPrice = v),
+            ),
+          ),
+          const SizedBox(height: 4),
+          _valueRow(
+            icon: Icons.wallet_rounded,
+            label: l10n.dailyFixedLabel,
+            value: settings.dailyFixedPay?.toString() ?? '–',
+            onTap: () => _askNumber(
+              title: l10n.dailyFixedLabel,
+              initial: settings.dailyFixedPay?.toString() ?? '',
+              decimal: true,
+              onDone: (v) => notifier.update((s) => s..dailyFixedPay = v),
+            ),
+          ),
+          const SizedBox(height: 4),
+          // v27.5: distance bonus — global default toggle
+          // (a week can override it on the report screen)
+          // plus the three editable tiers.
+          _toggleRow(
+            icon: Icons.route_rounded,
+            label: l10n.distanceBonusLabel,
+            value: settings.distanceBonusEnabled,
+            onChanged: (v) async {
+              // v27.17: enabling opens a distance period
+              // from THIS INSTANT; disabling closes it at
+              // this instant. Orders created before now
+              // keep the old state — even same-day ones.
+              final toggleAt = DateTime.now().millisecondsSinceEpoch;
+              await notifier.update((s) {
+                s.applyDistanceToggle(v, toggleAt);
+                return s;
+              });
+              ref.read(appLogServiceProvider).info(
+                    AppLogCategory.settings,
+                    'Distance bonus -> ${v ? 'ON' : 'OFF'} '
+                    '(effective at $toggleAt; orders '
+                    'created before now keep their period)',
+                  );
+            },
+          ),
+          if (settings.distanceBonusEnabled)
+            for (var i = 0; i < 3; i++) ...[
+              const SizedBox(height: 4),
+              _valueRow(
+                icon: Icons.toll_rounded,
+                label: l10n.distanceBonusTier(i + 1),
+                value:
+                    '${_fmtNum(settings.distanceBonusTiers[i].fromKm)}+ ${l10n.kmUnit} • ${formatMoney(settings.distanceBonusTiers[i].bonusEgp)} ${l10n.egpUnit}',
+                onTap: () => _editDistanceBonusTier(i),
+              ),
+            ],
+          const SizedBox(height: 4),
+          // v27.6: flat bonus on every counted order — a
+          // plain amount (0 / empty = off), independent of
+          // the distance-bonus tiers and toggles.
+          _valueRow(
+            icon: Icons.paid_rounded,
+            label: l10n.flatOrderBonusLabel,
+            value: settings.flatOrderBonusEgp > 0
+                ? '${formatMoney(settings.flatOrderBonusEgp)} ${l10n.egpUnit}'
+                : l10n.extraBonusNone,
+            onTap: () => _askNumber(
+              title: l10n.flatOrderBonusLabel,
+              initial: settings.flatOrderBonusEgp > 0
+                  ? _fmtNum(settings.flatOrderBonusEgp)
+                  : '',
+              decimal: true,
+              onDone: (v) async {
+                final amount = (v == null || v < 0) ? 0.0 : v;
+                // v27.17: setting/deleting the flat bonus
+                // opens/closes a period at THIS INSTANT —
+                // orders created before now keep whatever
+                // was active at their own moment (even
+                // same-day ones), orders created from now
+                // on get the new value (or 0 after a
+                // deletion).
+                final flatAt = DateTime.now().millisecondsSinceEpoch;
+                await notifier.update((s) {
+                  s.applyFlatBonus(amount, flatAt);
+                  return s;
+                });
+                ref.read(appLogServiceProvider).info(
+                      AppLogCategory.settings,
+                      'Flat order bonus -> $amount EGP per '
+                      'counted order (effective at $flatAt; '
+                      'orders created before now keep '
+                      'their period)',
+                    );
+              },
+            ),
+          ),
+          const SizedBox(height: 4),
+          // v27.8: the learned mart location — the return
+          // leg's arrival geofence target. Learned from trip
+          // start points + confirmed return endpoints.
+          // v27.9: tapping opens the map picker, where the
+          // mart can also be pinned by hand (a manual pin
+          // freezes learning) or cleared entirely.
+          _valueRow(
+            icon: Icons.store_rounded,
+            label: l10n.martLocationLabel,
+            value: settings.hasMart
+                ? '${settings.martLat!.toStringAsFixed(5)}, '
+                    '${settings.martLng!.toStringAsFixed(5)}'
+                : l10n.martNotSaved,
+            onTap: () => ctx.push('/mart-picker'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dataBody(BuildContext ctx, WidgetRef ref) {
+    final l10n = AppLocalizations.of(ctx);
+    final db = ref.watch(databaseServiceProvider);
+    final counts = db.recordCounts();
+    return GlassCard(
+      child: Column(
+        children: [
+          _actionRow(
+            icon: Icons.download_rounded,
+            label: l10n.exportRecordsCsv,
+            onTap: _exportCsv,
+          ),
+          const SizedBox(height: 4),
+          _actionRow(
+            icon: Icons.backup_rounded,
+            label: l10n.backupData,
+            onTap: _backup,
+          ),
+          const SizedBox(height: 4),
+          _actionRow(
+            icon: Icons.restore_rounded,
+            label: l10n.restoreBackup,
+            onTap: _restore,
+          ),
+          const SizedBox(height: 4),
+          _infoRow(
+            icon: Icons.folder_copy_rounded,
+            label: l10n.recordCounts,
+            value:
+                '${counts['schedules']}/${counts['orderRecords']}/${counts['sessions']}',
+          ),
+          const SizedBox(height: 4),
+          _actionRow(
+            icon: Icons.delete_forever_rounded,
+            label: l10n.clearAllData,
+            destructive: true,
+            onTap: _clearAll,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _aboutBody(BuildContext ctx, WidgetRef ref) {
+    final l10n = AppLocalizations.of(ctx);
+    return GlassCard(
+      child: Column(
+        children: [
+          _infoRow(
+            icon: Icons.info_rounded,
+            label: l10n.aboutApp,
+            value: _versionValue(l10n),
+          ),
+          const SizedBox(height: 4),
+          _infoRow(
+            icon: Icons.brush_rounded,
+            label: l10n.designedBy,
+            value: l10n.designerName,
+            wrapValue: true,
+          ),
+          const SizedBox(height: 4),
+          _valueRow(
+            icon: Icons.email_rounded,
+            label: l10n.emailLabel,
+            value: _supportEmail,
+            onTap: _openSupportEmail,
+          ),
+          const SizedBox(height: 4),
+          _infoRow(
+            icon: Icons.phone_rounded,
+            label: l10n.contactLabel,
+            value: '01557887719',
+          ),
+          const SizedBox(height: 4),
+          // v27.20: portfolio website row (same destination
+          // as the help sheet button).
+          _valueRow(
+            icon: Icons.language_rounded,
+            label: l10n.portfolioWebsite,
+            value: 'mohamed5946.github.io/portfolio',
+            onTap: _openPortfolioWebsite,
+          ),
+          const SizedBox(height: 4),
+          _aboutRow(l10n),
+        ],
+      ),
+    );
+  }
+
+  Widget _developerBody(BuildContext ctx, WidgetRef ref) {
+    final l10n = AppLocalizations.of(ctx);
+    final settings = ref.watch(settingsProvider);
+    return GlassCard(
+      child: _valueRow(
+        icon: Icons.code_rounded,
+        label: l10n.developerMode,
+        value: settings.developerModeUnlocked
+            ? l10n.developerModeOn
+            : l10n.developerModeOff,
+        onTap: _onDeveloperModeTap,
       ),
     );
   }
@@ -1319,6 +1488,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       // be ON on a device that cannot actually unlock. When the device
       // reports no auth capability, the toggle is disabled with an
       // explanation instead of a fake ON state.
+      // v27.26: the v27.24 handler swallowed the real OS error, so a
+      // device where the prompt never appeared showed only the generic
+      // toast. Now the enrolled-biometrics precheck AND the exact
+      // failure (code + message, never biometric data) land in the
+      // diagnostics log, and the toast names the specific failure.
       _toggleRow(
         icon: Icons.fingerprint_rounded,
         label: l10n.appLock,
@@ -1330,19 +1504,44 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             return;
           }
           final service = ref.read(appLockServiceProvider);
+          final log = ref.read(appLogServiceProvider);
+          final enrolled = await service.enrolledBiometrics();
+          final enrolledNames =
+              enrolled.map((b) => b.name).join(', ');
+          log.info(
+            AppLogCategory.settings,
+            'App lock enable: enrolled biometrics before attempt: '
+            '${enrolledNames.isEmpty ? '(none)' : enrolledNames}',
+          );
           if (!await service.canUseLock()) {
+            log.warn(
+              AppLogCategory.settings,
+              'App lock enable refused: OS reports no auth capability',
+            );
             if (mounted) {
               showTopSnackBar(context, l10n.appLockUnavailable);
             }
             return;
           }
-          final ok = await service.authenticate(
+          final result = await service.authenticateDetailed(
               localizedReason: l10n.appLockAuthReason);
           if (!mounted) return;
-          if (ok) {
+          if (result.ok) {
             await notifier.update((s) => s..appLockEnabled = true);
+            log.info(
+              AppLogCategory.settings,
+              'App lock enabled after OS auth',
+            );
           } else {
-            showTopSnackBar(context, l10n.appLockAuthFailed);
+            log.error(
+              AppLogCategory.settings,
+              'App lock enable failed: ${result.failure}'
+              ' — ${result.detail ?? 'no exception (prompt cancelled or '
+                  'failed without an error)'}; enrolled before attempt: '
+              '${enrolledNames.isEmpty ? '(none)' : enrolledNames}',
+            );
+            showTopSnackBar(
+                context, _appLockFailureMessage(l10n, result));
           }
         },
       ),
@@ -1860,6 +2059,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   /// Menu row: icon + label on the right, value + chevron on the left.
+  ///
+  /// v27.26 text-layout fix: the old version gave the label an
+  /// [Expanded] and the value an UNBOUNDED width. A long Latin value
+  /// (portfolio URL, email) then measured at its full intrinsic width,
+  /// squeezed the label's [Expanded] to ~0px, and the Arabic label
+  /// stacked letter-by-letter vertically (reproduced in a widget test:
+  /// label height 320px for a short label). Now both sides are bounded
+  /// flex children and single-line with ellipsis: the label can never
+  /// collapse, the value truncates instead of overflowing, and no text
+  /// ever stacks or overlaps.
   Widget _valueRow({
     required IconData icon,
     required String label,
@@ -1877,12 +2086,23 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           children: [
             Icon(icon, color: LiquidPalette.primaryBlue, size: 22),
             const SizedBox(width: 12),
-            Expanded(
+            Flexible(
+              flex: 1,
               child: Text(label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style:
                       text.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
             ),
-            Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
+            const SizedBox(width: 8),
+            Flexible(
+              flex: 2,
+              child: Text(value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.end,
+                  style: const TextStyle(fontWeight: FontWeight.w700)),
+            ),
             const SizedBox(width: 4),
             Icon(
               Icons.chevron_right_rounded,
@@ -2414,6 +2634,31 @@ class _NotificationStatusCardState
               child: Text(l10n.enableAction),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// v27.26: one profile detail screen. The hub passes only a title and
+/// a body builder; the builder runs inside this page with live settings,
+/// so every control behaves exactly as it did in the old long scroll.
+/// Back (AppBar) pops to the hub.
+typedef _SectionBodyBuilder = Widget Function(
+    BuildContext context, WidgetRef ref);
+
+class _ProfileDetailPage extends ConsumerWidget {
+  const _ProfileDetailPage({required this.title, required this.bodyBuilder});
+
+  final String title;
+  final _SectionBodyBuilder bodyBuilder;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return GlassScaffold(
+      appBar: AppBar(title: Text(title)),
+      body: SingleChildScrollView(
+        padding: GlassTokens.screenPadding,
+        child: bodyBuilder(context, ref),
       ),
     );
   }

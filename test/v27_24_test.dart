@@ -4,7 +4,9 @@ import 'package:deliveryflow/core/app_lock/app_lock_service.dart';
 import 'package:deliveryflow/core/database/models.dart';
 import 'package:deliveryflow/theme/bin_eating_delete_button.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:local_auth/local_auth.dart';
 
 class _FakeClient implements AppLockAuthClient {
   _FakeClient({required this.supported, this.authResult = true});
@@ -20,6 +22,28 @@ class _FakeClient implements AppLockAuthClient {
   Future<bool> authenticate({required String localizedReason}) async {
     authCalls++;
     return authResult;
+  }
+
+  @override
+  Future<List<BiometricType>> getAvailableBiometrics() async => [];
+
+  @override
+  Future<AppLockAuthResult> authenticateDetailed({
+    required String localizedReason,
+  }) async {
+    try {
+      final ok = await authenticate(localizedReason: localizedReason);
+      return AppLockAuthResult(
+        ok: ok,
+        failure: ok ? null : AppLockFailure.cancelled,
+      );
+    } on PlatformException catch (e) {
+      return AppLockAuthResult(
+        ok: false,
+        failure: mapAuthException(e),
+        detail: '${e.code}: ${e.message}',
+      );
+    }
   }
 }
 

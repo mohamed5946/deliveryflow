@@ -431,6 +431,24 @@ class AppLocalizationsAr extends AppLocalizations {
   String get appLockAuthReason => 'أكّد هويتك عشان تفتح DeliveryFlow';
 
   @override
+  String get appLockNoBiometrics =>
+      'مفيش بصمة متسجلة على الموبايل ده — سجّل بصمة من إعدادات الموبايل الأول';
+
+  @override
+  String get appLockHardwareUnavailable =>
+      'مستشعر البصمة مش متاح دلوقتي — جرّب تاني';
+
+  @override
+  String get appLockLockedOut =>
+      'البصمة اتقفلت مؤقتًا من كتر المحاولات الغلط — استنى شوية أو استخدم قفل الجهاز';
+
+  @override
+  String get appLockBusy => 'في تحقق شغال بالفعل — استنى ثانية وحاول تاني';
+
+  @override
+  String get appLockAuthCancelled => 'تم إلغاء التحقق — القفل لسه مقفول';
+
+  @override
   String get liquidGlass => 'تأثير الزجاج السائل (تجريبي)';
 
   @override

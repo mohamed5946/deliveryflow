@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:deliveryflow/l10n/gen/app_localizations.dart';
 
 import '../../core/app_lock/app_lock_service.dart';
+import '../../core/logging/app_log_service.dart';
 import '../../core/providers.dart';
 
 /// v27.24: Instagram-style app lock overlay.
@@ -89,19 +90,30 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
       _authFailed = false;
     });
     final l10n = AppLocalizations.of(context);
-    final ok = await ref
+    // v27.26: detailed result so a failed unlock lands in the
+    // diagnostics log with its exact OS failure (never biometric data).
+    // Behaviour is unchanged: only ok unlocks, anything else retries.
+    final result = await ref
         .read(appLockServiceProvider)
-        .authenticate(localizedReason: l10n.appLockAuthReason);
+        .authenticateDetailed(localizedReason: l10n.appLockAuthReason);
     if (!mounted) return;
     setState(() {
       _authInProgress = false;
-      if (ok) {
+      if (result.ok) {
         _state.onAuthSuccess();
         _authFailed = false;
       } else {
         _authFailed = true;
       }
     });
+    if (!result.ok) {
+      ref.read(appLogServiceProvider).error(
+            AppLogCategory.settings,
+            'App lock unlock failed: ${result.failure}'
+            ' — ${result.detail ?? 'no exception (prompt cancelled or '
+                'failed without an error)'}',
+          );
+    }
   }
 
   @override

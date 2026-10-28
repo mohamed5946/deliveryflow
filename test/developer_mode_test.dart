@@ -151,7 +151,12 @@ void main() {
       await pumpProfile(tester);
       await tester.ensureVisible(find.text('نسخة المطور'));
       await tester.pump();
+      // v27.26: the hub row opens the developer detail screen; the
+      // gate dialog opens from the value row inside it.
       await tester.tap(find.text('نسخة المطور'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.tap(find.text('غير مفعّلة'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
       expect(find.text('تفعيل نسخة المطور'), findsOneWidget);
@@ -181,6 +186,12 @@ void main() {
       final s = db.settings..developerModeUnlocked = true;
       await tester.runAsync(() => db.saveSettings(s));
       await pumpProfile(tester);
+      // v27.26: gated tools live in the notifications detail screen.
+      await tester.ensureVisible(find.text('الإشعارات'));
+      await tester.pump();
+      await tester.tap(find.text('الإشعارات'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
       expect(find.text('اختبار إشعار فوري'), findsOneWidget);
       expect(find.text('اختبار إشعار مجدول (بعد دقيقة)'), findsOneWidget);
       expect(find.text('سجل التشخيص'), findsOneWidget);
