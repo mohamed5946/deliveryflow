@@ -89,6 +89,33 @@ class _GlassOtpEntryState extends State<GlassOtpEntry>
   String get _digits => _controller.text;
 
   @override
+  void initState() {
+    super.initState();
+    // Post-frame focus: autofocus alone fires before the route is
+    // fully settled on some devices and the request is then lost
+    // with no retry. Re-requesting after the first frame is the
+    // retry that actually opens the keyboard.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _phase == OtpPhase.entering) {
+        _requestKeyboardFocus();
+      }
+    });
+  }
+
+  /// Focus the input and force the keyboard open.
+  ///
+  /// Some OEM keyboards ignore a focus request for a transparent
+  /// field, so asking the text-input channel directly is the
+  /// fallback that actually shows the IME. The try/catch only
+  /// covers environments without an IME channel (widget tests).
+  void _requestKeyboardFocus() {
+    _focus.requestFocus();
+    SystemChannels.textInput.invokeMethod('TextInput.show').catchError(
+      (_) {},
+    );
+  }
+
+  @override
   void dispose() {
     _spin.dispose();
     _controller.dispose();
@@ -153,16 +180,58 @@ class _GlassOtpEntryState extends State<GlassOtpEntry>
         ),
       ));
     }
+    // v27.34: the boxes row IS the input. The old design hid a 1px,
+    // opacity-0 TextField below the boxes and relied on a programmatic
+    // focus request from the boxes' tap handler — on some devices
+    // (field report: Infinix/XOS) the IME never opened for that
+    // invisible field, so the boxes behaved as decoration only.
+    // Now a real, normally-sized TextField covers the whole boxes
+    // row: taps land on a genuine editable field (the reliable path
+    // to opening the keyboard), while transparent text + hidden
+    // cursor keep the boxes as the visible UI. Tapping the row also
+    // re-requests focus with the forced keyboard-show fallback.
     return GestureDetector(
-      onTap: _focus.requestFocus,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          for (var i = 0; i < boxes.length; i++) ...[
-            if (i > 0) const SizedBox(width: 10),
-            boxes[i],
+      behavior: HitTestBehavior.translucent,
+      onTap: _requestKeyboardFocus,
+      child: SizedBox(
+        height: 64,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            IgnorePointer(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  for (var i = 0; i < boxes.length; i++) ...[
+                    if (i > 0) const SizedBox(width: 10),
+                    boxes[i],
+                  ],
+                ],
+              ),
+            ),
+            Positioned.fill(
+              child: TextField(
+                controller: _controller,
+                focusNode: _focus,
+                autofocus: true,
+                keyboardType: TextInputType.number,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(_gate.digitCount),
+                ],
+                showCursor: false,
+                enableInteractiveSelection: false,
+                style: const TextStyle(color: Colors.transparent),
+                decoration:
+                    const InputDecoration(border: InputBorder.none),
+                onChanged: (_) {
+                  setState(() {});
+                  if (_digits.length == _gate.digitCount) _submit();
+                },
+              ),
+            ),
           ],
-        ],
+        ),
       ),
     );
   }
@@ -278,30 +347,6 @@ class _GlassOtpEntryState extends State<GlassOtpEntry>
           ),
         ] else ...[
           _digitBoxes(),
-          // Hidden input: the boxes above are the visible UI; this
-          // field owns the numeric keyboard and the digits-only filter.
-          Opacity(
-            opacity: 0,
-            child: SizedBox(
-              height: 1,
-              child: TextField(
-                controller: _controller,
-                focusNode: _focus,
-                autofocus: true,
-                keyboardType: TextInputType.number,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(_gate.digitCount),
-                ],
-                showCursor: false,
-                decoration: const InputDecoration(border: InputBorder.none),
-                onChanged: (_) {
-                  setState(() {});
-                  if (_digits.length == _gate.digitCount) _submit();
-                },
-              ),
-            ),
-          ),
           const SizedBox(height: 20),
           GlassButton(
             label: widget.verifyLabel,
