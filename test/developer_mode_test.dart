@@ -162,10 +162,11 @@ void main() {
       expect(find.text('تفعيل نسخة المطور'), findsOneWidget);
       // v27.23: glassy OTP dialog — auto-submits on 4 digits, spins,
       // then shows the error and restarts from the beginning.
-      final dialog = find.byType(Dialog);
-      await tester.enterText(
-          find.descendant(of: dialog, matching: find.byType(TextField)),
-          '0000');
+      // v27.35: one real field per box — enter one digit per box.
+      for (var i = 0; i < 4; i++) {
+        await tester.enterText(find.byKey(ValueKey('otpBox-$i')), '0');
+        await tester.pump();
+      }
       await tester.pump(const Duration(milliseconds: 1000));
       expect(find.text('كلمة المرور غير صحيحة'), findsOneWidget);
       expect(find.text('اختبار إشعار فوري'), findsNothing);

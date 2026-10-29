@@ -12,6 +12,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../core/cloud/adjustment_logic.dart';
 import '../../core/cloud/cloud_providers.dart';
 import '../../core/cloud/cloud_types.dart';
+import '../../features/cloud/cloud_download_apply.dart';
 import '../../core/database/models.dart';
 import '../../core/date_time/day_rollover.dart';
 import '../../core/date_time/week_calendar.dart';
@@ -36,7 +37,51 @@ class ReportScreen extends ConsumerStatefulWidget {
 
 class _ReportScreenState extends ConsumerState<ReportScreen> {
   DateTime _anchor = DateTime.now();
+  bool _syncing = false;
   late final DayRolloverWatcher _rollover;
+
+  /// v27.35 manual sync, same path as the Cloud account screen's
+  /// button: flush pending uploads, download the driver's cloud
+  /// days, apply them with newer-wins, then refresh this report and
+  /// report the result. Shown only while signed in to the cloud.
+  Future<void> _runReportSync() async {
+    if (_syncing) return;
+    setState(() => _syncing = true);
+    try {
+      final account = ref.read(cloudAccountProvider).account;
+      final db = ref.read(databaseServiceProvider);
+      final result = await runDriverSync(
+        account: account,
+        sync: ref.read(cloudSyncServiceProvider),
+        db: db,
+      );
+      if (!mounted) return;
+      if (!result.succeeded) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Sync failed: ${result.error}')),
+        );
+        return;
+      }
+      if (result.changedDays > 0) {
+        // dataVersion bump rebuilds weeklyReportProvider (it watches
+        // dataVersionProvider), so the new values appear at once.
+        bumpDataVersion(ref);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Synced: ${result.changedDays} day(s) updated from cloud',
+            ),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Already up to date')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _syncing = false);
+    }
+  }
 
   @override
   void initState() {
@@ -80,6 +125,26 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
       appBar: AppBar(
         title: Text(l10n.reportTitle),
         actions: [
+          // v27.35 manual sync (signed-in drivers only): pulls the
+          // driver's cloud days — manager edits included — into
+          // this report. While syncing it shows progress, never a
+          // dead button, and it always reports the result.
+          if (ref.watch(cloudAccountProvider).account != null)
+            _syncing
+                ? const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                : IconButton(
+                    key: const ValueKey('reportSyncButton'),
+                    tooltip: 'Sync cloud data',
+                    icon: const Icon(Icons.sync_rounded),
+                    onPressed: _runReportSync,
+                  ),
           IconButton(
             tooltip: l10n.weeklyHeatmap,
             icon: const Icon(Icons.local_fire_department_outlined),
@@ -1125,7 +1190,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
 ///
 /// Nothing silent: when the signed-in driver has manager adjustments
 /// for this week, each one appears as its own labeled line — a bonus
-/// line "+amount — بونس من المدير: {reason}" and a deduction line
+/// line "+amount — بونص من المدير: {reason}" and a deduction line
 /// "−amount — خصم من المدير: {reason}" — each with its date and
 /// manager stamp, followed by the adjusted week total (base formula
 /// + bonuses − deductions). Renders nothing when signed out or when
@@ -1206,7 +1271,7 @@ class _ManagerAdjustmentsCard extends ConsumerWidget {
                             children: [
                               Text(
                                 '${a.isBonus ? '+' : '−'}${a.amount.toStringAsFixed(0)} EGP — '
-                                '${a.isBonus ? 'بونس من المدير' : 'خصم من المدير'}: ${a.reason}',
+                                '${a.isBonus ? 'بونص من المدير' : 'خصم من المدير'}: ${a.reason}',
                                 style: text.bodyMedium,
                               ),
                               Text(

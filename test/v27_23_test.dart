@@ -50,7 +50,14 @@ void main() {
         successLabel: 'Verified!',
         onVerified: () => verified = true,
       )));
-      await tester.enterText(find.byType(TextField), '123456');
+      // v27.35: one real field per box — enter one digit per box.
+      for (var i = 0; i < 6; i++) {
+        await tester.enterText(
+          find.byKey(ValueKey('otpBox-$i')),
+          '${i + 1}',
+        );
+        await tester.pump();
+      }
       // Auto-submit on completion → spinning circle phase.
       await tester.pump(const Duration(milliseconds: 100));
       expect(find.text('Verified!'), findsNothing);
@@ -75,7 +82,11 @@ void main() {
         onVerified: () => verified = true,
         onWrongAttempt: () => wrongAttempts++,
       )));
-      await tester.enterText(find.byType(TextField), '111111');
+      // v27.35: one real field per box — enter one digit per box.
+      for (var i = 0; i < 6; i++) {
+        await tester.enterText(find.byKey(ValueKey('otpBox-$i')), '1');
+        await tester.pump();
+      }
       await tester.pump(const Duration(milliseconds: 900));
       expect(find.text('Wrong code'), findsOneWidget);
       expect(find.text('Verified!'), findsNothing);
@@ -86,8 +97,9 @@ void main() {
       await tester.pump(const Duration(milliseconds: 1100));
       expect(find.text('Wrong code'), findsNothing);
       expect(find.text('Verify'), findsOneWidget);
+      // v27.35: every box is cleared on restart; check box 0.
       final field =
-          tester.widget<TextField>(find.byType(TextField));
+          tester.widget<TextField>(find.byKey(const ValueKey('otpBox-0')));
       expect(field.controller!.text, isEmpty);
     });
 
@@ -102,8 +114,9 @@ void main() {
         successLabel: 'Verified!',
         onVerified: () {},
       )));
+      // v27.35: each box is its own field; check box 0.
       final field =
-          tester.widget<TextField>(find.byType(TextField));
+          tester.widget<TextField>(find.byKey(const ValueKey('otpBox-0')));
       expect(field.keyboardType, TextInputType.number);
       expect(
         field.inputFormatters!

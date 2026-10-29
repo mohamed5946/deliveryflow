@@ -11,6 +11,7 @@ import '../features/dashboard/dashboard_screen.dart';
 import '../features/daily_orders/order_entry_screen.dart';
 import '../features/cloud/cloud_account_screen.dart';
 import '../features/cloud/management_driver_screen.dart';
+import '../features/cloud/management_payout_screen.dart';
 import '../features/cloud/management_screen.dart';
 import '../features/cloud/manager_edit_day_screen.dart';
 import '../features/history/history_screen.dart';
@@ -312,6 +313,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           final uid = state.uri.queryParameters['uid'] ?? '';
           final date = state.uri.queryParameters['date'] ?? '';
           return ManagerEditDayScreen(uid: uid, dateKey: date);
+        },
+      ),
+      GoRoute(
+        path: '/management/payout',
+        builder: (context, state) {
+          final uid = state.uri.queryParameters['uid'] ?? '';
+          final date = state.uri.queryParameters['date'] ?? '';
+          return ManagementPayoutScreen(uid: uid, dateKey: date);
         },
       ),
       GoRoute(

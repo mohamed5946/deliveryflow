@@ -25,7 +25,13 @@
 //    docs (users/{uid}/orders/*) and day summary docs
 //    (users/{uid}/summaries/*). Manager edits land in the driver's
 //    own data and sync down to the driver's device on next login.
+//  * Read AND write any user's weekly rollups
+//    (users/{uid}/weekRollups/*) — the permanent salary record
+//    (v27.35 retention); nobody deletes rollups from a client.
 //  * Change ANOTHER user's role (promote/demote) from the dashboard.
+//  * Block / unblock ANOTHER driver (v27.35 blacklist): setting or
+//    clearing blocked/blockedAt/blockedBy on a driver doc. Blocking
+//    deletes nothing and removes no lookup.
 // WHAT NOBODY MAY DO:
 //  * Change their OWN role — not a driver, not even a manager
 //    (prevents lockout: a manager cannot demote himself — and cannot
@@ -36,6 +42,32 @@
 //    here, and never editable by a manager. A manager edits DATA,
 //    never credentials; password changes stay on the account's own
 //    reset flow.
+//
+// v27.35 RETENTION (details-only, totals forever): detail docs —
+// orders, summaries, adjustments — carry an `expireAt` Timestamp
+// (date + 21 days, week-start + 21 days for adjustments) and are
+// deleted by Firestore TTL policies the project owner enables in the
+// console (collection groups orders / summaries / adjustments,
+// field `expireAt`; TTL deletion can lag up to ~24h). The permanent
+// per-week salary record lives in weekRollups/{weekKey}: owner +
+// managers read/write, NOBODY deletes, and NO TTL policy is ever
+// enabled on it. Identity docs (users/{uid}, usernames, phones,
+// emailUsernames) are NEVER retention targets and are never expired.
+//
+// v27.35 BLACKLIST (reversible block, NOT a deletion): a manager
+// blocks a driver by setting blocked=true (+ blockedAt, blockedBy)
+// on his profile — no data is deleted and no lookup is removed, so
+// unblocking restores him fully. A blocked user may read ONLY his
+// own profile doc (so the app can show the blocked message) and
+// nothing else: his own subcollection reads/writes are denied while
+// blocked, and he cannot edit his own profile (so he cannot unblock
+// himself). Managers set/clear blocked through the normal manager
+// update branch (uid must differ from the caller); the dashboard
+// hides blocked users client-side. Blocked users are still listed
+// by listUsers for managers (the Blacklist section reads them).
+// The sign-in/restore gates in the app are primary; these rules are
+// the server-side backstop for a session that was live when the
+// block landed.
 //
 // Layout note: this app's "day data" lives in two subcollections —
 // orders (raw day record) and summaries (one doc per day). There is
@@ -53,6 +85,15 @@ service cloud.firestore {
       return signedIn() &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'manager';
     }
+    // v27.35 blacklist: true when the user doc either does not exist
+    // (a profile-less Auth user keeps the pre-block behaviour — the
+    // app gates sign-in, and such a user has no team data anyway)
+    // or is not flagged blocked. Blocked users read/write NOTHING
+    // except their own profile doc.
+    function notBlocked(uid) {
+      return !exists(/databases/$(database)/documents/users/$(uid))
+        || get(/databases/$(database)/documents/users/$(uid)).data.get('blocked', false) == false;
+    }
 
     match /users/{uid} {
       // Owner reads own profile; managers read every profile.
@@ -66,8 +107,12 @@ service cloud.firestore {
       // branches together make self-role-change impossible:
       //   owner branch  → role must stay unchanged;
       //   manager branch → uid must differ from the caller.
+      // v27.35 blacklist: a blocked owner cannot edit his own doc
+      // at all (so he cannot clear his own block); managers set and
+      // clear blocked through the manager branch.
       allow update: if (isOwner(uid)
-          && request.resource.data.role == resource.data.role)
+          && request.resource.data.role == resource.data.role
+          && resource.data.get('blocked', false) == false)
         || (isManager() && request.auth.uid != uid);
       // User docs are never deletable from clients.
       allow delete: if false;
@@ -77,14 +122,17 @@ service cloud.firestore {
       // to the driver's device. Manager edits are stamped with
       // editedByManagerUid/editedByManagerAtMillis by the app.
       match /orders/{docId} {
-        allow read, write: if isOwner(uid) || isManager();
+        allow read, write: if isManager()
+          || (isOwner(uid) && notBlocked(uid));
       }
 
       // Day summaries: owner + managers read and write. The manager
       // dashboard reads these (one small doc per driver per day);
       // manager salary-component edits rewrite them with a stamp.
+      // v27.35 blacklist: blocked owners read/write nothing here.
       match /summaries/{docId} {
-        allow read, write: if isOwner(uid) || isManager();
+        allow read, write: if isManager()
+          || (isOwner(uid) && notBlocked(uid));
       }
 
       // Manager adjustments (bonus / deduction per driver per week):
@@ -95,8 +143,13 @@ service cloud.firestore {
       // never write them. Creation additionally requires a positive
       // amount, a non-empty reason, a valid type, and createdBy equal
       // to the calling manager (no spoofed stamps).
+      // v27.35 retention: the ONE exception to "drivers never write
+      // adjustments" is the backfill stamping ONLY the `expireAt`
+      // field on their own adjustment docs — the affected-keys
+      // check below makes any other owner edit impossible.
       match /adjustments/{docId} {
-        allow read: if isOwner(uid) || isManager();
+        allow read: if isManager()
+          || (isOwner(uid) && notBlocked(uid));
         allow create: if isManager() && request.auth.uid != uid
           && request.resource.data.createdBy == request.auth.uid
           && request.resource.data.type in ['bonus', 'deduction']
@@ -104,8 +157,24 @@ service cloud.firestore {
           && request.resource.data.amount > 0
           && request.resource.data.reason is string
           && request.resource.data.reason.size() > 0;
-        allow update, delete: if isManager()
+        allow update: if (isManager() && request.auth.uid != uid)
+          || (isOwner(uid) && notBlocked(uid) && request.resource.data
+              .diff(resource.data).affectedKeys().hasOnly(['expireAt']));
+        allow delete: if isManager()
           && request.auth.uid != uid;
+      }
+
+      // Permanent weekly salary rollups (v27.35 retention): one doc
+      // per driver per week, holding the week's salary components
+      // with adjustments folded into the stored total. Owner +
+      // managers read and write; NOBODY deletes from a client, and
+      // NO TTL policy is ever enabled on this collection — these
+      // docs are the totals that must survive after the detail docs
+      // TTL-expire.
+      match /weekRollups/{weekKey} {
+        allow read, write: if isManager()
+          || (isOwner(uid) && notBlocked(uid));
+        allow delete: if false;
       }
     }
 
@@ -134,8 +203,14 @@ service cloud.firestore {
         && request.resource.data.uid == request.auth.uid
         && !exists(/databases/$(database)/documents/usernames/$(key));
       allow update: if false;
+      // v27.35: deleting a NON-EXISTENT mapping is a no-op, not a
+      // denial — the old code read resource.data.uid on a null
+      // resource and failed username changes for console-created
+      // accounts that never got a mapping. The app still gets
+      // first and skips missing mappings; this is defence in depth.
       allow delete: if signedIn()
-        && resource.data.uid == request.auth.uid;
+        && (!exists(/databases/$(database)/documents/usernames/$(key))
+          || resource.data.uid == request.auth.uid);
     }
     match /phones/{key} {
       allow get: if true;
@@ -145,7 +220,8 @@ service cloud.firestore {
         && !exists(/databases/$(database)/documents/phones/$(key));
       allow update: if false;
       allow delete: if signedIn()
-        && resource.data.uid == request.auth.uid;
+        && (!exists(/databases/$(database)/documents/phones/$(key))
+          || resource.data.uid == request.auth.uid);
     }
     match /emailUsernames/{key} {
       allow get: if true;
@@ -158,7 +234,8 @@ service cloud.firestore {
         && resource.data.uid == request.auth.uid
         && request.resource.data.uid == request.auth.uid;
       allow delete: if signedIn()
-        && resource.data.uid == request.auth.uid;
+        && (!exists(/databases/$(database)/documents/emailUsernames/$(key))
+          || resource.data.uid == request.auth.uid);
     }
   }
 }

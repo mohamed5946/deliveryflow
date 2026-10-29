@@ -36,6 +36,14 @@
 // to Firebase Auth. A phone number alone NEVER authorizes a
 // password change: in-app change requires the current password,
 // and the forgot flow is email-reset-link only (v1).
+//
+// v27.35 — Sign up with Google: the sign-up form gains a Google
+// button. Google sign-in alone creates NO profile in this flow: a
+// first-time Google user completes username + phone (each unique,
+// live-checked) before the driver profile + login mappings are
+// written. A Google identity that already has an account signs
+// straight in. No auto-linking: a Google account stays separate
+// from an Email/Password account with the same email.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -43,12 +51,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/cloud/cloud_providers.dart';
+import '../../core/cloud/cloud_services.dart';
+import '../../core/cloud/cloud_types.dart';
 import '../../core/cloud/login_identifier.dart';
 import '../../core/providers.dart';
 import '../../theme/design_system.dart';
+import 'cloud_download_apply.dart';
 import 'local_migration.dart';
 
-enum _AccountView { choice, signIn, signUp }
+enum _AccountView { choice, signIn, signUp, googleSignUp }
 
 class CloudAccountScreen extends ConsumerStatefulWidget {
   const CloudAccountScreen({super.key});
@@ -67,8 +78,21 @@ class _CloudAccountScreenState extends ConsumerState<CloudAccountScreen> {
   _AccountView _view = _AccountView.choice;
   bool? _usernameAvailable;
   Timer? _usernameTimer;
+  bool? _phoneAvailable;
+  Timer? _phoneTimer;
   bool _migrationOffered = false;
+  bool _syncing = false;
   String? _formError;
+
+  // v27.35 payout preferences (driver's own; managers only read
+  // them). The controllers track the signed-in account: when the
+  // account changes, the form reloads from that account's prefs.
+  final _payoutNumberCtrl = TextEditingController();
+  final _payoutNameCtrl = TextEditingController();
+  CloudPayoutMethod _payoutMethod = CloudPayoutMethod.none;
+  String? _payoutUid;
+  String? _payoutError;
+  bool _payoutSaving = false;
 
   @override
   void dispose() {
@@ -78,10 +102,13 @@ class _CloudAccountScreenState extends ConsumerState<CloudAccountScreen> {
       _usernameCtrl,
       _phoneCtrl,
       _emailCtrl,
+      _payoutNumberCtrl,
+      _payoutNameCtrl,
     ]) {
       c.dispose();
     }
     _usernameTimer?.cancel();
+    _phoneTimer?.cancel();
     super.dispose();
   }
 
@@ -104,6 +131,25 @@ class _CloudAccountScreenState extends ConsumerState<CloudAccountScreen> {
     });
   }
 
+  void _onPhoneChanged(String value) {
+    _phoneTimer?.cancel();
+    if (value.trim().isEmpty) {
+      setState(() => _phoneAvailable = null);
+      return;
+    }
+    _phoneTimer = Timer(const Duration(milliseconds: 600), () async {
+      try {
+        final available = await ref
+            .read(cloudAccountProvider.notifier)
+            .isPhoneAvailable(value);
+        if (mounted) setState(() => _phoneAvailable = available);
+      } catch (_) {
+        // Unconfigured backend: hide the availability note.
+        if (mounted) setState(() => _phoneAvailable = null);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final configured = ref.watch(cloudConfiguredProvider);
@@ -113,6 +159,20 @@ class _CloudAccountScreenState extends ConsumerState<CloudAccountScreen> {
     // messages (e.g. the taken-username message) show EXACTLY.
     final errorText = (state.error ?? _formError)
         ?.replaceFirst('Exception: ', '');
+    // v27.35 payout form: reload from the signed-in account whenever
+    // the account changes (sign-in, sign-out, another account).
+    // Assigning controller text during build is safe here because it
+    // happens at most once per account change, before the fields
+    // render, and never triggers a rebuild by itself.
+    if (account != null &&
+        !account.mustChangePassword &&
+        _payoutUid != account.uid) {
+      _payoutUid = account.uid;
+      _payoutMethod = account.payoutMethod;
+      _payoutNumberCtrl.text = account.payoutNumber;
+      _payoutNameCtrl.text = account.payoutName;
+      _payoutError = null;
+    }
     return GlassScaffold(
       appBar: AppBar(title: const Text('Cloud account')),
       body: SingleChildScrollView(
@@ -193,6 +253,23 @@ class _CloudAccountScreenState extends ConsumerState<CloudAccountScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
+                // v27.35 manual sync: downloads the driver's cloud
+                // days (manager edits included) and applies them to
+                // local data, so a manager's change shows up in his
+                // day/week views. Never a dead button: while syncing
+                // it disables + shows progress, and it always reports
+                // the result (days updated, up to date, or the error).
+                if (_syncing) ...[
+                  const LinearProgressIndicator(),
+                  const SizedBox(height: 12),
+                ],
+                GlassButton(
+                  key: const ValueKey('cloudSyncButton'),
+                  label: 'Sync cloud data',
+                  icon: Icons.sync_rounded,
+                  onPressed: _syncing ? null : () => _runSync(),
+                ),
+                const SizedBox(height: 12),
                 if (account.isManager)
                   GlassButton(
                     label: 'Open Management',
@@ -213,6 +290,92 @@ class _CloudAccountScreenState extends ConsumerState<CloudAccountScreen> {
                   primary: false,
                   onPressed: () => _changePasswordDialog(context),
                 ),
+                const SizedBox(height: 12),
+                // v27.35 payout preferences (driver's own): how the
+                // manager should pay this driver's weekly salary.
+                // Number + wallet name are required for InstaPay and
+                // Vodafone Cash, not needed for Manual. Managers
+                // only READ these (Payouts list) — they cannot edit
+                // them from the app.
+                GlassCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Text(
+                        'Payout method',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'How should the manager pay your weekly salary?',
+                      ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final m in [
+                            CloudPayoutMethod.instapay,
+                            CloudPayoutMethod.vodafoneCash,
+                            CloudPayoutMethod.manual,
+                          ])
+                            ChoiceChip(
+                              key: ValueKey('cloudPayoutMethod-${m.name}'),
+                              label: Text(m.label),
+                              selected: _payoutMethod == m,
+                              onSelected: (_) => setState(() {
+                                _payoutMethod = m;
+                                _payoutError = null;
+                              }),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        key: const ValueKey('cloudPayoutNumberField'),
+                        controller: _payoutNumberCtrl,
+                        keyboardType: TextInputType.phone,
+                        decoration: const InputDecoration(
+                          labelText: 'Payment number',
+                          hintText:
+                              'Number money is transferred to (required '
+                              'for InstaPay and Vodafone Cash)',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        key: const ValueKey('cloudPayoutNameField'),
+                        controller: _payoutNameCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Wallet display name',
+                          hintText:
+                              'Name as shown in the wallet app (required '
+                              'for InstaPay and Vodafone Cash)',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      if (_payoutError != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          _payoutError!,
+                          key: const ValueKey('cloudPayoutErrorText'),
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      GlassButton(
+                        key: const ValueKey('cloudPayoutSaveButton'),
+                        label: 'Save payout preferences',
+                        icon: Icons.wallet_rounded,
+                        onPressed:
+                            _payoutSaving ? null : () => _savePayout(),
+                      ),
+                    ],
+                  ),
+                ),
               ],
               const SizedBox(height: 12),
               GlassButton(
@@ -231,6 +394,19 @@ class _CloudAccountScreenState extends ConsumerState<CloudAccountScreen> {
                       'create a cloud account. You can keep using '
                       'the app local-only without an account.',
                     ),
+                    // v27.35 blacklist: a restored session that turned
+                    // out to be blocked seeds this error — show it
+                    // on the choice view too, not only the forms.
+                    if (errorText != null) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        errorText,
+                        key: const ValueKey('cloudErrorText'),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 16),
                     GlassButton(
                       key: const ValueKey('cloudChoiceCreate'),
@@ -321,6 +497,97 @@ class _CloudAccountScreenState extends ConsumerState<CloudAccountScreen> {
                     setState(() => _view = _AccountView.choice),
                 child: const Text('Back to account choices'),
               ),
+            ] else if (_view == _AccountView.googleSignUp) ...[
+              GlassCard(
+                child: Column(
+                  children: [
+                    Text(
+                      'Creating account for '
+                      '${state.pendingGoogle?.email ?? ''}',
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      key: const ValueKey('cloudGoogleUsernameField'),
+                      controller: _usernameCtrl,
+                      onChanged: _onUsernameChanged,
+                      decoration: const InputDecoration(
+                        labelText: 'Username',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    if (_usernameAvailable != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        _usernameAvailable!
+                            ? 'الـ username ده متاح'
+                            : 'الـ username ده اتاخد قبل كده، اختار username تاني',
+                        key: const ValueKey('cloudUsernameAvailability'),
+                        style: TextStyle(
+                          color: _usernameAvailable!
+                              ? Theme.of(context).colorScheme.primary
+                              : Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    TextField(
+                      key: const ValueKey('cloudGooglePhoneField'),
+                      controller: _phoneCtrl,
+                      keyboardType: TextInputType.phone,
+                      onChanged: _onPhoneChanged,
+                      decoration: const InputDecoration(
+                        labelText: 'Phone (Egypt, e.g. 01xxxxxxxxx)',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    if (_phoneAvailable != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        _phoneAvailable!
+                            ? 'رقم الموبايل ده متاح'
+                            : phoneTakenMessage,
+                        key: const ValueKey('cloudGooglePhoneAvailability'),
+                        style: TextStyle(
+                          color: _phoneAvailable!
+                              ? Theme.of(context).colorScheme.primary
+                              : Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    if (state.busy)
+                      const CircularProgressIndicator()
+                    else
+                      GlassButton(
+                        key: const ValueKey('cloudGoogleCompleteButton'),
+                        label: 'Create account',
+                        icon: Icons.person_add_rounded,
+                        onPressed: _submitGoogleComplete,
+                      ),
+                    if (errorText != null) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        errorText,
+                        key: const ValueKey('cloudErrorText'),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              TextButton(
+                onPressed: () async {
+                  await ref
+                      .read(cloudAccountProvider.notifier)
+                      .cancelGoogleSignUp();
+                  if (mounted) {
+                    setState(() => _view = _AccountView.choice);
+                  }
+                },
+                child: const Text('Back to account choices'),
+              ),
             ] else ...[
               GlassCard(
                 child: Column(
@@ -381,13 +648,28 @@ class _CloudAccountScreenState extends ConsumerState<CloudAccountScreen> {
                     const SizedBox(height: 12),
                     if (state.busy)
                       const CircularProgressIndicator()
-                    else
+                    else ...[
                       GlassButton(
                         key: const ValueKey('cloudSignUpButton'),
                         label: 'Create account',
                         icon: Icons.person_add_rounded,
                         onPressed: _submitSignUp,
                       ),
+                      const SizedBox(height: 12),
+                      GlassButton(
+                        key: const ValueKey('cloudGoogleSignUpButton'),
+                        label: 'Sign up with Google',
+                        icon: Icons.account_circle_rounded,
+                        primary: false,
+                        onPressed: _submitGoogleSignUp,
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Use one sign-in method per account: a Google '
+                        'login is a separate account from an Email / '
+                        'Password login with the same email.',
+                      ),
+                    ],
                     if (errorText != null) ...[
                       const SizedBox(height: 12),
                       Text(
@@ -424,6 +706,8 @@ class _CloudAccountScreenState extends ConsumerState<CloudAccountScreen> {
         const SnackBar(content: Text('Signed in')),
       );
       await _maybeOfferMigration();
+      unawaited(_backfillRetention());
+      unawaited(_syncOnLogin());
     }
   }
 
@@ -437,6 +721,8 @@ class _CloudAccountScreenState extends ConsumerState<CloudAccountScreen> {
         const SnackBar(content: Text('Signed in')),
       );
       await _maybeOfferMigration();
+      unawaited(_backfillRetention());
+      unawaited(_syncOnLogin());
     }
   }
 
@@ -476,6 +762,56 @@ class _CloudAccountScreenState extends ConsumerState<CloudAccountScreen> {
         const SnackBar(content: Text('Account created')),
       );
       await _maybeOfferMigration();
+      unawaited(_backfillRetention());
+      unawaited(_syncOnLogin());
+    }
+  }
+
+  Future<void> _submitGoogleSignUp() async {
+    final notifier = ref.read(cloudAccountProvider.notifier);
+    final start = await notifier.beginGoogleSignUp();
+    if (!mounted || start == null || start.cancelled) return;
+    if (start.account != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Signed in')),
+      );
+      await _maybeOfferMigration();
+      unawaited(_backfillRetention());
+      unawaited(_syncOnLogin());
+      return;
+    }
+    setState(() {
+      _formError = null;
+      _view = _AccountView.googleSignUp;
+    });
+  }
+
+  Future<void> _submitGoogleComplete() async {
+    final username = _usernameCtrl.text.trim();
+    final phone = _phoneCtrl.text.trim();
+    if (username.isEmpty) {
+      setState(() => _formError = 'Enter a username.');
+      return;
+    }
+    if (!isValidEgyptPhone(phone)) {
+      setState(
+        () => _formError = 'Enter a valid Egyptian mobile number.',
+      );
+      return;
+    }
+    setState(() => _formError = null);
+    final notifier = ref.read(cloudAccountProvider.notifier);
+    final ok = await notifier.completeGoogleSignUp(
+      username: username,
+      phone: phone,
+    );
+    if (ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Account created')),
+      );
+      await _maybeOfferMigration();
+      unawaited(_backfillRetention());
+      unawaited(_syncOnLogin());
     }
   }
 
@@ -536,6 +872,123 @@ class _CloudAccountScreenState extends ConsumerState<CloudAccountScreen> {
           ),
         ),
       );
+    }
+  }
+
+  /// v27.35 retention backfill (fire-and-forget, never blocks sign-in):
+  /// build this device's local week summaries and hand them to the
+  /// sync service, which writes each week's permanent rollup FIRST
+  /// and only then stamps expireAt on that week's cloud detail docs.
+  /// Errors are swallowed: a missed backfill only delays expiry, it
+  /// can never corrupt a total, and the next sign-in retries it.
+  Future<void> _backfillRetention() async {
+    try {
+      final account = ref.read(cloudAccountProvider).account;
+      if (account == null) return;
+      final db = ref.read(databaseServiceProvider);
+      final settings = ref.read(settingsProvider);
+      final data = buildLocalMigrationData(db, settings, account.uid);
+      if (data.summaries.isEmpty) return;
+      await ref.read(cloudSyncServiceProvider).backfillWeekRollups(
+            uid: account.uid,
+            localSummaries: data.summaries,
+          );
+    } catch (_) {}
+  }
+
+  /// v27.35 download-on-login (fire-and-forget, never blocks sign-in):
+  /// same sync as the manual button, quiet unless something actually
+  /// changed or it failed — the driver learns about a manager edit
+  /// on his next login without having to remember a button.
+  Future<void> _syncOnLogin() async {
+    await _runSync(silent: true);
+  }
+
+  /// Manual sync (button) or login sync ([silent]): flush pending
+  /// local uploads first, download the driver's cloud days, apply
+  /// them to local Hive with newer-wins, then report the result in
+  /// plain language. A manual tap ALWAYS reports (updated, up to
+  /// date, or failed); a login sync reports only changes/failures.
+  /// v27.35 payout save: local validation first (same rules as the
+  /// backend), then the backend write. On success the account state
+  /// already carries the saved prefs (see the notifier), so the form
+  /// shows them at once.
+  Future<void> _savePayout() async {
+    if (_payoutSaving) return;
+    final error = validatePayoutPrefs(
+      method: _payoutMethod,
+      number: _payoutNumberCtrl.text,
+      name: _payoutNameCtrl.text,
+    );
+    if (error != null) {
+      setState(() => _payoutError = error);
+      return;
+    }
+    setState(() {
+      _payoutSaving = true;
+      _payoutError = null;
+    });
+    try {
+      final ok =
+          await ref.read(cloudAccountProvider.notifier).updatePayoutPrefs(
+                method: _payoutMethod,
+                number: _payoutNumberCtrl.text,
+                name: _payoutNameCtrl.text,
+              );
+      if (!mounted) return;
+      if (ok) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Payout preferences saved'),
+          ),
+        );
+      } else {
+        setState(
+          () => _payoutError = ref
+              .read(cloudAccountProvider)
+              .error
+              ?.replaceFirst('Exception: ', ''),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _payoutSaving = false);
+    }
+  }
+
+  Future<void> _runSync({bool silent = false}) async {
+    if (_syncing) return;
+    setState(() => _syncing = true);
+    try {
+      final account = ref.read(cloudAccountProvider).account;
+      final db = ref.read(databaseServiceProvider);
+      final result = await runDriverSync(
+        account: account,
+        sync: ref.read(cloudSyncServiceProvider),
+        db: db,
+      );
+      if (!mounted) return;
+      if (!result.succeeded) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Sync failed: ${result.error}')),
+        );
+        return;
+      }
+      if (result.changedDays > 0) {
+        bumpDataVersion(ref);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Synced: ${result.changedDays} day(s) updated from cloud',
+            ),
+          ),
+        );
+      } else if (!silent) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Already up to date')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _syncing = false);
     }
   }
 

@@ -230,3 +230,72 @@ int? lastSyncMillis(List<DriverDayRow> rows) {
   }
   return latest == 0 ? null : latest;
 }
+
+/// v27.35 payouts — one driver's week money, computed the same way
+/// for the Payouts row and the payout detail screen, so the two can
+/// never disagree:
+///   net = base + bonusAdjustments − deductionAdjustments, where
+///   base = the week's day salaryTotals (which already include the
+///   day-level bonuses), and the adjustments are the week's
+///   weekKey-matching manager adjustments.
+/// [totalBonus] is the week's full bonus picture (day-level bonus
+/// components + bonus adjustments) shown on the row next to the net;
+/// [deduction] is the week's deduction adjustments total. A driver
+/// with no summaries but a week adjustment still gets his net
+/// (unlike [driverWeekTotals], which only lists drivers that have
+/// summaries).
+class DriverPayoutWeek {
+  const DriverPayoutWeek({
+    required this.base,
+    required this.dayBonus,
+    required this.bonus,
+    required this.deduction,
+  });
+
+  /// Sum of the week's day salaryTotals (day bonuses included).
+  final double base;
+
+  /// Sum of the week's day-level bonus components
+  /// (manual + distance + flat) across the day summaries.
+  final double dayBonus;
+
+  /// Bonus adjustments for the week (weekKey match).
+  final double bonus;
+
+  /// Deduction adjustments for the week (weekKey match).
+  final double deduction;
+
+  /// Amount due: base + bonuses − deductions.
+  double get net => base + bonus - deduction;
+
+  /// Full week's bonus for the row's "+Y bonus" line.
+  double get totalBonus => dayBonus + bonus;
+}
+
+DriverPayoutWeek payoutWeek({
+  required Iterable<CloudDaySummary> summaries,
+  required Iterable<CloudAdjustment> adjustments,
+  required String weekKey,
+}) {
+  var base = 0.0;
+  var dayBonus = 0.0;
+  for (final s in summaries) {
+    base += s.salaryTotal;
+    dayBonus += s.manualBonus + s.distanceBonus + s.flatBonus;
+  }
+  var bonus = 0.0;
+  var deduction = 0.0;
+  for (final a in adjustmentsForWeek(adjustments.toList(), weekKey)) {
+    if (a.isBonus) {
+      bonus += a.amount;
+    } else {
+      deduction += a.amount;
+    }
+  }
+  return DriverPayoutWeek(
+    base: base,
+    dayBonus: dayBonus,
+    bonus: bonus,
+    deduction: deduction,
+  );
+}

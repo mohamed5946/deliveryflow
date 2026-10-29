@@ -15,6 +15,7 @@ import 'package:deliveryflow/core/cloud/login_identifier.dart';
 import 'package:deliveryflow/core/cloud/cloud_providers.dart';
 import 'package:deliveryflow/core/cloud/cloud_services.dart';
 import 'package:deliveryflow/core/cloud/cloud_types.dart';
+import 'package:deliveryflow/core/cloud/retention_logic.dart';
 import 'package:deliveryflow/core/database/database_service.dart';
 import 'package:deliveryflow/core/database/models.dart';
 import 'package:deliveryflow/core/notifications/notification_service.dart';
@@ -36,6 +37,12 @@ class FakeCloudBackend implements CloudBackend {
   final summaries = <String, Map<String, CloudDaySummary>>{};
   final orders = <String, Map<String, Map<String, dynamic>>>{};
   final adjustments = <String, Map<String, CloudAdjustment>>{};
+  // v27.35 retention mirrors: week rollups, stamped detail dateKeys
+  // ('uid|dateKey') and stamped adjustment ids ('uid|id').
+  final weekRollups = <String, Map<String, CloudWeekRollup>>{};
+  final stampedDetails = <String>{};
+  final stampedAdjustments = <String>{};
+  String? _pendingGoogleUid;
   // Login lookup collections (mirrors of the Firestore ones):
   // username key → email, phone-hash key → email, email-hash → username.
   final usernameLookups = <String, String>{};
@@ -45,6 +52,12 @@ class FakeCloudBackend implements CloudBackend {
   final sentPasswordResets = <String>[];
   CloudAccount? _current;
   bool failWrites = false;
+  bool failReads = false;
+
+  /// v27.35 shimmer test hook: when non-zero, listUsers waits this
+  /// long first, so the dashboard stays in its loading state long
+  /// enough for the skeleton to be asserted.
+  Duration listDelay = Duration.zero;
   int listUsersCalls = 0;
   int saveDaySummaryCalls = 0;
   int _counter = 0;
@@ -64,6 +77,9 @@ class FakeCloudBackend implements CloudBackend {
   void _requireUsableAccount() {
     if (_current?.mustChangePassword == true) {
       throw const CloudDenied('password change required');
+    }
+    if (_current?.blocked == true) {
+      throw const CloudDenied('account blocked');
     }
   }
 
@@ -135,7 +151,13 @@ class FakeCloudBackend implements CloudBackend {
     if (newKey.isEmpty) throw Exception('username required');
     final oldKey = usernameLookupKey(me.username);
     if (newKey == oldKey) return me;
-    if (usernameLookups.containsKey(newKey)) {
+    // v27.35: an orphaned mapping left by a failed earlier attempt
+    // (same email) is the caller's own — available, not taken. Only
+    // a mapping owned by someone else blocks the name. Removing a
+    // missing old mapping is a no-op in a Map (the production
+    // get-first-skip, mirrored here).
+    if (usernameLookups.containsKey(newKey) &&
+        usernameLookups[newKey] != me.email) {
       throw Exception('username taken');
     }
     usernameLookups[newKey] = me.email;
@@ -146,6 +168,12 @@ class FakeCloudBackend implements CloudBackend {
       username: newUsername.trim(),
       role: me.role,
       phone: me.phone,
+      blocked: me.blocked,
+      blockedAt: me.blockedAt,
+      blockedBy: me.blockedBy,
+      payoutMethod: me.payoutMethod,
+      payoutNumber: me.payoutNumber,
+      payoutName: me.payoutName,
     );
     users[me.uid] = updated;
     emailUsernameLookups[emailLookupKey(me.email)] = updated.username;
@@ -192,7 +220,13 @@ class FakeCloudBackend implements CloudBackend {
     // as Firebase Auth's stored session survives a real restart.
     final me = _current;
     if (me == null) return null;
-    return users[me.uid] ?? me;
+    final stored = users[me.uid] ?? me;
+    // v27.35 blacklist gate: a blocked profile never restores.
+    if (stored.blocked) {
+      _current = null;
+      throw const CloudAccountBlocked();
+    }
+    return stored;
   }
 
   @override
@@ -218,6 +252,11 @@ class FakeCloudBackend implements CloudBackend {
   }) async {
     if (_passwords[email] != password) throw Exception('bad credentials');
     final account = users.values.firstWhere((u) => u.email == email);
+    // v27.35 blacklist gate (email/password path).
+    if (account.blocked) {
+      _current = null;
+      throw const CloudAccountBlocked();
+    }
     _current = account;
     return account;
   }
@@ -231,6 +270,11 @@ class FakeCloudBackend implements CloudBackend {
   Future<CloudAccount?> signInWithGoogle() async {
     const googleUid = 'google_uid';
     final existing = users[googleUid];
+    // v27.35 blacklist gate (Google sign-in path).
+    if (existing?.blocked == true) {
+      _current = null;
+      throw const CloudAccountBlocked();
+    }
     if (existing != null) {
       _current = existing;
       return existing;
@@ -244,6 +288,146 @@ class FakeCloudBackend implements CloudBackend {
     users[googleUid] = account;
     _current = account;
     return account;
+  }
+
+  @override
+  Future<bool> isPhoneAvailable(String phone) async {
+    final normalized = phone.isEmpty ? '' : normalizeEgyptPhone(phone);
+    final key = normalized.isEmpty ? '' : phoneLookupKey(normalized);
+    if (key.isEmpty) return false;
+    return !phoneLookups.containsKey(key);
+  }
+
+  /// Fake Google SIGN-UP (v27.35): same fake Google identity as
+  /// [signInWithGoogle], but WITHOUT creating a profile — the
+  /// completion step owns that. Remembers the pending Google UID.
+  @override
+  Future<GoogleSignUpStart> beginGoogleSignUp() async {
+    const googleUid = 'google_uid';
+    const email = 'google.driver@example.com';
+    final existing = users[googleUid];
+    // v27.35 blacklist gate (Google sign-up path).
+    if (existing?.blocked == true) {
+      _current = null;
+      throw const CloudAccountBlocked();
+    }
+    if (existing != null) {
+      _current = existing;
+      return GoogleSignUpStart.existing(existing);
+    }
+    _pendingGoogleUid = googleUid;
+    return const GoogleSignUpStart.needsCompletion(
+      uid: googleUid,
+      email: email,
+      displayName: 'Google Driver',
+    );
+  }
+
+  @override
+  Future<CloudAccount> completeGoogleSignUp({
+    required String username,
+    required String phone,
+  }) async {
+    final uid = _pendingGoogleUid;
+    if (uid == null) throw Exception('no Google sign-up in progress');
+    final existing = users[uid];
+    // v27.35 blacklist gate (Google completion path).
+    if (existing?.blocked == true) {
+      _current = null;
+      _pendingGoogleUid = null;
+      throw const CloudAccountBlocked();
+    }
+    if (existing != null) {
+      _current = existing;
+      _pendingGoogleUid = null;
+      return existing;
+    }
+    final usernameKey = usernameLookupKey(username);
+    if (usernameKey.isNotEmpty &&
+        usernameLookups.containsKey(usernameKey)) {
+      throw Exception('username taken');
+    }
+    final normalizedPhone = phone.isEmpty ? '' : normalizeEgyptPhone(phone);
+    final phoneKey =
+        normalizedPhone.isEmpty ? '' : phoneLookupKey(normalizedPhone);
+    if (phoneKey.isNotEmpty && phoneLookups.containsKey(phoneKey)) {
+      throw Exception('phone taken');
+    }
+    const email = 'google.driver@example.com';
+    final account = CloudAccount(
+      uid: uid,
+      email: email,
+      username: username.trim(),
+      role: CloudRole.driver,
+      phone: normalizedPhone,
+    );
+    users[uid] = account;
+    if (usernameKey.isNotEmpty) usernameLookups[usernameKey] = email;
+    if (phoneKey.isNotEmpty) phoneLookups[phoneKey] = email;
+    emailUsernameLookups[emailLookupKey(email)] = account.username;
+    _current = account;
+    _pendingGoogleUid = null;
+    return account;
+  }
+
+  @override
+  Future<void> cancelGoogleSignUp() async {
+    _pendingGoogleUid = null;
+  }
+
+  @override
+  Future<void> saveWeekRollup(CloudWeekRollup rollup) async {
+    _requireOwnerOrManager(rollup.uid);
+    (weekRollups[rollup.uid] ??= {})[rollup.weekKey] = rollup;
+  }
+
+  @override
+  Future<CloudWeekRollup?> fetchWeekRollup(
+    String uid,
+    String weekKey,
+  ) async {
+    _requireOwnerOrManager(uid);
+    return weekRollups[uid]?[weekKey];
+  }
+
+  @override
+  Future<void> refreshWeekRollup(String uid, String weekKey) async {
+    _requireOwnerOrManager(uid);
+    final weekSummaries = <CloudDaySummary>[];
+    for (final dateKey in weekDateKeys(weekKey)) {
+      final summary = summaries[uid]?[dateKey];
+      if (summary != null) weekSummaries.add(summary);
+    }
+    final rollup = buildWeekRollup(
+      uid: uid,
+      weekKey: weekKey,
+      summaries: weekSummaries,
+      adjustments: (adjustments[uid] ?? {}).values.toList(),
+      updatedAtMillis: DateTime.now().millisecondsSinceEpoch,
+    );
+    (weekRollups[uid] ??= {})[weekKey] = rollup;
+  }
+
+  @override
+  Future<void> stampDetailExpiry(String uid, String dateKey) async {
+    _requireOwnerOrManager(uid);
+    // Mirror the production existence guard: only stamp when a
+    // summary or order doc actually exists for that day.
+    final hasSummary = summaries[uid]?.containsKey(dateKey) ?? false;
+    final hasOrder = orders[uid]?.containsKey(dateKey) ?? false;
+    if (hasSummary || hasOrder) stampedDetails.add('$uid|$dateKey');
+  }
+
+  @override
+  Future<void> stampAdjustmentExpiry(
+    String uid,
+    String adjustmentId,
+    String weekKey,
+  ) async {
+    _requireOwnerOrManager(uid);
+    if ((adjustments[uid] ?? {}).containsKey(adjustmentId)) {
+      stampedAdjustments.add('$uid|$adjustmentId');
+    }
   }
 
   @override
@@ -266,6 +450,11 @@ class FakeCloudBackend implements CloudBackend {
       throw const CloudDenied('not owner or manager');
     }
     final existing = users[account.uid];
+    // v27.35 blacklist: a blocked profile is terminal through this
+    // path — no edit may overwrite it and silently clear the block.
+    if (existing != null && existing.blocked) {
+      throw const CloudDenied('blocked account');
+    }
     if (existing != null && existing.role != account.role) {
       if (me.uid == account.uid) {
         throw const CloudDenied('cannot change own role');
@@ -276,6 +465,102 @@ class FakeCloudBackend implements CloudBackend {
     }
     if (failWrites) throw Exception('offline');
     users[account.uid] = account;
+  }
+
+  /// Shared guard for the fake blacklist actions (mirrors the
+  /// production guard: manager caller, not self, existing driver).
+  CloudAccount _requireBlockableTarget(String targetUid) {
+    final me = _current;
+    if (me == null) throw const CloudDenied('not signed in');
+    _requireUsableAccount();
+    if (!me.isManager) {
+      throw const CloudDenied('only a manager blocks drivers');
+    }
+    if (me.uid == targetUid) {
+      throw const CloudDenied('cannot block own account');
+    }
+    final target = users[targetUid];
+    if (target == null) throw const CloudDenied('unknown user');
+    if (target.isManager) {
+      throw const CloudDenied('demote to driver first');
+    }
+    return target;
+  }
+
+  @override
+  Future<void> blockUser(String targetUid) async {
+    final target = _requireBlockableTarget(targetUid);
+    if (target.blocked) throw const CloudDenied('already blocked');
+    users[targetUid] = CloudAccount(
+      uid: target.uid,
+      email: target.email,
+      username: target.username,
+      role: target.role,
+      phone: target.phone,
+      mustChangePassword: target.mustChangePassword,
+      blocked: true,
+      blockedAt: DateTime.now().millisecondsSinceEpoch,
+      blockedBy: _current!.uid,
+      payoutMethod: target.payoutMethod,
+      payoutNumber: target.payoutNumber,
+      payoutName: target.payoutName,
+    );
+  }
+
+  @override
+  Future<void> unblockUser(String targetUid) async {
+    final target = _requireBlockableTarget(targetUid);
+    if (!target.blocked) throw const CloudDenied('not blocked');
+    users[targetUid] = CloudAccount(
+      uid: target.uid,
+      email: target.email,
+      username: target.username,
+      role: target.role,
+      phone: target.phone,
+      mustChangePassword: target.mustChangePassword,
+      payoutMethod: target.payoutMethod,
+      payoutNumber: target.payoutNumber,
+      payoutName: target.payoutName,
+    );
+  }
+
+  @override
+  Future<void> updatePayoutPrefs({
+    required CloudPayoutMethod method,
+    required String number,
+    required String name,
+  }) async {
+    final me = _current;
+    if (me == null) throw const CloudDenied('not signed in');
+    _requireUsableAccount();
+    final error = validatePayoutPrefs(
+      method: method,
+      number: number,
+      name: name,
+    );
+    if (error != null) throw Exception(error);
+    final storedNumber = normalizePayoutNumber(method, number);
+    final storedName =
+        method == CloudPayoutMethod.manual ||
+                method == CloudPayoutMethod.none
+            ? ''
+            : name.trim();
+    final updated = CloudAccount(
+      uid: me.uid,
+      email: me.email,
+      username: me.username,
+      role: me.role,
+      phone: me.phone,
+      mustChangePassword: me.mustChangePassword,
+      blocked: me.blocked,
+      blockedAt: me.blockedAt,
+      blockedBy: me.blockedBy,
+      payoutMethod: method,
+      payoutNumber: storedNumber,
+      payoutName: storedName,
+    );
+    users[me.uid] = updated;
+    _current = updated;
   }
 
   @override
@@ -289,6 +574,7 @@ class FakeCloudBackend implements CloudBackend {
 
   @override
   Future<CloudDaySummary?> fetchDaySummary(String uid, String dateKey) async {
+    if (failReads) throw Exception('offline');
     _requireOwner(uid);
     return summaries[uid]?[dateKey];
   }
@@ -316,6 +602,7 @@ class FakeCloudBackend implements CloudBackend {
     String uid,
     String dateKey,
   ) async {
+    if (failReads) throw Exception('offline');
     _requireOwner(uid);
     return orders[uid]?[dateKey];
   }
@@ -381,6 +668,9 @@ class FakeCloudBackend implements CloudBackend {
   @override
   Future<List<CloudAccount>> listUsers() async {
     listUsersCalls++;
+    if (listDelay > Duration.zero) {
+      await Future.delayed(listDelay);
+    }
     _requireUsableAccount();
     final me = _current;
     if (me == null || !me.isManager) {
@@ -851,7 +1141,22 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
       expect(find.text('6'), findsWidgets); // Orders today KPI.
-      expect(find.text('Quiet'), findsOneWidget);
+      // v27.35: Quiet appears twice on the dashboard — once as a
+      // driver card and once as a Payouts row. Scope the card
+      // assertion to the driver card itself.
+      final quietUid =
+          backend.users.values.firstWhere((u) => u.email == 'quiet@x.y').uid;
+      expect(
+        find.descendant(
+          of: find.byKey(ValueKey('managementUser-$quietUid')),
+          matching: find.text('Quiet'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(ValueKey('managementPayout-$quietUid')),
+        findsOneWidget,
+      );
       expect(find.text('Not synced'), findsOneWidget);
       expect(find.textContaining('Not synced:'), findsOneWidget);
     });
@@ -2045,6 +2350,11 @@ void main() {
           child: const MaterialApp(home: CloudAccountScreen()),
         ),
       );
+      await tester.pump();
+      // v27.35: the signed-in view grew (sync button + payout
+      // section), so Sign out sits below the fold — scroll it into
+      // view before tapping, or the tap lands elsewhere.
+      await tester.ensureVisible(find.text('Sign out'));
       await tester.pump();
       await tester.tap(find.text('Sign out'));
       await tester.pump();

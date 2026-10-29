@@ -261,6 +261,76 @@ class DatabaseService {
     return record;
   }
 
+  /// v27.35 cloud sync: apply a newer cloud day summary to the local
+  /// record as a pay override (see DailyOrderRecord's cloud fields).
+  /// Creates the record when the day is new to this device (a driver
+  /// on a fresh install still gets his cloud days). Local entries,
+  /// notes and confirmation are NEVER touched — the override only
+  /// changes what buildWeeklyReport counts for the day. The record's
+  /// updatedAt becomes the cloud timestamp, so the next sync can
+  /// tell a newer local edit apart from this applied snapshot.
+  Future<DailyOrderRecord> applyCloudOverride({
+    required String dateKey,
+    required int ordersCount,
+    required double kmTotal,
+    required double distanceBonus,
+    required double manualBonus,
+    required double flatBonus,
+    required int cloudUpdatedAtMillis,
+    required bool editedByManager,
+  }) async {
+    final existing = _orders.get(dateKey);
+    if (existing != null) {
+      existing.completedOrders = ordersCount;
+      existing.cloudOverrideApplied = true;
+      existing.cloudUpdatedAtMillis = cloudUpdatedAtMillis;
+      existing.cloudOrders = ordersCount;
+      existing.cloudKm = kmTotal;
+      existing.cloudDistanceBonus = distanceBonus;
+      existing.cloudManualBonus = manualBonus;
+      existing.cloudFlatBonus = flatBonus;
+      existing.cloudEditedByManager = editedByManager;
+      existing.updatedAtMillis = cloudUpdatedAtMillis;
+      await existing.save();
+      return existing;
+    }
+    final record = DailyOrderRecord(
+      id: 'ord_$dateKey',
+      dateKey: dateKey,
+      completedOrders: ordersCount,
+      createdAtMillis: cloudUpdatedAtMillis,
+      updatedAtMillis: cloudUpdatedAtMillis,
+      cloudOverrideApplied: true,
+      cloudUpdatedAtMillis: cloudUpdatedAtMillis,
+      cloudOrders: ordersCount,
+      cloudKm: kmTotal,
+      cloudDistanceBonus: distanceBonus,
+      cloudManualBonus: manualBonus,
+      cloudFlatBonus: flatBonus,
+      cloudEditedByManager: editedByManager,
+    );
+    await _orders.put(dateKey, record);
+    return record;
+  }
+
+  /// v27.35 cloud sync: drop a stale override after a newer local
+  /// edit superseded it. Only the override fields reset — the
+  /// record's own orders/entries (the local edit) stay exactly as
+  /// the driver left them, and the day returns to entry-derived pay.
+  Future<void> clearCloudOverride(String dateKey) async {
+    final existing = _orders.get(dateKey);
+    if (existing == null || !existing.cloudOverrideApplied) return;
+    existing.cloudOverrideApplied = false;
+    existing.cloudUpdatedAtMillis = 0;
+    existing.cloudOrders = 0;
+    existing.cloudKm = 0;
+    existing.cloudDistanceBonus = 0;
+    existing.cloudManualBonus = 0;
+    existing.cloudFlatBonus = 0;
+    existing.cloudEditedByManager = false;
+    await existing.save();
+  }
+
   DailyOrderRecord? orderRecord(String dateKey) => _orders.get(dateKey);
 
   /// All stored day order records (used by first-login cloud
@@ -929,7 +999,30 @@ class DatabaseService {
       if (!hasData) missing.add(key);
       if (hasData) recordedDays++;
 
-      final orders = order?.completedOrders;
+      var orders = order?.completedOrders;
+      var kmOut = order?.totalKmOut ?? 0;
+      var kmBack = order?.totalKmBack ?? 0;
+      // v27.35 cloud override: when a newer cloud summary was applied
+      // to this day (manager edit synced down), the cloud's orders,
+      // km and bonuses replace the entry-derived values for this
+      // day's pay. The cloud km is a single total (no out/back
+      // split survives the cloud round-trip), so it lands on kmOut
+      // and the day total stays exact. Entries themselves are never
+      // rewritten — the override is a pay layer, cleared by a newer
+      // local edit (see cloud_download_apply).
+      var overrideDistanceBonus = 0.0;
+      var overrideManualBonus = 0.0;
+      var overrideFlatBonus = 0.0;
+      var hasOverride = false;
+      if (order != null && order.cloudOverrideApplied) {
+        orders = order.cloudOrders;
+        kmOut = order.cloudKm;
+        kmBack = 0;
+        overrideDistanceBonus = order.cloudDistanceBonus;
+        overrideManualBonus = order.cloudManualBonus;
+        overrideFlatBonus = order.cloudFlatBonus;
+        hasOverride = true;
+      }
       // v27: the salary's daily fixed pay counts ONLY days with at
       // least one counted order — a stored 0 or a session-only day
       // earns nothing.
@@ -941,8 +1034,6 @@ class DatabaseService {
           bestDay = key;
         }
       }
-      final kmOut = order?.totalKmOut ?? 0;
-      final kmBack = order?.totalKmBack ?? 0;
       totalKmOut += kmOut;
       totalKmBack += kmBack;
       // v27.5 bonuses for the day. Distance: only a COMPLETED order
@@ -986,6 +1077,14 @@ class DatabaseService {
         final dayEnd = startOfDayMillis(
             WeekCalendar.dateKey(WeekCalendar.addDays(day, 1)));
         dayFlatBonus += unattributed * settings.flatBonusAt(dayEnd);
+      }
+      // v27.35 cloud override (continued): the entry-derived bonuses
+      // above give way to the cloud's values for override days, so
+      // the day's pay matches the manager's edit exactly.
+      if (hasOverride) {
+        dayDistanceBonus = overrideDistanceBonus;
+        dayManualBonus = overrideManualBonus;
+        dayFlatBonus = overrideFlatBonus;
       }
       totalDistanceBonus += dayDistanceBonus;
       totalManualBonus += dayManualBonus;

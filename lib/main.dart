@@ -85,8 +85,16 @@ Future<void> main() async {
   // fingerprint lock is a lock screen, not a logout — it never
   // touches this state.
   CloudAccount? restoredAccount;
+  // v27.35 blacklist: a restored session belonging to a blocked
+  // account is signed out by the restore gate — remember that it
+  // was blocked (not just "no session") so the account screen can
+  // show the blocked message instead of a bare login form.
+  var restoredBlocked = false;
   try {
     restoredAccount = await cloudBackend.restoreSession();
+  } on CloudAccountBlocked {
+    restoredAccount = null;
+    restoredBlocked = true;
   } catch (_) {
     restoredAccount = null;
   }
@@ -105,6 +113,13 @@ Future<void> main() async {
               ref.watch(cloudAuthServiceProvider),
               ref.watch(cloudSyncServiceProvider),
             )..seedRestoredSession(restoredAccount!),
+          ),
+        if (restoredBlocked)
+          cloudAccountProvider.overrideWith(
+            (ref) => CloudAccountNotifier(
+              ref.watch(cloudAuthServiceProvider),
+              ref.watch(cloudSyncServiceProvider),
+            )..seedError('This account has been blocked.'),
           ),
       ],
       child: const DeliveryFlowApp(),

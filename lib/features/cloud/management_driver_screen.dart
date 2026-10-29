@@ -19,6 +19,7 @@ import '../../core/cloud/cloud_types.dart';
 import '../../core/date_time/week_calendar.dart';
 import '../../theme/bin_eating_delete_button.dart';
 import '../../theme/design_system.dart';
+import 'block_user_flow.dart';
 import 'management_dashboard_logic.dart';
 
 class ManagementDriverScreen extends ConsumerWidget {
@@ -70,6 +71,53 @@ class ManagementDriverScreen extends ConsumerWidget {
                     );
                   }
                   final data = snap.data!;
+                  // v27.35 blacklist: a blocked driver shows only the
+                  // blocked state (plus Unblock) — no day data, no
+                  // edit, no role toggle, no block button. The
+                  // Blacklist section is the primary place for
+                  // blocked drivers; this covers a direct link here.
+                  if (data.targetBlocked) {
+                    final target = CloudAccount(
+                      uid: data.targetUid,
+                      email: data.targetEmail,
+                      username: data.name,
+                      role: data.targetRole,
+                      phone: data.targetPhone,
+                      blocked: true,
+                    );
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const GlassCard(
+                          key: ValueKey('managementDriverBlocked'),
+                          child: Text(
+                            'This account is blocked. The driver '
+                            'cannot sign in and is hidden from the '
+                            'team. His data is kept — unblocking '
+                            'restores him fully.',
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        GlassButton(
+                          key: const ValueKey('managementDriverUnblock'),
+                          label: 'Unblock driver',
+                          icon: Icons.lock_open_rounded,
+                          primary: false,
+                          onPressed: () async {
+                            final ok = await confirmAndUnblockUser(
+                              context: context,
+                              ref: ref,
+                              target: target,
+                            );
+                            if (ok && context.mounted) {
+                              bumpManagementRefresh(ref);
+                              context.pop();
+                            }
+                          },
+                        ),
+                      ],
+                    );
+                  }
                   final summary = data.summary;
                   final weekTotals =
                       driverWeekTotals(data.weekSummaries)[uid];
@@ -139,6 +187,25 @@ class ManagementDriverScreen extends ConsumerWidget {
                                         .textTheme
                                         .titleMedium,
                                   ),
+                                  // v27.35: phone + email from the
+                                  // cloud profile. A missing field
+                                  // renders nothing — never "null"
+                                  // text (the console-created admin
+                                  // has no phone).
+                                  if (data.targetPhone.isNotEmpty)
+                                    Text(
+                                      data.targetPhone,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall,
+                                    ),
+                                  if (data.targetEmail.isNotEmpty)
+                                    Text(
+                                      data.targetEmail,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall,
+                                    ),
                                   Text(
                                     dateKey,
                                     style: Theme.of(context)
@@ -383,6 +450,48 @@ class ManagementDriverScreen extends ConsumerWidget {
                         ),
                       const SizedBox(height: 12),
                       _AdjustmentsSection(uid: uid, dateKey: dateKey),
+                      // v27.35 blacklist: second entry point for
+                      // Block (the swipe action on the driver list
+                      // is the primary one). Driver accounts only,
+                      // never self, never another manager — demote
+                      // first. Blocking deletes nothing.
+                      if (data.targetUid != account.uid &&
+                          data.targetRole == CloudRole.driver) ...[
+                        const SizedBox(height: 12),
+                        GlassButton(
+                          key: const ValueKey('managementDriverBlock'),
+                          label: 'Block driver',
+                          icon: Icons.block_rounded,
+                          primary: false,
+                          onPressed: () async {
+                            final target = CloudAccount(
+                              uid: data.targetUid,
+                              email: data.targetEmail,
+                              username: data.name,
+                              role: data.targetRole,
+                              phone: data.targetPhone,
+                            );
+                            final ok = await confirmAndBlockUser(
+                              context: context,
+                              ref: ref,
+                              target: target,
+                            );
+                            if (ok && context.mounted) {
+                              bumpManagementRefresh(ref);
+                              context.pop();
+                            }
+                          },
+                        ),
+                      ] else if (data.targetUid != account.uid &&
+                          data.targetRole == CloudRole.manager) ...[
+                        const SizedBox(height: 12),
+                        const GlassCard(
+                          child: Text(
+                            'Demote to driver first to block this '
+                            'account.',
+                          ),
+                        ),
+                      ],
                     ],
                   );
                 },
@@ -420,10 +529,16 @@ class ManagementDriverScreen extends ConsumerWidget {
     final users = await backend.listUsers();
     String name = '';
     var targetRole = CloudRole.driver;
+    var targetPhone = '';
+    var targetEmail = '';
+    var targetBlocked = false;
     for (final u in users) {
       if (u.uid == uid) {
         name = u.displayName;
         targetRole = u.role;
+        targetPhone = u.phone;
+        targetEmail = u.email;
+        targetBlocked = u.blocked;
       }
     }
     final summary = await backend.fetchDaySummary(uid, dateKey);
@@ -437,6 +552,9 @@ class ManagementDriverScreen extends ConsumerWidget {
       name: name,
       targetUid: uid,
       targetRole: targetRole,
+      targetPhone: targetPhone,
+      targetEmail: targetEmail,
+      targetBlocked: targetBlocked,
       summary: summary,
       weekSummaries: week,
       weekKeys: weekKeys,
@@ -777,6 +895,9 @@ class _DriverDetail {
     required this.name,
     required this.targetUid,
     required this.targetRole,
+    required this.targetPhone,
+    required this.targetEmail,
+    required this.targetBlocked,
     required this.summary,
     required this.weekSummaries,
     required this.weekKeys,
@@ -787,6 +908,16 @@ class _DriverDetail {
   final String name;
   final String targetUid;
   final CloudRole targetRole;
+
+  /// v27.35: phone + email from the cloud profile, shown on the
+  /// detail screen (empty when the profile has none — the
+  /// console-created admin has no phone — never rendered as text).
+  final String targetPhone;
+  final String targetEmail;
+
+  /// v27.35 blacklist: a blocked driver shows only the blocked
+  /// state (plus Unblock), never the edit/role/block actions.
+  final bool targetBlocked;
   final CloudDaySummary? summary;
   final Map<String, List<CloudDaySummary>> weekSummaries;
   final List<String> weekKeys;

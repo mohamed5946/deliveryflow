@@ -981,6 +981,33 @@ class DailyOrderRecord extends HiveObject {
   @HiveField(7)
   List<OrderEntry> entries; // per-order details (may be empty)
 
+  // --- v27.35 cloud-sync override (manager edits from Firestore) ---
+  // When a cloud day summary newer than the local record is applied,
+  // these fields hold the cloud's values and buildWeeklyReport uses
+  // THEM for the day instead of the entry-derived values — so a
+  // manager edit (e.g. a changed Manual bonus) actually shows up in
+  // the driver's day/week views. The local entries are never
+  // rewritten: the override is a display/pay layer on top of them,
+  // and a newer local edit clears it (see cloud_download_apply).
+  // All fields are additive (8-15) with safe defaults, so pre-v27.35
+  // records read back with the override off.
+  @HiveField(8)
+  bool cloudOverrideApplied;
+  @HiveField(9)
+  int cloudUpdatedAtMillis;
+  @HiveField(10)
+  int cloudOrders;
+  @HiveField(11)
+  double cloudKm;
+  @HiveField(12)
+  double cloudDistanceBonus;
+  @HiveField(13)
+  double cloudManualBonus;
+  @HiveField(14)
+  double cloudFlatBonus;
+  @HiveField(15)
+  bool cloudEditedByManager;
+
   DailyOrderRecord({
     required this.id,
     required this.dateKey,
@@ -990,6 +1017,14 @@ class DailyOrderRecord extends HiveObject {
     required this.createdAtMillis,
     required this.updatedAtMillis,
     List<OrderEntry>? entries,
+    this.cloudOverrideApplied = false,
+    this.cloudUpdatedAtMillis = 0,
+    this.cloudOrders = 0,
+    this.cloudKm = 0,
+    this.cloudDistanceBonus = 0,
+    this.cloudManualBonus = 0,
+    this.cloudFlatBonus = 0,
+    this.cloudEditedByManager = false,
   })  : entries = entries ?? [],
         assert(completedOrders >= 0, 'completedOrders cannot be negative');
 
@@ -1026,13 +1061,21 @@ class DailyOrderRecordAdapter extends TypeAdapter<DailyOrderRecord> {
       createdAtMillis: (fields[5] as int?) ?? 0,
       updatedAtMillis: (fields[6] as int?) ?? 0,
       entries: (fields[7] as List?)?.cast<OrderEntry>() ?? <OrderEntry>[],
+      cloudOverrideApplied: (fields[8] as bool?) ?? false,
+      cloudUpdatedAtMillis: (fields[9] as int?) ?? 0,
+      cloudOrders: (fields[10] as int?) ?? 0,
+      cloudKm: (fields[11] as num?)?.toDouble() ?? 0,
+      cloudDistanceBonus: (fields[12] as num?)?.toDouble() ?? 0,
+      cloudManualBonus: (fields[13] as num?)?.toDouble() ?? 0,
+      cloudFlatBonus: (fields[14] as num?)?.toDouble() ?? 0,
+      cloudEditedByManager: (fields[15] as bool?) ?? false,
     );
   }
 
   @override
   void write(BinaryWriter writer, DailyOrderRecord obj) {
     writer
-      ..writeByte(8)
+      ..writeByte(16)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -1048,7 +1091,23 @@ class DailyOrderRecordAdapter extends TypeAdapter<DailyOrderRecord> {
       ..writeByte(6)
       ..write(obj.updatedAtMillis)
       ..writeByte(7)
-      ..write(obj.entries);
+      ..write(obj.entries)
+      ..writeByte(8)
+      ..write(obj.cloudOverrideApplied)
+      ..writeByte(9)
+      ..write(obj.cloudUpdatedAtMillis)
+      ..writeByte(10)
+      ..write(obj.cloudOrders)
+      ..writeByte(11)
+      ..write(obj.cloudKm)
+      ..writeByte(12)
+      ..write(obj.cloudDistanceBonus)
+      ..writeByte(13)
+      ..write(obj.cloudManualBonus)
+      ..writeByte(14)
+      ..write(obj.cloudFlatBonus)
+      ..writeByte(15)
+      ..write(obj.cloudEditedByManager);
   }
 }
 

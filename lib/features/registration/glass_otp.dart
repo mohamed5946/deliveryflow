@@ -36,7 +36,9 @@ class OtpGate {
 /// Developer Mode gate (v27.23).
 ///
 /// - Digit boxes with a gold accent (video style), numeric keypad,
-///   digits-only input.
+///   digits-only input. v27.35: each box is its OWN real TextField —
+///   v27.34's single overlay field rendered as one rectangle and the
+///   boxes disappeared, so it was rejected on the device.
 /// - On submit: digits fly into a spinning circle for ~900ms, then
 ///   green success (and [onVerified]) when the code matches, or a red
 ///   error followed by a full restart (input cleared) when it does not.
@@ -77,8 +79,17 @@ class _GlassOtpEntryState extends State<GlassOtpEntry>
   static const _gold = Color(0xFFD4A017);
 
   late final OtpGate _gate = OtpGate(widget.expectedCode);
-  final _controller = TextEditingController();
-  final _focus = FocusNode();
+  // v27.35: one REAL input per box. v27.34 covered the boxes row
+  // with a single transparent field and the field rendered as one
+  // big rectangle — the boxes disappeared and the user rightly
+  // rejected it. Each box below is its own TextField, so tapping
+  // any box focuses a genuine editable field and opens the numeric
+  // keyboard; digits then fill the boxes sequentially in order.
+  late final List<TextEditingController> _controllers =
+      List.generate(_gate.digitCount, (_) => TextEditingController());
+  late final List<FocusNode> _focusNodes =
+      List.generate(_gate.digitCount, (_) => FocusNode());
+  bool _updating = false;
   late final AnimationController _spin = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 900),
@@ -86,30 +97,60 @@ class _GlassOtpEntryState extends State<GlassOtpEntry>
   OtpPhase _phase = OtpPhase.entering;
   int _attempt = 0;
 
-  String get _digits => _controller.text;
+  String get _digits =>
+      _controllers.map((c) => c.text).join();
+
+  bool get _allFilled =>
+      _controllers.every((c) => c.text.isNotEmpty);
+
+  int get _firstEmptyIndex =>
+      _controllers.indexWhere((c) => c.text.isEmpty);
 
   @override
   void initState() {
     super.initState();
+    for (var i = 0; i < _focusNodes.length; i++) {
+      final index = i;
+      // Gold highlight follows the focused box.
+      _focusNodes[i].addListener(() {
+        if (mounted) setState(() {});
+      });
+      // Backspace on an EMPTY box deletes the previous digit and
+      // moves focus back (the classic OTP-field behaviour). Without
+      // this, backspace on an empty box does nothing at all.
+      _focusNodes[i].onKeyEvent = (node, event) {
+        if (event is KeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.backspace &&
+            _controllers[index].text.isEmpty &&
+            index > 0) {
+          _controllers[index - 1].clear();
+          _focusBox(index - 1);
+          setState(() {});
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      };
+    }
     // Post-frame focus: autofocus alone fires before the route is
     // fully settled on some devices and the request is then lost
     // with no retry. Re-requesting after the first frame is the
     // retry that actually opens the keyboard.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && _phase == OtpPhase.entering) {
-        _requestKeyboardFocus();
+        _focusBox(0);
       }
     });
   }
 
-  /// Focus the input and force the keyboard open.
+  /// Focus box [index] and force the keyboard open.
   ///
-  /// Some OEM keyboards ignore a focus request for a transparent
-  /// field, so asking the text-input channel directly is the
-  /// fallback that actually shows the IME. The try/catch only
-  /// covers environments without an IME channel (widget tests).
-  void _requestKeyboardFocus() {
-    _focus.requestFocus();
+  /// Some OEM keyboards ignore a focus request on its own, so asking
+  /// the text-input channel directly is the fallback that actually
+  /// shows the IME. The try/catch only covers environments without
+  /// an IME channel (widget tests).
+  void _focusBox(int index) {
+    if (index < 0 || index >= _focusNodes.length) return;
+    _focusNodes[index].requestFocus();
     SystemChannels.textInput.invokeMethod('TextInput.show').catchError(
       (_) {},
     );
@@ -118,9 +159,38 @@ class _GlassOtpEntryState extends State<GlassOtpEntry>
   @override
   void dispose() {
     _spin.dispose();
-    _controller.dispose();
-    _focus.dispose();
+    for (final c in _controllers) {
+      c.dispose();
+    }
+    for (final f in _focusNodes) {
+      f.dispose();
+    }
     super.dispose();
+  }
+
+  void _clearAll() {
+    for (final c in _controllers) {
+      c.clear();
+    }
+  }
+
+  void _onBoxChanged(int index, String value) {
+    if (_phase != OtpPhase.entering || _updating) return;
+    // Each box holds exactly one digit: a paste or an IME composing
+    // more than one char keeps only the last digit typed.
+    final digit = value.isEmpty ? '' : value[value.length - 1];
+    if (value != digit) {
+      _updating = true;
+      _controllers[index].text = digit;
+      _updating = false;
+    }
+    setState(() {});
+    if (digit.isEmpty) return; // Deletion: stay on this box.
+    if (_allFilled) {
+      _submit();
+      return;
+    }
+    if (index + 1 < _controllers.length) _focusBox(index + 1);
   }
 
   void _submit() {
@@ -145,8 +215,9 @@ class _GlassOtpEntryState extends State<GlassOtpEntry>
         setState(() => _phase = OtpPhase.error);
         Future.delayed(const Duration(milliseconds: 1000), () {
           if (!mounted || attempt != _attempt) return;
-          _controller.clear();
+          _clearAll();
           setState(() => _phase = OtpPhase.entering);
+          _focusBox(0);
         });
       }
     });
@@ -155,7 +226,10 @@ class _GlassOtpEntryState extends State<GlassOtpEntry>
   Widget _digitBoxes() {
     final boxes = <Widget>[];
     for (var i = 0; i < _gate.digitCount; i++) {
-      final filled = i < _digits.length;
+      final index = i;
+      final filled = _controllers[i].text.isNotEmpty;
+      final focused = _focusNodes[i].hasFocus;
+      final highlighted = filled || focused;
       boxes.add(Container(
         width: 52,
         height: 64,
@@ -164,75 +238,60 @@ class _GlassOtpEntryState extends State<GlassOtpEntry>
           borderRadius: BorderRadius.circular(16),
           color: Colors.white.withValues(alpha: 0.08),
           border: Border.all(
-            color: filled
+            color: highlighted
                 ? _gold.withValues(alpha: 0.9)
                 : Colors.white.withValues(alpha: 0.25),
-            width: filled ? 2 : 1,
+            width: highlighted ? 2 : 1,
           ),
         ),
-        child: Text(
-          filled ? _digits[i] : '',
+        // Each box IS a real TextField (v27.35): tapping it focuses
+        // a genuine editable field, which is the reliable path to
+        // opening the keyboard. There is no single rectangular
+        // field, no overlay strip, and no hidden-field trick.
+        child: TextField(
+          key: ValueKey('otpBox-$i'),
+          controller: _controllers[i],
+          focusNode: _focusNodes[i],
+          keyboardType: TextInputType.number,
+          textAlign: TextAlign.center,
           style: const TextStyle(
             fontSize: 26,
             fontWeight: FontWeight.w800,
             color: Colors.white,
           ),
+          showCursor: false,
+          enableInteractiveSelection: false,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(1),
+          ],
+          decoration: const InputDecoration(
+            border: InputBorder.none,
+            contentPadding: EdgeInsets.zero,
+          ),
+          onTap: () {
+            // Sequential fill: tapping AHEAD of the next empty box
+            // jumps back to that box, so digits always land one
+            // after another. Tapping an earlier (filled) box keeps
+            // focus there so it can be edited.
+            final firstEmpty = _firstEmptyIndex;
+            if (firstEmpty != -1 && index > firstEmpty) {
+              _focusBox(firstEmpty);
+            }
+          },
+          onChanged: (value) => _onBoxChanged(index, value),
         ),
       ));
     }
-    // v27.34: the boxes row IS the input. The old design hid a 1px,
-    // opacity-0 TextField below the boxes and relied on a programmatic
-    // focus request from the boxes' tap handler — on some devices
-    // (field report: Infinix/XOS) the IME never opened for that
-    // invisible field, so the boxes behaved as decoration only.
-    // Now a real, normally-sized TextField covers the whole boxes
-    // row: taps land on a genuine editable field (the reliable path
-    // to opening the keyboard), while transparent text + hidden
-    // cursor keep the boxes as the visible UI. Tapping the row also
-    // re-requests focus with the forced keyboard-show fallback.
-    return GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      onTap: _requestKeyboardFocus,
-      child: SizedBox(
-        height: 64,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            IgnorePointer(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  for (var i = 0; i < boxes.length; i++) ...[
-                    if (i > 0) const SizedBox(width: 10),
-                    boxes[i],
-                  ],
-                ],
-              ),
-            ),
-            Positioned.fill(
-              child: TextField(
-                controller: _controller,
-                focusNode: _focus,
-                autofocus: true,
-                keyboardType: TextInputType.number,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(_gate.digitCount),
-                ],
-                showCursor: false,
-                enableInteractiveSelection: false,
-                style: const TextStyle(color: Colors.transparent),
-                decoration:
-                    const InputDecoration(border: InputBorder.none),
-                onChanged: (_) {
-                  setState(() {});
-                  if (_digits.length == _gate.digitCount) _submit();
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
+    return Row(
+      key: const ValueKey('otpBoxesRow'),
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        for (var i = 0; i < boxes.length; i++) ...[
+          if (i > 0) const SizedBox(width: 10),
+          boxes[i],
+        ],
+      ],
     );
   }
 

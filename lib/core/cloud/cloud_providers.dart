@@ -39,12 +39,19 @@ class CloudAccountState {
     this.busy = false,
     this.error,
     this.lastDownload,
+    this.pendingGoogle,
   });
 
   final CloudAccount? account;
   final bool busy;
   final String? error;
   final CloudDownload? lastDownload;
+
+  /// Google sign-up in progress (v27.35): set when
+  /// [CloudAccountNotifier.beginGoogleSignUp] returns a
+  /// needs-completion result. Null otherwise — never a signed-in
+  /// account on its own.
+  final GoogleSignUpStart? pendingGoogle;
 
   bool get signedIn => account != null;
 
@@ -53,8 +60,10 @@ class CloudAccountState {
     bool? busy,
     String? error,
     CloudDownload? lastDownload,
+    GoogleSignUpStart? pendingGoogle,
     bool clearAccount = false,
     bool clearDownload = false,
+    bool clearPendingGoogle = false,
   }) {
     return CloudAccountState(
       account: clearAccount ? null : (account ?? this.account),
@@ -62,6 +71,9 @@ class CloudAccountState {
       error: error,
       lastDownload:
           clearDownload ? null : (lastDownload ?? this.lastDownload),
+      pendingGoogle: clearPendingGoogle
+          ? null
+          : (pendingGoogle ?? this.pendingGoogle),
     );
   }
 }
@@ -132,6 +144,69 @@ class CloudAccountNotifier extends StateNotifier<CloudAccountState> {
   /// Live username availability for the sign-up form.
   Future<bool> isUsernameAvailable(String username) =>
       _auth.isUsernameAvailable(username);
+
+  /// Live phone availability for the sign-up completion form.
+  Future<bool> isPhoneAvailable(String phone) =>
+      _auth.isPhoneAvailable(phone);
+
+  /// Google SIGN-UP (v27.35). Returns the start result so the UI can
+  /// branch: cancelled → stay; existing account → signed in;
+  /// needs-completion → completion form (pendingGoogle set).
+  /// Returns null on failure (error set).
+  Future<GoogleSignUpStart?> beginGoogleSignUp() async {
+    state = state.copyWith(busy: true);
+    try {
+      final start = await _auth.beginGoogleSignUp();
+      if (start.cancelled) {
+        state = state.copyWith(busy: false);
+        return start;
+      }
+      if (start.account != null) {
+        state = state.copyWith(account: start.account, busy: false);
+        return start;
+      }
+      state = state.copyWith(pendingGoogle: start, busy: false);
+      return start;
+    } catch (e) {
+      state = state.copyWith(busy: false, error: e.toString());
+      return null;
+    }
+  }
+
+  /// Finish a Google sign-up with the completion form's username +
+  /// phone. Returns false with the error set when either is taken.
+  Future<bool> completeGoogleSignUp({
+    required String username,
+    required String phone,
+  }) async {
+    state = state.copyWith(busy: true);
+    try {
+      final account = await _auth.completeGoogleSignUp(
+        username: username,
+        phone: phone,
+      );
+      state = state.copyWith(
+        account: account,
+        busy: false,
+        clearPendingGoogle: true,
+      );
+      return true;
+    } catch (e) {
+      state = state.copyWith(busy: false, error: e.toString());
+      return false;
+    }
+  }
+
+  /// Abandon a Google sign-up in progress (completion form
+  /// dismissed): ends the session and clears the pending state.
+  Future<void> cancelGoogleSignUp() async {
+    try {
+      await _auth.cancelGoogleSignUp();
+    } catch (_) {
+      // Session ends locally even if the backend call fails.
+    }
+    state = state.copyWith(clearPendingGoogle: true);
+  }
 
   /// Change the signed-in user's own username.
   Future<bool> changeUsername(String newUsername) async {
@@ -234,6 +309,62 @@ class CloudAccountNotifier extends StateNotifier<CloudAccountState> {
     }
   }
 
+  /// v27.35 blacklist: block / unblock a driver. Returns false (and
+  /// sets [CloudAccountState.error]) when the backend refuses
+  /// (driver caller, self, manager target, wrong block state).
+  Future<bool> blockUser(String targetUid) async {
+    try {
+      await _auth.blockUser(targetUid);
+      return true;
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+      return false;
+    }
+  }
+
+  Future<bool> unblockUser(String targetUid) async {
+    try {
+      await _auth.unblockUser(targetUid);
+      return true;
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+      return false;
+    }
+  }
+
+  /// v27.35 payout preferences (own prefs only). On success the
+  /// account state refreshes from the backend's updated account so
+  /// the form shows the saved values at once.
+  Future<bool> updatePayoutPrefs({
+    required CloudPayoutMethod method,
+    required String number,
+    required String name,
+  }) async {
+    try {
+      await _auth.updatePayoutPrefs(
+        method: method,
+        number: number,
+        name: name,
+      );
+      final account = _auth.currentAccount;
+      if (account != null) {
+        state = state.copyWith(account: account);
+      }
+      return true;
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+      return false;
+    }
+  }
+
+  /// Seed an error surfaced before the widget tree exists — used by
+  /// main() when a restored session turns out to belong to a blocked
+  /// account (the restore gate signed the session out; the account
+  /// screen shows this message on its choice view).
+  void seedError(String message) {
+    state = state.copyWith(error: message);
+  }
+
   /// Sign out AND drop the per-account cloud cache, so the next
   /// account's session starts with no previous user's cloud data.
   Future<void> signOut() async {
@@ -261,6 +392,13 @@ class CloudAccountNotifier extends StateNotifier<CloudAccountState> {
 
   void clearError() => state = state.copyWith();
 }
+
+/// v27.35 blacklist: dashboard refresh signal. The Management
+/// dashboard builds its team list from a FutureBuilder whose future
+/// is created in build, so any rebuild refetches — bump this after
+/// a block/unblock so the blocked driver leaves (or rejoins) the
+/// team list immediately, without waiting for a day change.
+final managementRefreshProvider = StateProvider<int>((ref) => 0);
 
 final cloudAccountProvider =
     StateNotifierProvider<CloudAccountNotifier, CloudAccountState>((ref) {

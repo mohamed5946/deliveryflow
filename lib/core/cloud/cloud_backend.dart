@@ -46,6 +46,10 @@ abstract class CloudBackend {
   /// username mapping). True when the username is free.
   Future<bool> isUsernameAvailable(String username);
 
+  /// Live availability check for sign-up (single-doc read of the
+  /// phone mapping). True when the phone is free.
+  Future<bool> isPhoneAvailable(String phone);
+
   /// Restore a persisted Firebase Auth session (app restart, phone
   /// reboot, background kill): returns the signed-in account when
   /// Firebase Auth still holds a session, else null. The fingerprint
@@ -94,6 +98,34 @@ abstract class CloudBackend {
   /// user cancelled the Google picker.
   Future<CloudAccount?> signInWithGoogle();
 
+  /// Google SIGN-UP (v27.35): Google sign-in WITHOUT creating a
+  /// profile, so the account-creation flow can collect the app's
+  /// required username + phone first. Returns the existing account
+  /// when this Google identity already has one (caller signs in),
+  /// a needs-completion result when the Google Auth user has no
+  /// profile yet (caller shows the completion form, then calls
+  /// [completeGoogleSignUp]), or a cancelled result when the user
+  /// dismissed the Google picker. No auto-linking, same as
+  /// [signInWithGoogle].
+  Future<GoogleSignUpStart> beginGoogleSignUp();
+
+  /// Finish a Google sign-up started by [beginGoogleSignUp]: create
+  /// the driver profile + login mappings for the Google-signed-in
+  /// user with the given username + phone (each unique — throws
+  /// when either is taken, same codes as [signUp]). Returns the
+  /// existing account unchanged when the profile already exists
+  /// (e.g. completed twice). Throws when no Google sign-up is in
+  /// progress.
+  Future<CloudAccount> completeGoogleSignUp({
+    required String username,
+    required String phone,
+  });
+
+  /// Abandon a Google sign-up in progress (completion form
+  /// dismissed): ends the Google/Auth session so no half-created
+  /// account lingers signed in.
+  Future<void> cancelGoogleSignUp();
+
   Future<void> signOut();
 
   /// Refresh the signed-in user's profile from users/{uid}.
@@ -108,6 +140,35 @@ abstract class CloudBackend {
   /// live only in Firebase Auth and are never readable or writable
   /// through Firestore by anyone, manager included.
   Future<void> saveProfile(CloudAccount account);
+
+  /// v27.35 blacklist — BLOCK a driver (reversible, NOT a deletion).
+  /// Manager-only; never self; driver accounts only (demote a manager
+  /// first). Sets blocked/blockedAt/blockedBy on the profile and
+  /// nothing else: the driver's orders, summaries, adjustments,
+  /// rollups and login lookups are all KEPT, so unblocking restores
+  /// him fully. Throws [CloudDenied] for drivers, self-block,
+  /// manager targets, unknown users, and already-blocked users.
+  Future<void> blockUser(String targetUid);
+
+  /// v27.35 blacklist — UNBLOCK a driver. Manager-only; never self;
+  /// the target must currently be blocked. Clears the blocked flag
+  /// (and its stamp fields) so the driver can sign in again normally
+  /// with his email, data intact.
+  Future<void> unblockUser(String targetUid);
+
+  /// v27.35 payout preferences — the SIGNED-IN user sets his OWN
+  /// method + transfer number + wallet display name. There is no
+  /// target parameter by design: a manager cannot edit a driver's
+  /// payout prefs from the app (managers only READ them for the
+  /// Payouts list). Validation: InstaPay / Vodafone Cash require a
+  /// valid Egyptian mobile + a non-empty wallet name; Manual clears
+  /// number and name. The stored number is normalized. Throws on
+  /// invalid prefs.
+  Future<void> updatePayoutPrefs({
+    required CloudPayoutMethod method,
+    required String number,
+    required String name,
+  });
 
   /// Write one day's summary doc for [summary.uid]. Owner or manager.
   /// A manager writing another driver's doc stamps it with the
@@ -159,6 +220,38 @@ abstract class CloudBackend {
   Future<Map<String, List<CloudDaySummary>>> listSummariesForDays(
     List<String> dateKeys,
   );
+
+  /// v27.35 retention — permanent weekly rollup (see retention_logic).
+  /// Write one driver's week rollup (owner or manager). Rollups are
+  /// never deleted by clients and never carry an expireAt.
+  Future<void> saveWeekRollup(CloudWeekRollup rollup);
+
+  /// Read one driver's week rollup, or null when none exists yet.
+  /// Owner or manager.
+  Future<CloudWeekRollup?> fetchWeekRollup(String uid, String weekKey);
+
+  /// Recompute one week's rollup from the cloud day summaries and
+  /// adjustments for that week, then write it. Owner or manager.
+  /// This is the eager-maintenance primitive: the Firebase backend
+  /// calls it (best-effort) after day/adjustment writes, and the
+  /// sync service's backfill calls it per week before stamping
+  /// expireAt on that week's detail docs.
+  Future<void> refreshWeekRollup(String uid, String weekKey);
+
+  /// Stamp `expireAt` on one day's existing detail docs (orders +
+  /// summaries) for [uid]/[dateKey]. Docs that do not exist are left
+  /// untouched — stamping must never CREATE a detail doc. Owner or
+  /// manager. TTL deletes the docs after the stamped instant.
+  Future<void> stampDetailExpiry(String uid, String dateKey);
+
+  /// Stamp `expireAt` on one existing adjustment doc. Owner or
+  /// manager (rules let an owner stamp ONLY the expireAt field on
+  /// their own adjustment docs — nothing else).
+  Future<void> stampAdjustmentExpiry(
+    String uid,
+    String adjustmentId,
+    String weekKey,
+  );
 }
 
 /// Backend used when no real Firebase project is configured yet.
@@ -183,6 +276,25 @@ class NotConfiguredBackend implements CloudBackend {
 
   @override
   Future<bool> isUsernameAvailable(String username) =>
+      throw const CloudNotConfigured();
+
+  @override
+  Future<bool> isPhoneAvailable(String phone) =>
+      throw const CloudNotConfigured();
+
+  @override
+  Future<GoogleSignUpStart> beginGoogleSignUp() =>
+      throw const CloudNotConfigured();
+
+  @override
+  Future<CloudAccount> completeGoogleSignUp({
+    required String username,
+    required String phone,
+  }) =>
+      throw const CloudNotConfigured();
+
+  @override
+  Future<void> cancelGoogleSignUp() =>
       throw const CloudNotConfigured();
 
   @override
@@ -227,6 +339,22 @@ class NotConfiguredBackend implements CloudBackend {
 
   @override
   Future<void> saveProfile(CloudAccount account) =>
+      throw const CloudNotConfigured();
+
+  @override
+  Future<void> blockUser(String targetUid) =>
+      throw const CloudNotConfigured();
+
+  @override
+  Future<void> unblockUser(String targetUid) =>
+      throw const CloudNotConfigured();
+
+  @override
+  Future<void> updatePayoutPrefs({
+    required CloudPayoutMethod method,
+    required String number,
+    required String name,
+  }) =>
       throw const CloudNotConfigured();
 
   @override
@@ -276,6 +404,30 @@ class NotConfiguredBackend implements CloudBackend {
   @override
   Future<Map<String, List<CloudDaySummary>>> listSummariesForDays(
     List<String> dateKeys,
+  ) =>
+      throw const CloudNotConfigured();
+
+  @override
+  Future<void> saveWeekRollup(CloudWeekRollup rollup) =>
+      throw const CloudNotConfigured();
+
+  @override
+  Future<CloudWeekRollup?> fetchWeekRollup(String uid, String weekKey) =>
+      throw const CloudNotConfigured();
+
+  @override
+  Future<void> refreshWeekRollup(String uid, String weekKey) =>
+      throw const CloudNotConfigured();
+
+  @override
+  Future<void> stampDetailExpiry(String uid, String dateKey) =>
+      throw const CloudNotConfigured();
+
+  @override
+  Future<void> stampAdjustmentExpiry(
+    String uid,
+    String adjustmentId,
+    String weekKey,
   ) =>
       throw const CloudNotConfigured();
 }
