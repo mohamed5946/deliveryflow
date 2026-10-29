@@ -263,6 +263,10 @@ class DatabaseService {
 
   DailyOrderRecord? orderRecord(String dateKey) => _orders.get(dateKey);
 
+  /// All stored day order records (used by first-login cloud
+  /// migration: each recorded day becomes one cloud day summary).
+  List<DailyOrderRecord> get allOrderRecords => _orders.values.toList();
+
   /// Per-order entries for a day (empty when none recorded).
   List<OrderEntry> orderEntries(String dateKey) =>
       List.unmodifiable(orderRecord(dateKey)?.entries ?? const <OrderEntry>[]);

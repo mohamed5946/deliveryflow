@@ -1,0 +1,164 @@
+// v27.33 — Firestore security rules for DeliveryFlow's multi-account
+// system. PASTE THIS FILE'S CONTENTS into the Firebase console
+// (Firestore Database → Rules) and publish. It is complete — not a
+// stub — and it is the real enforcement boundary. The client checks
+// mirror these rules only to fail fast; these rules decide.
+//
+// MANAGER LOGIN FLOW (no shared password, no driver password reuse):
+// The manager signs in with his OWN account (Email/Password or
+// Google) exactly like a driver. The app reads his user doc's `role`
+// field; if it is `manager`, the Management dashboard appears.
+//
+// FIRST-MANAGER BOOTSTRAP (do this once, by hand, in the console):
+//  1. The future manager creates his account in the app and signs
+//     in once (he appears as a driver — no dashboard yet).
+//  2. Project owner opens Firestore Database → Data → users → that
+//     user's doc, and sets its `role` field to `manager`.
+//  3. The manager signs out and signs back in: the dashboard is
+//     now visible (Profile → Management).
+//  4. From then on, an existing manager promotes/demotes other users
+//     from inside the dashboard. Console edits bypass these rules,
+//     so the console step is how the FIRST manager is made.
+//
+// WHAT MANAGERS MAY DO:
+//  * Read AND write any user's data docs: profile fields, raw order
+//    docs (users/{uid}/orders/*) and day summary docs
+//    (users/{uid}/summaries/*). Manager edits land in the driver's
+//    own data and sync down to the driver's device on next login.
+//  * Change ANOTHER user's role (promote/demote) from the dashboard.
+// WHAT NOBODY MAY DO:
+//  * Change their OWN role — not a driver, not even a manager
+//    (prevents lockout: a manager cannot demote himself — and cannot
+//    escalate himself either, since creation is driver-only).
+//  * Delete a user doc from a client (user docs are never deletable).
+//  * Touch credentials: passwords live ONLY in Firebase Auth. They
+//    are never stored in Firestore, never readable through any rule
+//    here, and never editable by a manager. A manager edits DATA,
+//    never credentials; password changes stay on the account's own
+//    reset flow.
+//
+// Layout note: this app's "day data" lives in two subcollections —
+// orders (raw day record) and summaries (one doc per day). There is
+// no separate /days collection; both are covered below.
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+    function isManager() {
+      return signedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'manager';
+    }
+
+    match /users/{uid} {
+      // Owner reads own profile; managers read every profile.
+      allow read: if isOwner(uid) || isManager();      // Creation only by the owner, and only as a driver.
+      // (A manager cannot create a manager doc for someone else.)
+      allow create: if isOwner(uid)
+        && request.resource.data.role == 'driver';
+      // Update: the owner may edit their own profile but NEVER their
+      // own role; a manager may edit ANY other user's doc — data
+      // fields AND role — but never their own doc's role. The two
+      // branches together make self-role-change impossible:
+      //   owner branch  → role must stay unchanged;
+      //   manager branch → uid must differ from the caller.
+      allow update: if (isOwner(uid)
+          && request.resource.data.role == resource.data.role)
+        || (isManager() && request.auth.uid != uid);
+      // User docs are never deletable from clients.
+      allow delete: if false;
+
+      // Raw day records: owner edits own; managers edit any driver's
+      // day (add/edit/delete orders, correct km) — edits sync down
+      // to the driver's device. Manager edits are stamped with
+      // editedByManagerUid/editedByManagerAtMillis by the app.
+      match /orders/{docId} {
+        allow read, write: if isOwner(uid) || isManager();
+      }
+
+      // Day summaries: owner + managers read and write. The manager
+      // dashboard reads these (one small doc per driver per day);
+      // manager salary-component edits rewrite them with a stamp.
+      match /summaries/{docId} {
+        allow read, write: if isOwner(uid) || isManager();
+      }
+
+      // Manager adjustments (bonus / deduction per driver per week):
+      // ONLY managers may create, edit, or delete them — and never
+      // for their own pay (a manager cannot grant himself a bonus).
+      // Drivers may READ their own adjustments (so every bonus and
+      // every deduction is visible to them with its reason), but
+      // never write them. Creation additionally requires a positive
+      // amount, a non-empty reason, a valid type, and createdBy equal
+      // to the calling manager (no spoofed stamps).
+      match /adjustments/{docId} {
+        allow read: if isOwner(uid) || isManager();
+        allow create: if isManager() && request.auth.uid != uid
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.type in ['bonus', 'deduction']
+          && request.resource.data.amount is number
+          && request.resource.data.amount > 0
+          && request.resource.data.reason is string
+          && request.resource.data.reason.size() > 0;
+        allow update, delete: if isManager()
+          && request.auth.uid != uid;
+      }
+    }
+
+    // LOGIN LOOKUP COLLECTIONS (username / phone / email-username):
+    // single-document GET is allowed WITHOUT sign-in (login
+    // resolution happens before authentication), but LIST is DENIED
+    // — nobody can enumerate all users. Writes are create-only and
+    // fail-if-exists, so a race between two sign-ups cannot produce
+    // a duplicate username or phone: the second create is rejected
+    // server-side. Updates go through delete + create (username
+    // change). Deletes only by the mapping's owner.
+    //   usernames/{lowercased username} → {email, uid}
+    //   phones/{sha256(normalized phone)} → {email, uid}
+    //     (raw phone numbers are NEVER doc ids)
+    //   emailUsernames/{sha256(lowercased email)} → {username, uid}
+    // Lookup docs contain ONLY email/username/uid — never passwords.
+    // NO default or seeded credential exists anywhere: accounts are
+    // created by users via sign-up or by the owner in the Auth
+    // console; the first manager is bootstrapped by setting
+    // role='manager' (+ mustChangePassword=true for the admin
+    // account) on its user doc in the console.
+    match /usernames/{key} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && !exists(/databases/$(database)/documents/usernames/$(key));
+      allow update: if false;
+      allow delete: if signedIn()
+        && resource.data.uid == request.auth.uid;
+    }
+    match /phones/{key} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && !exists(/databases/$(database)/documents/phones/$(key));
+      allow update: if false;
+      allow delete: if signedIn()
+        && resource.data.uid == request.auth.uid;
+    }
+    match /emailUsernames/{key} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && !exists(/databases/$(database)/documents/emailUsernames/$(key));
+      // Username change rewrites the owner's own reminder doc.
+      allow update: if signedIn()
+        && resource.data.uid == request.auth.uid
+        && request.resource.data.uid == request.auth.uid;
+      allow delete: if signedIn()
+        && resource.data.uid == request.auth.uid;
+    }
+  }
+}

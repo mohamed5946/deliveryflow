@@ -4,10 +4,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/providers.dart';
+import 'first_run_redirect.dart';
 import '../theme/design_system.dart';
 import '../theme/staggered_entrance.dart';
 import '../features/dashboard/dashboard_screen.dart';
 import '../features/daily_orders/order_entry_screen.dart';
+import '../features/cloud/cloud_account_screen.dart';
+import '../features/cloud/management_driver_screen.dart';
+import '../features/cloud/management_screen.dart';
+import '../features/cloud/manager_edit_day_screen.dart';
 import '../features/history/history_screen.dart';
 import '../features/onboarding/onboarding_screen.dart';
 import '../features/onboarding/splash_screen.dart';
@@ -144,25 +149,12 @@ final routerProvider = Provider<GoRouter>((ref) {
     refreshListenable: gateRefresh,
     redirect: (context, state) {
       final settings = ref.read(settingsProvider);
-      final registered = settings.registered;
-      final done = settings.onboardingDone;
-      // Defensive: a geo: URI must never become a route. The engine no
-      // longer forwards VIEW intent URIs (flutter_deeplinking_enabled
-      // is false in the manifest), but if one ever slips through, send
-      // it to splash instead of the error page — geo: intents are
-      // handled exclusively through the native MethodChannel path
-      // (see lib/core/deep_link/geo_share_service.dart).
-      if (state.uri.toString().startsWith('geo:')) return '/splash';
-      final loc = state.matchedLocation;
-      // Registration gate comes before everything, including splash.
-      if (!registered && loc != '/register') return '/register';
-      if (registered && loc == '/register') return '/splash';
-      // Splash always shows first; it navigates to /home itself,
-      // where the rules below take over.
-      if (loc == '/splash' || loc == '/register') return null;
-      if (!done && loc != '/onboarding') return '/onboarding';
-      if (done && loc == '/onboarding') return '/home';
-      return null;
+      return resolveFirstRunRedirect(
+        registered: settings.registered,
+        onboardingDone: settings.onboardingDone,
+        uriString: state.uri.toString(),
+        matchedLocation: state.matchedLocation,
+      );
     },
     routes: [
       GoRoute(
@@ -297,6 +289,30 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/diagnostics-log',
         builder: (context, state) => const DiagnosticsLogScreen(),
+      ),
+      GoRoute(
+        path: '/cloud-account',
+        builder: (context, state) => const CloudAccountScreen(),
+      ),
+      GoRoute(
+        path: '/management',
+        builder: (context, state) => const ManagementScreen(),
+      ),
+      GoRoute(
+        path: '/management/driver',
+        builder: (context, state) {
+          final uid = state.uri.queryParameters['uid'] ?? '';
+          final date = state.uri.queryParameters['date'] ?? '';
+          return ManagementDriverScreen(uid: uid, dateKey: date);
+        },
+      ),
+      GoRoute(
+        path: '/management/driver/edit',
+        builder: (context, state) {
+          final uid = state.uri.queryParameters['uid'] ?? '';
+          final date = state.uri.queryParameters['date'] ?? '';
+          return ManagerEditDayScreen(uid: uid, dateKey: date);
+        },
       ),
       GoRoute(
         path: '/mart-picker',

@@ -17,6 +17,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/database/models.dart';
 import '../../core/app_lock/app_lock_service.dart';
+import '../../core/cloud/cloud_providers.dart';
 import '../../core/developer/developer_mode.dart';
 import '../../core/logging/app_log_service.dart';
 import '../../core/money_format.dart';
@@ -628,6 +629,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final settings = ref.watch(settingsProvider);
+    // v27.33: the Management hub card is visible ONLY to signed-in
+    // managers; drivers never see it (and cannot open the route —
+    // the Management screen itself denies them too).
+    final cloudAccount = ref.watch(cloudAccountProvider).account;
 
     // Keep the header name field in sync with the stored name when it
     // changes elsewhere (e.g. the first-run setup card below).
@@ -827,6 +832,43 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           ),
                         ),
                       ),
+                      // v27.33: cloud account (always visible) +
+                      // Management (managers only, see above).
+                      StaggeredItem(
+                        index: 11,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: GlassCard(
+                            key: const ValueKey('hubCard-cloud'),
+                            child: _menuRow(
+                              icon: Icons.cloud_rounded,
+                              label: 'Cloud account',
+                              onTap: () => context.push('/cloud-account'),
+                            ),
+                          ),
+                        ),
+                      ),
+                      // v27.33: Management hub card — managers only,
+                      // and never while mustChangePassword is set
+                      // (forced-change gate: no dashboard access
+                      // until the password is changed).
+                      if (cloudAccount != null &&
+                          cloudAccount.isManager &&
+                          !cloudAccount.mustChangePassword)
+                        StaggeredItem(
+                          index: 12,
+                          child: Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: GlassCard(
+                              key: const ValueKey('hubCard-management'),
+                              child: _menuRow(
+                                icon: Icons.supervisor_account_rounded,
+                                label: 'Management',
+                                onTap: () => context.push('/management'),
+                              ),
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),

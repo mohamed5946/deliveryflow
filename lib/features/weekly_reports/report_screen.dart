@@ -9,6 +9,9 @@ import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../core/cloud/adjustment_logic.dart';
+import '../../core/cloud/cloud_providers.dart';
+import '../../core/cloud/cloud_types.dart';
 import '../../core/database/models.dart';
 import '../../core/date_time/day_rollover.dart';
 import '../../core/date_time/week_calendar.dart';
@@ -277,6 +280,11 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
                       index: 5,
                       child: _salaryCard(context, ref, l10n, r, text, scheme)),
                   const SizedBox(height: 12),
+                  // v27.33: manager adjustments for this week (driver
+                  // visibility — nothing silent: every bonus and every
+                  // deduction appears here with its reason, date, and
+                  // manager stamp, plus the adjusted week total).
+                  _ManagerAdjustmentsCard(report: r),
                   // v27.5: this week's distance-bonus on/off (per-week
                   // override of the global default).
                   StaggeredItem(
@@ -1109,6 +1117,140 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// v27.33 — Driver visibility for manager adjustments (weekly view).
+///
+/// Nothing silent: when the signed-in driver has manager adjustments
+/// for this week, each one appears as its own labeled line — a bonus
+/// line "+amount — بونس من المدير: {reason}" and a deduction line
+/// "−amount — خصم من المدير: {reason}" — each with its date and
+/// manager stamp, followed by the adjusted week total (base formula
+/// + bonuses − deductions). Renders nothing when signed out or when
+/// the week has no adjustments, so the base salary card is untouched.
+class _ManagerAdjustmentsCard extends ConsumerWidget {
+  const _ManagerAdjustmentsCard({required this.report});
+
+  final WeeklyReport report;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final account = ref.watch(cloudAccountProvider).account;
+    if (account == null) return const SizedBox.shrink();
+    final backend = ref.watch(cloudBackendProvider);
+    final settings = ref.watch(settingsProvider);
+    final orderPrice = settings.orderPrice;
+    final dailyFixed = settings.dailyFixedPay;
+    if (orderPrice == null || dailyFixed == null) {
+      return const SizedBox.shrink();
+    }
+    final base = report.salaryTotal(
+      orderPrice: orderPrice,
+      dailyFixedPay: dailyFixed,
+    );
+    final text = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    return FutureBuilder<List<CloudAdjustment>>(
+      future: backend.listAdjustments(account.uid),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting ||
+            snap.hasError) {
+          return const SizedBox.shrink();
+        }
+        final week = adjustmentsForWeek(
+          snap.data ?? const <CloudAdjustment>[],
+          report.weekStartKey,
+        );
+        if (week.isEmpty) return const SizedBox.shrink();
+        final adjusted = weeklyTotalWithAdjustments(base, week);
+        return Column(
+          children: [
+            GlassCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.admin_panel_settings_rounded,
+                          size: 20, color: scheme.primary),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'تعديلات المدير لهذا الأسبوع',
+                          style: text.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  for (final a in week) ...[
+                    Row(
+                      children: [
+                        Icon(
+                          a.isBonus
+                              ? Icons.add_circle_rounded
+                              : Icons.remove_circle_rounded,
+                          size: 18,
+                          color: a.isBonus
+                              ? scheme.primary
+                              : scheme.error,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${a.isBonus ? '+' : '−'}${a.amount.toStringAsFixed(0)} EGP — '
+                                '${a.isBonus ? 'بونس من المدير' : 'خصم من المدير'}: ${a.reason}',
+                                style: text.bodyMedium,
+                              ),
+                              Text(
+                                '${DateFormat('d/M/yyyy').format(DateTime.fromMillisecondsSinceEpoch(a.createdAtMillis).toLocal())} · من المدير',
+                                style: text.bodySmall?.copyWith(
+                                  color: scheme.onSurface
+                                      .withValues(alpha: 0.6),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  const Divider(),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'إجمالي الأسبوع بعد تعديلات المدير',
+                          style: text.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        '${adjusted.toStringAsFixed(adjusted.truncateToDouble() == adjusted ? 0 : 2)} EGP',
+                        style: text.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: scheme.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+        );
+      },
     );
   }
 }

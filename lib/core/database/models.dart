@@ -142,6 +142,11 @@ class UserSettings extends HiveObject {
   // NOT Apple's real Liquid Glass, which is iOS-only system tech).
   // Nav bar + home cards only. Default ON; missing field on
   // pre-v27.24 rows reads as true, so existing installs get the trial.
+  @HiveField(52)
+  String? cloudMigratedUid; // v27.33: UID whose first-login cloud
+  // migration already uploaded the device's local data (null = never
+  // migrated). Additive only: old rows read null, so no wipe, and the
+  // marker makes migration upload-once per account, never duplicated.
 
   /// True once a mart location has been learned and saved.
   bool get hasMart => martLat != null && martLng != null;
@@ -434,6 +439,7 @@ class UserSettings extends HiveObject {
     this.bonusPeriodsMigrated = false,
     this.appLockEnabled = false,
     this.liquidGlassEnabled = true,
+    this.cloudMigratedUid,
   })  : flatBonusPeriodsJson = flatBonusPeriodsJson ?? '',
         distanceBonusPeriodsJson = distanceBonusPeriodsJson ?? '',
         readNotificationIds = readNotificationIds ?? [],
@@ -493,6 +499,7 @@ class UserSettings extends HiveObject {
         'bonusPeriodsMigrated': bonusPeriodsMigrated,
         'appLockEnabled': appLockEnabled,
         'liquidGlassEnabled': liquidGlassEnabled,
+        'cloudMigratedUid': cloudMigratedUid,
         'schemaVersion': kSchemaVersion,
       };
 
@@ -579,6 +586,7 @@ class UserSettings extends HiveObject {
         appLockEnabled: (json['appLockEnabled'] as bool?) ?? false,
         liquidGlassEnabled:
             (json['liquidGlassEnabled'] as bool?) ?? true,
+        cloudMigratedUid: json['cloudMigratedUid'] as String?,
       );
 }
 
@@ -647,13 +655,14 @@ class UserSettingsAdapter extends TypeAdapter<UserSettings> {
       bonusPeriodsMigrated: (fields[49] as bool?) ?? false,
       appLockEnabled: (fields[50] as bool?) ?? false,
       liquidGlassEnabled: (fields[51] as bool?) ?? true,
+      cloudMigratedUid: fields[52] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, UserSettings obj) {
     writer
-      ..writeByte(52)
+      ..writeByte(53)
       ..writeByte(0)
       ..write(obj.displayName)
       ..writeByte(1)
@@ -757,7 +766,9 @@ class UserSettingsAdapter extends TypeAdapter<UserSettings> {
       ..writeByte(50)
       ..write(obj.appLockEnabled)
       ..writeByte(51)
-      ..write(obj.liquidGlassEnabled);
+      ..write(obj.liquidGlassEnabled)
+      ..writeByte(52)
+      ..write(obj.cloudMigratedUid);
   }
 }
 

@@ -5,6 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import 'app/app.dart';
+import 'core/cloud/cloud_init.dart';
+import 'core/cloud/cloud_providers.dart';
+import 'core/cloud/cloud_types.dart';
 import 'core/database/database_service.dart';
 import 'core/date_time/week_calendar.dart';
 import 'core/logging/app_log_service.dart';
@@ -61,12 +64,48 @@ Future<void> main() async {
     );
   } catch (_) {}
 
+  // v27.33: cloud backend — real Firebase project (see
+  // lib/firebase_options.dart). If init fails for any reason this
+  // returns NotConfiguredBackend and the app stays local-only; the
+  // Profile cloud screens show the not-configured state.
+  final cloudBackend = await initCloudBackend();
+  final cloudConfigured = cloudBackendIsConfigured(cloudBackend);
+  if (!cloudConfigured) {
+    appLog.info(
+      AppLogCategory.system,
+      'Cloud not configured (no Firebase project yet) — local-only mode',
+    );
+  }
+
+  // v27.33 session persistence: Firebase Auth restores its own
+  // session natively (stored refresh token) across app restarts,
+  // phone reboots, and background kills. Seed the account state
+  // from it so a restart NEVER shows a login screen to a signed-in
+  // user. Only an explicit sign-out ends the session. The
+  // fingerprint lock is a lock screen, not a logout — it never
+  // touches this state.
+  CloudAccount? restoredAccount;
+  try {
+    restoredAccount = await cloudBackend.restoreSession();
+  } catch (_) {
+    restoredAccount = null;
+  }
+
   runApp(
     ProviderScope(
       overrides: [
         databaseServiceProvider.overrideWithValue(db),
         notificationServiceProvider.overrideWithValue(notif),
         appLogServiceProvider.overrideWithValue(appLog),
+        cloudBackendProvider.overrideWithValue(cloudBackend),
+        cloudConfiguredProvider.overrideWithValue(cloudConfigured),
+        if (restoredAccount != null)
+          cloudAccountProvider.overrideWith(
+            (ref) => CloudAccountNotifier(
+              ref.watch(cloudAuthServiceProvider),
+              ref.watch(cloudSyncServiceProvider),
+            )..seedRestoredSession(restoredAccount!),
+          ),
       ],
       child: const DeliveryFlowApp(),
     ),
