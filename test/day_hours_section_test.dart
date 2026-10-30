@@ -557,18 +557,22 @@ void main() {
       final material = tester.widget<Material>(cardKey(840));
       expect(material.elevation, greaterThan(0));
       expect(material.shadowColor, isNotNull);
-      // The panel itself is flat (no elevation): only the card is
-      // raised, so only the card reads 3D.
+      // v27.37: the panel is a flat red CIRCLE (no elevation, no
+      // red Material any more): only the card is raised, so only
+      // the card reads 3D.
       await tester.timedDrag(blockKey(840), const Offset(-150, 0),
           const Duration(milliseconds: 300));
       await tester.pumpAndSettle();
-      final panelMaterials = tester
-          .widgetList<Material>(
+      final circles = tester
+          .widgetList<Container>(
             find.descendant(
-                of: blockKey(840), matching: find.byType(Material)),
+                of: blockKey(840), matching: find.byType(Container)),
           )
-          .where((m) => m.color == Colors.red);
-      expect(panelMaterials.single.elevation, 0);
+          .where((c) =>
+              c.decoration is BoxDecoration &&
+              (c.decoration as BoxDecoration).color == Colors.red &&
+              (c.decoration as BoxDecoration).shape == BoxShape.circle);
+      expect(circles, hasLength(1));
     });
 
     testWidgets(

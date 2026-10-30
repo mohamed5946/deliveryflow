@@ -551,9 +551,14 @@ void main() {
     testWidgets('circle scale tracks the swipe: small drag = dot, '
         'drag back = shrink', (tester) async {
       await pumpSection(tester);
+      // Held gesture (no release): the reveal stays exactly where
+      // the finger holds it, so the scale reads the live drag
+      // fraction — a timedDrag would release and snap, which is a
+      // different behaviour from the scrub under test.
+      final gesture =
+          await tester.startGesture(tester.getCenter(blockKey(840)));
       // Small left drag: the circle is a dot, not full size.
-      await tester.timedDrag(
-          blockKey(840), const Offset(-30, 0), const Duration(milliseconds: 300));
+      await gesture.moveBy(const Offset(-30, 0));
       await tester.pump();
       expect(circleScaleKey(840), findsOneWidget);
       final dotScale = circleScale(tester, 840);
@@ -562,17 +567,17 @@ void main() {
       expect(dotScale, greaterThan(0.05));
 
       // Drag further open, then drag BACK: the circle shrinks.
-      await tester.timedDrag(
-          blockKey(840), const Offset(-80, 0), const Duration(milliseconds: 300));
+      await gesture.moveBy(const Offset(-50, 0));
       await tester.pump();
       final openScale = circleScale(tester, 840);
       expect(openScale, greaterThan(dotScale));
-      await tester.timedDrag(
-          blockKey(840), const Offset(60, 0), const Duration(milliseconds: 300));
+      await gesture.moveBy(const Offset(60, 0));
       await tester.pump();
       final shrunkScale = circleScale(tester, 840);
       expect(shrunkScale, lessThan(openScale),
           reason: 'reversing the swipe must shrink the circle');
+      await gesture.up();
+      await tester.pumpAndSettle();
     });
 
     testWidgets('swipe alone still changes nothing; Delete still '
