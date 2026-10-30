@@ -10,6 +10,7 @@ import '../theme/staggered_entrance.dart';
 import '../features/dashboard/dashboard_screen.dart';
 import '../features/daily_orders/order_entry_screen.dart';
 import '../features/cloud/cloud_account_screen.dart';
+import '../features/cloud/cloud_live_sync_bootstrapper.dart';
 import '../features/cloud/management_driver_screen.dart';
 import '../features/cloud/management_payout_screen.dart';
 import '../features/cloud/management_screen.dart';
@@ -248,6 +249,10 @@ final routerProvider = Provider<GoRouter>((ref) {
                     ),
                   ),
                 ),
+                // v27.36: continuous foreground auto-sync. Renders
+                // nothing; owns the CloudLiveSync lifecycle for the
+                // whole app session and surfaces its failures loudly.
+                const CloudLiveSyncBootstrapper(),
               ],
             ),
           );

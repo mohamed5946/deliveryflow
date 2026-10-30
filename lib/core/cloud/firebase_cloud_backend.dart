@@ -974,6 +974,73 @@ class FirebaseCloudBackend implements CloudBackend {
     return snap.data();
   }
 
+  // v27.36 live sync — per-user subcollection snapshots (never a
+  // collection-group query: group queries are rejected under these
+  // rules even for managers). Reads follow the same guards as the
+  // matching .get() calls; a denied listener surfaces its error on
+  // the stream for the caller to report loudly.
+  @override
+  Stream<List<CloudDaySummary>> watchUserSummaries(String uid) {
+    _requireUsableAccount();
+    return _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('summaries')
+        .snapshots()
+        .map(
+          (snap) => [
+            for (final doc in snap.docs)
+              CloudDaySummary.fromJson(uid, doc.data()),
+          ],
+        );
+  }
+
+  @override
+  Stream<Map<String, Map<String, dynamic>>> watchUserOrders(String uid) {
+    _requireUsableAccount();
+    return _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('orders')
+        .snapshots()
+        .map(
+          (snap) => {
+            for (final doc in snap.docs) doc.id: doc.data(),
+          },
+        );
+  }
+
+  @override
+  Stream<List<CloudAdjustment>> watchUserAdjustments(String uid) {
+    _requireUsableAccount();
+    return _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('adjustments')
+        .snapshots()
+        .map(
+          (snap) => [
+            for (final doc in snap.docs)
+              CloudAdjustment.fromJson(doc.id, uid, doc.data()),
+          ],
+        );
+  }
+
+  @override
+  Stream<List<CloudAccount>> watchUsers() {
+    _requireUsableAccount();
+    final me = _account;
+    if (me == null || !me.isManager) {
+      throw const CloudDenied('manager only');
+    }
+    return _firestore.collection('users').snapshots().map(
+          (snap) => [
+            for (final doc in snap.docs)
+              CloudAccount.fromJson(doc.id, doc.data()),
+          ],
+        );
+  }
+
   @override
   Future<List<CloudAccount>> listUsers() async {
     _requireUsableAccount();

@@ -27,7 +27,7 @@ class RegistrationScreen extends ConsumerStatefulWidget {
 
 class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   /// Registration code. Exact match after trimming whitespace.
-  static const _validCode = '518424';
+  static const _validCode = '510840';
 
   bool _saving = false;
 

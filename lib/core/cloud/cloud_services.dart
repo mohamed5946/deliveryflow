@@ -246,6 +246,16 @@ class CloudSyncService {
 
   bool get hasPending => _queue.isNotEmpty;
 
+  /// v27.36 live sync — exact reason of the most recent failed
+  /// upload attempt (queue or flush), else null. The queue* methods
+  /// swallow errors by design (a failed upload must stay queued,
+  /// never crash the edit); this exposes the reason so live sync
+  /// can log it and surface it loudly instead of failing silently.
+  /// Cleared at the start of every queue/flush attempt.
+  String? _lastQueueError;
+
+  String? get lastQueueError => _lastQueueError;
+
   /// Queue a day-summary upload (uploads immediately when online).
   ///
   /// v27.35 retention: a summary old enough to have expired (its date
@@ -253,9 +263,11 @@ class CloudSyncService {
   /// resurrect a detail doc TTL already deleted.
   Future<void> queueDaySummary(CloudDaySummary summary) async {
     if (isDetailExpired(summary.dateKey, _now())) return;
+    _lastQueueError = null;
     try {
       await _backend.saveDaySummary(summary);
-    } catch (_) {
+    } catch (e) {
+      _lastQueueError = e.toString();
       _queue.add({'kind': 'summary', 'summary': summary});
     }
   }
@@ -268,9 +280,11 @@ class CloudSyncService {
     Map<String, dynamic> json,
   ) async {
     if (isDetailExpired(dateKey, _now())) return;
+    _lastQueueError = null;
     try {
       await _backend.saveOrderRecord(uid, dateKey, json);
-    } catch (_) {
+    } catch (e) {
+      _lastQueueError = e.toString();
       _queue.add({
         'kind': 'order',
         'uid': uid,
@@ -288,6 +302,7 @@ class CloudSyncService {
   /// — a queued upload must never resurrect a TTL-deleted doc.
   Future<int> flushQueue() async {
     var uploaded = 0;
+    _lastQueueError = null;
     final remaining = <Map<String, dynamic>>[];
     for (final entry in _queue) {
       final dateKey = entry['kind'] == 'summary'
@@ -305,7 +320,8 @@ class CloudSyncService {
           );
         }
         uploaded++;
-      } catch (_) {
+      } catch (e) {
+        _lastQueueError = e.toString();
         remaining.add(entry);
       }
     }

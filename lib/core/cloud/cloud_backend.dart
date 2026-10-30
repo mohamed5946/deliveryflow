@@ -221,6 +221,30 @@ abstract class CloudBackend {
     List<String> dateKeys,
   );
 
+  /// v27.36 live sync — continuous streams (foreground only, no FCM).
+  /// Own-data reads are already allowed by the rules; manager reads
+  /// of others are allowed by isManager(). These are plain
+  /// subcollection snapshots — never collection-group queries (a
+  /// group query spanning all users' subcollections is rejected
+  /// under these rules even for managers; per-user streams are the
+  /// pattern that works). Errors surface on the stream; the caller
+  /// (CloudLiveSync) logs and reports them loudly, never silently.
+  /// Emits the CURRENT contents immediately on subscribe, then on
+  /// every change.
+
+  /// Live snapshots of one user's day summaries.
+  Stream<List<CloudDaySummary>> watchUserSummaries(String uid);
+
+  /// Live snapshots of one user's raw day records, keyed by dateKey.
+  Stream<Map<String, Map<String, dynamic>>> watchUserOrders(String uid);
+
+  /// Live snapshots of one user's adjustments.
+  Stream<List<CloudAdjustment>> watchUserAdjustments(String uid);
+
+  /// Live snapshots of all user profiles (manager-only, like
+  /// [listUsers]).
+  Stream<List<CloudAccount>> watchUsers();
+
   /// v27.35 retention — permanent weekly rollup (see retention_logic).
   /// Write one driver's week rollup (owner or manager). Rollups are
   /// never deleted by clients and never carry an expireAt.
@@ -406,6 +430,22 @@ class NotConfiguredBackend implements CloudBackend {
     List<String> dateKeys,
   ) =>
       throw const CloudNotConfigured();
+
+  @override
+  Stream<List<CloudDaySummary>> watchUserSummaries(String uid) =>
+      Stream.error(const CloudNotConfigured());
+
+  @override
+  Stream<Map<String, Map<String, dynamic>>> watchUserOrders(String uid) =>
+      Stream.error(const CloudNotConfigured());
+
+  @override
+  Stream<List<CloudAdjustment>> watchUserAdjustments(String uid) =>
+      Stream.error(const CloudNotConfigured());
+
+  @override
+  Stream<List<CloudAccount>> watchUsers() =>
+      Stream.error(const CloudNotConfigured());
 
   @override
   Future<void> saveWeekRollup(CloudWeekRollup rollup) =>

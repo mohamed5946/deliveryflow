@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:hive/hive.dart';
@@ -35,6 +36,25 @@ class DatabaseService {
   late final Box<DailyOrderRecord> _orders;
   late final Box<WorkSession> _sessions;
   late final Box _meta;
+
+  /// v27.36 live sync — broadcast of dateKeys whose local day record
+  /// changed through a USER edit (upsert, entry add/update/delete,
+  /// count-only add). Sync-caused applies (applyCloudOverride /
+  /// clearCloudOverride), week deletes and backup restores NEVER
+  /// fire: an apply must not echo back up, and a delete must never
+  /// propagate to the cloud (no tombstones — local deletes stay
+  /// local). CloudLiveSync subscribes and uploads the changed days
+  /// promptly. Broadcast: late subscribers get no replay (the
+  /// start-time reconcile covers anything missed).
+  final _dayChangeController = StreamController<String>.broadcast();
+
+  Stream<String> get dayChanges => _dayChangeController.stream;
+
+  void _notifyDayChanged(String dateKey) {
+    if (!_dayChangeController.isClosed) {
+      _dayChangeController.add(dateKey);
+    }
+  }
 
   bool get isOpen => Hive.isBoxOpen(_settingsBox);
 
@@ -247,6 +267,7 @@ class DatabaseService {
       existing.isConfirmed = true;
       existing.updatedAtMillis = now;
       await existing.save();
+      _notifyDayChanged(dateKey);
       return existing;
     }
     final record = DailyOrderRecord(
@@ -258,6 +279,7 @@ class DatabaseService {
       updatedAtMillis: now,
     );
     await _orders.put(dateKey, record);
+    _notifyDayChanged(dateKey);
     return record;
   }
 
@@ -431,6 +453,7 @@ class DatabaseService {
     record.isConfirmed = true;
     record.updatedAtMillis = now;
     await _orders.put(dateKey, record);
+    _notifyDayChanged(dateKey);
     return entry;
   }
 
@@ -483,6 +506,7 @@ class DatabaseService {
       'Bulk count-only: +$count on $dateKey '
       '(day total now ${record.completedOrders})',
     );
+    _notifyDayChanged(dateKey);
     return created;
   }
 
@@ -575,6 +599,7 @@ class DatabaseService {
     }
     record.updatedAtMillis = DateTime.now().millisecondsSinceEpoch;
     await record.save();
+    _notifyDayChanged(dateKey);
   }
 
   /// Deletes one order entry. The day's counted total only drops when
@@ -596,6 +621,7 @@ class DatabaseService {
     }
     record.updatedAtMillis = DateTime.now().millisecondsSinceEpoch;
     await record.save();
+    _notifyDayChanged(dateKey);
   }
 
   /// Permanently deletes a whole week's data: the daily order records

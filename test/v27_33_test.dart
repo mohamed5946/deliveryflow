@@ -6,6 +6,7 @@
 // + flush on reconnect, first-login migration uploading exactly once,
 // Hive round-trip of the new cloudMigratedUid marker, and the
 // Management denied state + CloudAccount not-configured state.
+import 'dart:async';
 import 'dart:io';
 
 import 'package:deliveryflow/app/first_run_redirect.dart';
@@ -61,6 +62,81 @@ class FakeCloudBackend implements CloudBackend {
   int listUsersCalls = 0;
   int saveDaySummaryCalls = 0;
   int _counter = 0;
+
+  // v27.36 live-sync mirrors: broadcast controllers per collection.
+  // Emits are manual (tests call the emit* helpers after mutating
+  // the maps), mirroring Firestore snapshots: each emit carries the
+  // CURRENT contents, so the live sync's merge sees full state.
+  // Broadcast (no replay): live sync also runs an initial
+  // download-apply on start, so nothing is missed before subscribe.
+  final _summaryControllers =
+      <String, StreamController<List<CloudDaySummary>>>{};
+  final _orderControllers = <String,
+      StreamController<Map<String, Map<String, dynamic>>>>{};
+  final _adjustmentControllers =
+      <String, StreamController<List<CloudAdjustment>>>{};
+  StreamController<List<CloudAccount>>? _usersController;
+
+  StreamController<List<CloudDaySummary>> _summaryController(String uid) =>
+      _summaryControllers.putIfAbsent(
+        uid,
+        StreamController<List<CloudDaySummary>>.broadcast,
+      );
+
+  StreamController<Map<String, Map<String, dynamic>>> _orderController(
+    String uid,
+  ) =>
+      _orderControllers.putIfAbsent(
+        uid,
+        StreamController<Map<String, Map<String, dynamic>>>.broadcast,
+      );
+
+  StreamController<List<CloudAdjustment>> _adjustmentController(
+    String uid,
+  ) =>
+      _adjustmentControllers.putIfAbsent(
+        uid,
+        StreamController<List<CloudAdjustment>>.broadcast,
+      );
+
+  StreamController<List<CloudAccount>> get _usersStreamController =>
+      _usersController ??=
+          StreamController<List<CloudAccount>>.broadcast();
+
+  void emitSummaries(String uid) => _summaryController(uid).add(
+        summaries[uid]?.values.toList() ?? const [],
+      );
+
+  void emitOrders(String uid) =>
+      _orderController(uid).add(orders[uid] ?? const {});
+
+  void emitAdjustments(String uid) => _adjustmentController(uid).add(
+        adjustments[uid]?.values.toList() ?? const [],
+      );
+
+  void emitUsers() =>
+      _usersStreamController.add(users.values.toList());
+
+  /// Fail the summaries stream for [uid] (listener error path —
+  /// other streams keep working).
+  void failSummaries(String uid, Object error) =>
+      _summaryController(uid).addError(error);
+
+  @override
+  Stream<List<CloudDaySummary>> watchUserSummaries(String uid) =>
+      _summaryController(uid).stream;
+
+  @override
+  Stream<Map<String, Map<String, dynamic>>> watchUserOrders(String uid) =>
+      _orderController(uid).stream;
+
+  @override
+  Stream<List<CloudAdjustment>> watchUserAdjustments(String uid) =>
+      _adjustmentController(uid).stream;
+
+  @override
+  Stream<List<CloudAccount>> watchUsers() =>
+      _usersStreamController.stream;
 
   @override
   CloudAccount? get currentAccount => _current;
