@@ -508,10 +508,13 @@ void main() {
     Finder circleScaleKey(int start) =>
         find.byKey(ValueKey('block-action-circle-scale-$start'));
 
+    // The circle's Transform.scale widget stores a diagonal matrix
+    // diag(s, s, 1): read the X entry directly. (NOT
+    // getMaxScaleOnAxis — it takes the max over all axes including
+    // Z, whose scale is 1.0, so it reads 1.0 for every circle.)
     double circleScale(WidgetTester tester, int start) {
-      final t =
-          tester.widget<Transform>(circleScaleKey(start));
-      return t.transform.getMaxScaleOnAxis();
+      final t = tester.widget<Transform>(circleScaleKey(start));
+      return t.transform.storage[0];
     }
 
     bool hasCircle(WidgetTester tester) => find
