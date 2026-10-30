@@ -557,31 +557,30 @@ void main() {
       // different behaviour from the scrub under test.
       final gesture =
           await tester.startGesture(tester.getCenter(blockKey(840)));
-      // Small left drag: the circle is a dot, not full size. Two
-      // sub-slop moves, like the existing gesture tests: a single
-      // move does not reliably claim the drag recognizer.
-      await gesture.moveBy(const Offset(-15, 0));
+      // Same two-move pattern as the existing gesture tests in
+      // day_hours_section_test.dart: drag open, then drag BACK, and
+      // read the circle's scale at each held position. The scale
+      // must follow the finger in both directions.
+      await gesture.moveBy(const Offset(-30, 0));
       await tester.pump();
-      await gesture.moveBy(const Offset(-15, 0));
+      await gesture.moveBy(const Offset(-30, 0));
       await tester.pump();
       expect(find.byKey(const ValueKey('block-action-delete-840')),
           findsOneWidget);
       expect(circleScaleKey(840), findsOneWidget);
+      final openScale = circleScale(tester, 840);
+      expect(openScale, greaterThan(0.5),
+          reason: 'a 60/96 drag must be well past a dot');
+
+      // Drag BACK toward closed: the circle shrinks to a dot.
+      await gesture.moveBy(const Offset(30, 0));
+      await tester.pump();
       final dotScale = circleScale(tester, 840);
+      expect(dotScale, lessThan(openScale),
+          reason: 'reversing the swipe must shrink the circle');
       expect(dotScale, lessThan(0.5),
           reason: 'a 30/96 drag must still be a small dot');
       expect(dotScale, greaterThan(0.05));
-
-      // Drag further open, then drag BACK: the circle shrinks.
-      await gesture.moveBy(const Offset(-50, 0));
-      await tester.pump();
-      final openScale = circleScale(tester, 840);
-      expect(openScale, greaterThan(dotScale));
-      await gesture.moveBy(const Offset(60, 0));
-      await tester.pump();
-      final shrunkScale = circleScale(tester, 840);
-      expect(shrunkScale, lessThan(openScale),
-          reason: 'reversing the swipe must shrink the circle');
       await gesture.up();
       await tester.pumpAndSettle();
     });
