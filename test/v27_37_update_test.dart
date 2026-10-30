@@ -557,9 +557,15 @@ void main() {
       // different behaviour from the scrub under test.
       final gesture =
           await tester.startGesture(tester.getCenter(blockKey(840)));
-      // Small left drag: the circle is a dot, not full size.
-      await gesture.moveBy(const Offset(-30, 0));
+      // Small left drag: the circle is a dot, not full size. Two
+      // sub-slop moves, like the existing gesture tests: a single
+      // move does not reliably claim the drag recognizer.
+      await gesture.moveBy(const Offset(-15, 0));
       await tester.pump();
+      await gesture.moveBy(const Offset(-15, 0));
+      await tester.pump();
+      expect(find.byKey(const ValueKey('block-action-delete-840')),
+          findsOneWidget);
       expect(circleScaleKey(840), findsOneWidget);
       final dotScale = circleScale(tester, 840);
       expect(dotScale, lessThan(0.5),
