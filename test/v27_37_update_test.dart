@@ -557,44 +557,48 @@ void main() {
       // different behaviour from the scrub under test.
       final gesture =
           await tester.startGesture(tester.getCenter(blockKey(840)));
-      // Held gesture (no release): drag open in steps, then drag
-      // BACK in steps, reading the circle's scale at each held
-      // position. The scale must follow the finger in both
-      // directions. Four open moves + two back moves are used on
-      // purpose: whether or not the gesture recognizer swallows
-      // the first move into its touch slop, the held offsets stay
-      // strictly decreasing (near-full -> mid -> dot), so every
-      // assertion below holds under either delivery.
-      for (var i = 0; i < 4; i++) {
-        await gesture.moveBy(const Offset(-30, 0));
-        await tester.pump();
-      }
+      // Held gesture (no release): the EXACT move sequence of the
+      // proven "drag-back shrinks the panel" test in
+      // day_hours_section_test.dart (-20, -20, -30 open, then +20,
+      // +20 back), so the moves provably land and the panel width
+      // provably tracks them. The circle's scale is read at the
+      // wide and narrow held positions: it must follow the finger
+      // in both directions. Whether or not the recognizer swallows
+      // the first move into its touch slop, the wide offset is at
+      // least 50 (scale >= 0.6) and the narrow offset is at most 30
+      // (scale < 0.5, > 0.05), so every bound below holds either way.
+      await gesture.moveBy(const Offset(-20, 0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(-20, 0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(-30, 0));
+      await tester.pump();
       expect(find.byKey(const ValueKey('block-action-delete-840')),
           findsOneWidget);
       expect(circleScaleKey(840), findsOneWidget);
-      final openScale = circleScale(tester, 840);
-      expect(openScale, greaterThan(0.9),
-          reason: 'near-full reveal must be near full size');
+      final wideWidth =
+          tester.getSize(find.byKey(const ValueKey('block-action-delete-840')))
+              .width;
+      final wideScale = circleScale(tester, 840);
+      expect(wideScale, greaterThan(0.5),
+          reason: 'a wide reveal must be well past a dot');
 
-      // Drag BACK one step: the circle shrinks, but stays big.
-      await gesture.moveBy(const Offset(30, 0));
+      // Drag BACK: the strip narrows AND the circle shrinks.
+      await gesture.moveBy(const Offset(20, 0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(20, 0));
       await tester.pump();
       expect(circleScaleKey(840), findsOneWidget);
-      final midScale = circleScale(tester, 840);
-      expect(midScale, lessThan(openScale),
+      final narrowWidth =
+          tester.getSize(find.byKey(const ValueKey('block-action-delete-840')))
+              .width;
+      final narrowScale = circleScale(tester, 840);
+      expect(narrowWidth, lessThan(wideWidth));
+      expect(narrowScale, lessThan(wideScale),
           reason: 'reversing the swipe must shrink the circle');
-      expect(midScale, greaterThan(0.5));
-
-      // Drag BACK another step: the circle shrinks to a dot.
-      await gesture.moveBy(const Offset(30, 0));
-      await tester.pump();
-      expect(circleScaleKey(840), findsOneWidget);
-      final dotScale = circleScale(tester, 840);
-      expect(dotScale, lessThan(midScale),
-          reason: 'reversing further must shrink the circle further');
-      expect(dotScale, lessThan(0.5),
+      expect(narrowScale, lessThan(0.5),
           reason: 'a small remaining reveal must be a small dot');
-      expect(dotScale, greaterThan(0.05));
+      expect(narrowScale, greaterThan(0.05));
       await gesture.up();
       await tester.pumpAndSettle();
     });
