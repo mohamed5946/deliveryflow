@@ -3085,6 +3085,138 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This block cannot be deleted because it contains orders'**
   String get blockProtectedHasOrders;
+
+  /// No description provided for @softwareUpdateTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Software Update'**
+  String get softwareUpdateTitle;
+
+  /// No description provided for @automaticUpdates.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic Updates'**
+  String get automaticUpdates;
+
+  /// No description provided for @updateAutoCheckTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic Updates'**
+  String get updateAutoCheckTitle;
+
+  /// No description provided for @updateAutoCheckDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Check for a new version when DeliveryFlow launches. This only checks — it never downloads or installs anything by itself.'**
+  String get updateAutoCheckDesc;
+
+  /// No description provided for @updateAutoCheckOn.
+  ///
+  /// In en, this message translates to:
+  /// **'On'**
+  String get updateAutoCheckOn;
+
+  /// No description provided for @updateAutoCheckOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Off'**
+  String get updateAutoCheckOff;
+
+  /// No description provided for @updateNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Update Now'**
+  String get updateNow;
+
+  /// No description provided for @remindMeTonight.
+  ///
+  /// In en, this message translates to:
+  /// **'Remind Me Tonight'**
+  String get remindMeTonight;
+
+  /// No description provided for @updateTermsLine.
+  ///
+  /// In en, this message translates to:
+  /// **'By updating, you install the latest version of DeliveryFlow.'**
+  String get updateTermsLine;
+
+  /// No description provided for @updateChangelogFallback.
+  ///
+  /// In en, this message translates to:
+  /// **'This update includes the latest improvements and fixes for DeliveryFlow.'**
+  String get updateChangelogFallback;
+
+  /// No description provided for @updateErrorTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Update failed'**
+  String get updateErrorTitle;
+
+  /// No description provided for @updatePermissionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow app installs'**
+  String get updatePermissionTitle;
+
+  /// No description provided for @updatePermissionBody.
+  ///
+  /// In en, this message translates to:
+  /// **'To install an update, allow DeliveryFlow to install apps from this source: open Settings, turn on “Allow from this source” for DeliveryFlow, then come back and tap Update Now again. Android will still ask you to confirm the install with one tap.'**
+  String get updatePermissionBody;
+
+  /// No description provided for @updateOpenSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Open settings'**
+  String get updateOpenSettings;
+
+  /// No description provided for @updateChecking.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking for updates…'**
+  String get updateChecking;
+
+  /// No description provided for @updateUpToDate.
+  ///
+  /// In en, this message translates to:
+  /// **'You\'re on the latest update'**
+  String get updateUpToDate;
+
+  /// No description provided for @updateUpToDateBody.
+  ///
+  /// In en, this message translates to:
+  /// **'You already have the latest version of DeliveryFlow.'**
+  String get updateUpToDateBody;
+
+  /// No description provided for @updates.
+  ///
+  /// In en, this message translates to:
+  /// **'Updates'**
+  String get updates;
+
+  /// No description provided for @currentVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'Current version'**
+  String get currentVersion;
+
+  /// No description provided for @updateVerifying.
+  ///
+  /// In en, this message translates to:
+  /// **'Verifying…'**
+  String get updateVerifying;
+
+  /// No description provided for @updateDownloading.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading… {percent}%'**
+  String updateDownloading(int percent);
+
+  /// No description provided for @checkForUpdates.
+  ///
+  /// In en, this message translates to:
+  /// **'Check for updates'**
+  String get checkForUpdates;
 }
 
 class _AppLocalizationsDelegate

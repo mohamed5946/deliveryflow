@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../core/providers.dart';
 import '../core/update/app_update.dart';
 import '../core/update/app_update_flow.dart';
+import '../core/update/updates_screen.dart';
 import 'first_run_redirect.dart';
 import '../theme/design_system.dart';
 import '../theme/staggered_entrance.dart';
@@ -314,6 +315,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/cloud-account',
         builder: (context, state) => const CloudAccountScreen(),
+      ),
+      GoRoute(
+        path: '/updates',
+        builder: (context, state) => const UpdatesScreen(),
       ),
       GoRoute(
         path: '/management',

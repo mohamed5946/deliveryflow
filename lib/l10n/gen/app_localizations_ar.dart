@@ -1586,4 +1586,76 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get blockProtectedHasOrders =>
       'لا يمكن حذف هذه البلوكاية لأنها تحتوي على أوردرات';
+
+  @override
+  String get softwareUpdateTitle => 'تحديث البرنامج';
+
+  @override
+  String get automaticUpdates => 'التحديثات التلقائية';
+
+  @override
+  String get updateAutoCheckTitle => 'التحديثات التلقائية';
+
+  @override
+  String get updateAutoCheckDesc =>
+      'التحقق من وجود إصدار جديد عند تشغيل DeliveryFlow. هذا تحقق فقط — لا ينزّل ولا يثبّت أي شيء من تلقاء نفسه.';
+
+  @override
+  String get updateAutoCheckOn => 'تشغيل';
+
+  @override
+  String get updateAutoCheckOff => 'إيقاف';
+
+  @override
+  String get updateNow => 'حدّث الآن';
+
+  @override
+  String get remindMeTonight => 'ذكّرني الليلة';
+
+  @override
+  String get updateTermsLine =>
+      'بالتحديث، تقوم بتثبيت أحدث إصدار من DeliveryFlow.';
+
+  @override
+  String get updateChangelogFallback =>
+      'هذا التحديث يتضمن أحدث التحسينات والإصلاحات لـ DeliveryFlow.';
+
+  @override
+  String get updateErrorTitle => 'فشل التحديث';
+
+  @override
+  String get updatePermissionTitle => 'السماح بتثبيت التطبيقات';
+
+  @override
+  String get updatePermissionBody =>
+      'لتثبيت التحديث، اسمح لـ DeliveryFlow بتثبيت التطبيقات من هذا المصدر: افتح الإعدادات، فعّل “السماح من هذا المصدر” لـ DeliveryFlow، ثم ارجع واضغط “حدّث الآن” مرة أخرى. سيطلب منك Android تأكيد التثبيت بضغطة واحدة.';
+
+  @override
+  String get updateOpenSettings => 'فتح الإعدادات';
+
+  @override
+  String get updateChecking => 'جارٍ التحقق من التحديثات…';
+
+  @override
+  String get updateUpToDate => 'إنت على آخر تحديث';
+
+  @override
+  String get updateUpToDateBody => 'لديك بالفعل أحدث إصدار من DeliveryFlow.';
+
+  @override
+  String get updates => 'التحديثات';
+
+  @override
+  String get currentVersion => 'الإصدار الحالي';
+
+  @override
+  String get updateVerifying => 'جارٍ التحقق…';
+
+  @override
+  String updateDownloading(int percent) {
+    return 'جارٍ التنزيل… $percent٪';
+  }
+
+  @override
+  String get checkForUpdates => 'التحقق من التحديثات';
 }

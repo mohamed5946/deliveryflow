@@ -7,9 +7,9 @@ import 'app_update.dart';
 import 'software_update_screen.dart';
 
 /// v27.37: coordinates the update check from both entry points —
-/// the automatic on-launch check and the manual bottom button on the
-/// My Account settings list. One policy object, so the two entries
-/// can never disagree:
+/// the automatic on-launch check and the manual check on the
+/// dedicated Updates screen (v27.38). One policy object, so the two
+/// entries can never disagree:
 ///
 /// LAUNCH CHECK (foreground only — runs once per app session, from
 /// the main tab shell, after the first frame):
@@ -22,10 +22,22 @@ import 'software_update_screen.dart';
 ///   versionCode. Closing it marks that versionCode dismissed for
 ///   this session (see [AppUpdateSession]).
 ///
-/// MANUAL CHECK (bottom button): always fetches fresh, ignores the
+/// MANUAL CHECK (Updates screen): always fetches fresh, ignores the
 /// session dismissal and the remind-tonight suppression, and always
-/// reports an outcome: the update screen, an "up to date" dialog, or
-/// a loud error dialog with the real reason.
+/// reports an outcome IN THE SCREEN ITSELF: a loading indicator
+/// while fetching, the update screen, an "up to date" message, or a
+/// loud error dialog with the real reason.
+///
+/// v27.38: the old dialog-based manual check is GONE, deliberately.
+/// It dismissed its progress dialog with an unconditional
+/// Navigator.pop() after the network call returned — so if the user
+/// pressed Android Back while the check was still running
+/// (barrierDismissible:false does NOT block system back), the pop
+/// removed the page UNDERNEATH the dialog instead, leaving an empty
+/// navigator that Flutter renders as a blank black screen (field
+/// report 2026-10-30, reproduced in a widget test). The Updates
+/// screen owns its loading state and never pops anything blindly:
+/// results that arrive after the screen is gone are simply ignored.
 ///
 /// "REMIND ME TONIGHT": stores the versionCode + time. The launch
 /// check suppresses that version only until 18:00 on the same day
@@ -92,16 +104,7 @@ class AppUpdateFlow {
     );
   }
 
-  Future<int?> _currentVersionCode() async {
-    try {
-      final info = await PackageInfo.fromPlatform();
-      return int.tryParse(info.buildNumber);
-    } catch (_) {
-      return null;
-    }
-  }
-
-  Future<void> _showUpdateScreen(
+  Future<void> showUpdateScreen(
     BuildContext context,
     AppUpdateManifest manifest, {
     required bool autoCheck,
@@ -120,12 +123,33 @@ class AppUpdateFlow {
     );
   }
 
+  /// Installed build number, or null when it cannot be read.
+  Future<int?> currentVersionCode() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      return int.tryParse(info.buildNumber);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Human installed-version label ("27.37.0 (70)"), or null when it
+  /// cannot be read. Used by the Updates screen's version display.
+  Future<String?> currentVersionLabel() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      return '${info.version} (${info.buildNumber})';
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Automatic launch check. Never throws, never shows anything
   /// except the update screen for a genuinely newer version.
   Future<void> checkOnLaunch(BuildContext context) async {
     try {
       if (!await autoCheckEnabled()) return;
-      final current = await _currentVersionCode();
+      final current = await currentVersionCode();
       if (current == null) {
         _log?.warn(AppLogCategory.system,
             'Update check skipped: installed build number unreadable');
@@ -142,86 +166,11 @@ class AppUpdateFlow {
       // real setting, not a hardcoded value.
       final auto = await autoCheckEnabled();
       if (!context.mounted) return;
-      await _showUpdateScreen(context, manifest, autoCheck: auto);
+      await showUpdateScreen(context, manifest, autoCheck: auto);
     } catch (_) {
       // Launch check is silent by design: the failure is already in
       // the diagnostics log (service logs every fetch failure).
     }
-  }
-
-  /// Manual check from the settings bottom button. Always reports
-  /// an outcome; [l10n]-free by design — the caller passes the
-  /// already-localized strings for the dialogs.
-  Future<void> checkManually(
-    BuildContext context, {
-    required String checkingTitle,
-    required String upToDateTitle,
-    required String upToDateBody,
-    required String errorTitle,
-    required String closeLabel,
-  }) async {
-    // Progress dialog while fetching (dismissed before any outcome).
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: Text(checkingTitle),
-        content: const Row(
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(width: 16),
-            Expanded(child: SizedBox()),
-          ],
-        ),
-      ),
-    );
-    AppUpdateManifest? manifest;
-    String? failure;
-    int? current;
-    try {
-      current = await _currentVersionCode();
-      manifest = await service.fetchManifest();
-    } catch (e) {
-      failure = e is AppUpdateException ? e.reason : '$e';
-    }
-    if (!context.mounted) return;
-    Navigator.of(context).pop(); // dismiss the progress dialog
-    if (!context.mounted) return;
-    if (failure != null || manifest == null) {
-      await showDialog<void>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: Text(errorTitle),
-          content: Text(failure ?? errorTitle),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: Text(closeLabel),
-            ),
-          ],
-        ),
-      );
-      return;
-    }
-    if (current == null || !manifest.isNewerThan(current)) {
-      await showDialog<void>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: Text(upToDateTitle),
-          content: Text(upToDateBody),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: Text(closeLabel),
-            ),
-          ],
-        ),
-      );
-      return;
-    }
-    final auto = await autoCheckEnabled();
-    if (!context.mounted) return;
-    await _showUpdateScreen(context, manifest, autoCheck: auto);
   }
 }
 

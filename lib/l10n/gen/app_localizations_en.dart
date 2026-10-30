@@ -1593,4 +1593,77 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get blockProtectedHasOrders =>
       'This block cannot be deleted because it contains orders';
+
+  @override
+  String get softwareUpdateTitle => 'Software Update';
+
+  @override
+  String get automaticUpdates => 'Automatic Updates';
+
+  @override
+  String get updateAutoCheckTitle => 'Automatic Updates';
+
+  @override
+  String get updateAutoCheckDesc =>
+      'Check for a new version when DeliveryFlow launches. This only checks — it never downloads or installs anything by itself.';
+
+  @override
+  String get updateAutoCheckOn => 'On';
+
+  @override
+  String get updateAutoCheckOff => 'Off';
+
+  @override
+  String get updateNow => 'Update Now';
+
+  @override
+  String get remindMeTonight => 'Remind Me Tonight';
+
+  @override
+  String get updateTermsLine =>
+      'By updating, you install the latest version of DeliveryFlow.';
+
+  @override
+  String get updateChangelogFallback =>
+      'This update includes the latest improvements and fixes for DeliveryFlow.';
+
+  @override
+  String get updateErrorTitle => 'Update failed';
+
+  @override
+  String get updatePermissionTitle => 'Allow app installs';
+
+  @override
+  String get updatePermissionBody =>
+      'To install an update, allow DeliveryFlow to install apps from this source: open Settings, turn on “Allow from this source” for DeliveryFlow, then come back and tap Update Now again. Android will still ask you to confirm the install with one tap.';
+
+  @override
+  String get updateOpenSettings => 'Open settings';
+
+  @override
+  String get updateChecking => 'Checking for updates…';
+
+  @override
+  String get updateUpToDate => 'You\'re on the latest update';
+
+  @override
+  String get updateUpToDateBody =>
+      'You already have the latest version of DeliveryFlow.';
+
+  @override
+  String get updates => 'Updates';
+
+  @override
+  String get currentVersion => 'Current version';
+
+  @override
+  String get updateVerifying => 'Verifying…';
+
+  @override
+  String updateDownloading(int percent) {
+    return 'Downloading… $percent%';
+  }
+
+  @override
+  String get checkForUpdates => 'Check for updates';
 }
