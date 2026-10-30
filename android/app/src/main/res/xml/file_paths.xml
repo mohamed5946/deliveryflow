@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v27.37: FileProvider paths for the self-update install prompt.
+     Only the downloaded-APK cache directory is shared, and only to
+     the system package installer via a one-shot read grant. -->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <cache-path name="updates" path="updates/" />
+</paths>

@@ -530,5 +530,32 @@
   "blockBreak": "بريك",
   "blockRestore": "استعادة",
   "blockProtected": "محمي",
-  "blockProtectedHasOrders": "لا يمكن حذف هذه البلوكاية لأنها تحتوي على أوردرات"
+  "blockProtectedHasOrders": "لا يمكن حذف هذه البلوكاية لأنها تحتوي على أوردرات",
+  "softwareUpdateTitle": "تحديث البرنامج",
+  "automaticUpdates": "التحديثات التلقائية",
+  "updateAutoCheckTitle": "التحديثات التلقائية",
+  "updateAutoCheckDesc": "التحقق من وجود إصدار جديد عند تشغيل DeliveryFlow. هذا تحقق فقط — لا ينزّل ولا يثبّت أي شيء من تلقاء نفسه.",
+  "updateAutoCheckOn": "تشغيل",
+  "updateAutoCheckOff": "إيقاف",
+  "updateNow": "حدّث الآن",
+  "remindMeTonight": "ذكّرني الليلة",
+  "updateTermsLine": "بالتحديث، تقوم بتثبيت أحدث إصدار من DeliveryFlow.",
+  "updateChangelogFallback": "هذا التحديث يتضمن أحدث التحسينات والإصلاحات لـ DeliveryFlow.",
+  "updateErrorTitle": "فشل التحديث",
+  "updatePermissionTitle": "السماح بتثبيت التطبيقات",
+  "updatePermissionBody": "لتثبيت التحديث، اسمح لـ DeliveryFlow بتثبيت التطبيقات من هذا المصدر: افتح الإعدادات، فعّل “السماح من هذا المصدر” لـ DeliveryFlow، ثم ارجع واضغط “حدّث الآن” مرة أخرى. سيطلب منك Android تأكيد التثبيت بضغطة واحدة.",
+  "updateOpenSettings": "فتح الإعدادات",
+  "updateChecking": "جارٍ التحقق من التحديثات…",
+  "updateUpToDate": "إصدارك هو الأحدث",
+  "updateUpToDateBody": "لديك بالفعل أحدث إصدار من DeliveryFlow.",
+  "updateVerifying": "جارٍ التحقق…",
+  "updateDownloading": "جارٍ التنزيل… {percent}٪",
+  "checkForUpdates": "التحقق من التحديثات",
+  "@updateDownloading": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  }
 }

@@ -709,32 +709,65 @@ class _SwipeableBlockState extends State<_SwipeableBlock>
     );
   }
 
-  /// One action panel, exactly [width] wide, anchored at the dragged
-  /// edge and painted UNDER the raised block (it is the Stack's
-  /// first child; the block's shadow falls onto it). Its outer
-  /// corners are rounded like the block's, its touching inner edge
-  /// is square, and its label is centred and clipped to the panel's
-  /// current width, so the label builds/eats piece by piece with
-  /// the panel and never overflows into the block. The panel carries
-  /// its own drag recognizer so a reverse drag starting on the panel
-  /// itself still shrinks it.
+  /// v27.37: one action CIRCLE (not a rectangle), revealed in the
+  /// strip freed by the drag and painted UNDER the raised block (it
+  /// is the Stack's first child; the block's shadow falls onto it).
+  ///
+  /// GESTURE-DRIVEN SCALE (v27.37 refinement — this is the whole
+  /// point, so it is pinned by tests): the circle's scale is a pure
+  /// function of the CURRENT drag distance, never a timed animation
+  /// of its own. Reveal fraction = width / [_actionWidth]:
+  /// - 0 (at rest) -> no panel widget exists at all.
+  /// - small drag -> a tiny DOT (scale ~0.08 + eased growth).
+  /// - full drag (96) -> full-size circle (scale 1.0).
+  /// Dragging BACK shrinks the circle proportionally toward a dot —
+  /// the size follows the finger in both directions, exactly
+  /// according to the swipe ("على حسب السحبة"). On release, the
+  /// existing settle behaviour animates [_offset] (past half the
+  /// panel width -> snap fully open, else animate closed), and the
+  /// circle's scale follows [_offset] through that snap too, since
+  /// it is derived from it — no second animation, no pop.
+  ///
+  /// EMERGENCE (bottom-to-top, weighted): the scale uses
+  /// [Curves.easeInOutCubic] — slow start (the dot lingers), smooth
+  /// middle, gentle settle — plus a slight upward slide that fades
+  /// as the circle grows, anchored at the strip's bottom edge.
+  /// Nothing appears suddenly and nothing snaps: the luxury bar.
+  ///
+  /// SHAPE + SAFETY: the circle keeps the action colour (red Delete,
+  /// orange Break/Restore) and a centred white icon (trash for
+  /// Delete, coffee for Break, restore for Restore). A text label
+  /// cannot fit legibly in a 44dp circle, so the label lives as the
+  /// Semantics label and in the confirmation dialog, which still
+  /// states the action before anything mutates. The tap target is
+  /// the WHOLE freed strip (the InkWell keeps its historic key, so
+  /// existing tap behaviour and tests are unchanged), and swiping
+  /// alone still never mutates anything. The panel carries its own
+  /// drag recognizer so a reverse drag starting on the panel itself
+  /// still shrinks it.
+  static const double _circleDiameter = 44;
+
+  /// Gesture-linked circle scale for a reveal [width]: 0.08 (dot) at
+  /// the first pixel of drag, 1.0 at full reveal. Pure function, so
+  /// widget tests can pin the forward/backward tracking exactly.
+  static double circleScaleForWidth(double width) {
+    final fraction = (width / _actionWidth).clamp(0.0, 1.0);
+    final eased = Curves.easeInOutCubic.transform(fraction);
+    return 0.08 + 0.92 * eased;
+  }
+
   Widget _actionPanel({
     required double width,
     required bool leftEdge,
     required Color color,
     required Key key,
     required String label,
+    required IconData icon,
     required VoidCallback onTap,
   }) {
-    final radius = leftEdge
-        ? const BorderRadius.only(
-            topLeft: Radius.circular(_cardRadius),
-            bottomLeft: Radius.circular(_cardRadius),
-          )
-        : const BorderRadius.only(
-            topRight: Radius.circular(_cardRadius),
-            bottomRight: Radius.circular(_cardRadius),
-          );
+    final scale = circleScaleForWidth(width);
+    final eased =
+        Curves.easeInOutCubic.transform((width / _actionWidth).clamp(0.0, 1.0));
     return Positioned(
       left: leftEdge ? 0 : null,
       right: leftEdge ? null : 0,
@@ -745,25 +778,45 @@ class _SwipeableBlockState extends State<_SwipeableBlock>
         behavior: HitTestBehavior.opaque,
         onHorizontalDragUpdate: widget.isProtected ? null : _onDragUpdate,
         onHorizontalDragEnd: widget.isProtected ? null : _onDragEnd,
-        child: ClipRRect(
-          borderRadius: radius,
-          child: Material(
-            color: color,
-            child: InkWell(
-              key: key,
-              onTap: () {
-                _close();
-                onTap();
-              },
-              child: Center(
-                child: ClipRect(
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    softWrap: false,
-                    overflow: TextOverflow.clip,
-                    style: const TextStyle(
-                        color: Colors.white, fontWeight: FontWeight.w800),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            key: key,
+            onTap: () {
+              _close();
+              onTap();
+            },
+            child: Semantics(
+              label: label,
+              button: true,
+              child: Align(
+                alignment: Alignment.bottomCenter,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 3),
+                  child: Transform.translate(
+                    offset: Offset(0, (1 - eased) * 14),
+                    child: Transform.scale(
+                      key: ValueKey(
+                          'block-action-circle-scale-${widget.blockStart}'),
+                      scale: scale,
+                      alignment: Alignment.bottomCenter,
+                      child: Container(
+                        width: _circleDiameter,
+                        height: _circleDiameter,
+                        decoration: BoxDecoration(
+                          color: color,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.25),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Icon(icon, color: Colors.white, size: 22),
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -799,6 +852,9 @@ class _SwipeableBlockState extends State<_SwipeableBlock>
               color: Colors.orange,
               key: ValueKey('block-action-break-${widget.blockStart}'),
               label: widget.breakLabel,
+              icon: widget.isBreak
+                  ? Icons.restore_rounded
+                  : Icons.coffee_rounded,
               onTap: widget.onBreak,
             ),
           if (_offset < 0)
@@ -808,6 +864,7 @@ class _SwipeableBlockState extends State<_SwipeableBlock>
               color: Colors.red,
               key: ValueKey('block-action-delete-${widget.blockStart}'),
               label: widget.deleteLabel,
+              icon: Icons.delete_rounded,
               onTap: widget.onDelete,
             ),
           // The block on top: padded on the dragged side by exactly

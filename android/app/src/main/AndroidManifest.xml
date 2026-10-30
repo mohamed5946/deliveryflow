@@ -12,6 +12,12 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- v27.24: fingerprint / device-credential app lock (local_auth). -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <!-- v27.37: in-app self-update (sideloaded, no Play). Lets Android
+         show the system install prompt for the verified APK the app
+         downloaded. The user still confirms with one tap, and can
+         be sent to the per-app "install unknown apps" setting when
+         this is not yet allowed. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <application
         android:label="DeliveryFlow"
         android:name="${applicationName}"
@@ -88,6 +94,20 @@
             android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
             android:foregroundServiceType="location"
             android:exported="false" />
+
+        <!-- v27.37: FileProvider for the self-update install prompt.
+             Only the app's own cache/updates directory is shared,
+             and only to the system package installer (read grant on
+             the single install Intent). No other path is exposed. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
         <!-- flutter_local_notifications receivers (v27 — THE missing
              piece: without these manifest declarations, zonedSchedule

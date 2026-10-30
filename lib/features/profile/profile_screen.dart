@@ -16,6 +16,8 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/database/models.dart';
+import '../../core/update/app_update.dart';
+import '../../core/update/app_update_flow.dart';
 import '../../core/app_lock/app_lock_service.dart';
 import '../../core/cloud/cloud_providers.dart';
 import '../../core/developer/developer_mode.dart';
@@ -869,6 +871,27 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             ),
                           ),
                         ),
+                      // v27.37: update-check BUTTON at the VERY BOTTOM
+                      // of the My Account list (below every section
+                      // row, including Cloud account / Management).
+                      // A button, not another list row, per the user's
+                      // screenshot direction. Tapping runs the manual
+                      // check: the iOS-style Software Update screen
+                      // when a newer version exists, an "up to date"
+                      // dialog otherwise, or a loud error with the
+                      // real reason when the check itself fails.
+                      StaggeredItem(
+                        index: 13,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: GlassButton(
+                            key: const ValueKey('check-for-updates-button'),
+                            label: l10n.checkForUpdates,
+                            icon: Icons.system_update_rounded,
+                            onPressed: _checkForUpdates,
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -1815,6 +1838,27 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     await Clipboard.setData(const ClipboardData(text: _portfolioUrl));
     if (!mounted) return;
     showTopSnackBar(context, AppLocalizations.of(context).copied);
+  }
+
+  /// v27.37: manual update check from the bottom button of this
+  /// list. Always reports an outcome (update screen / up to date /
+  /// loud error) — unlike the silent launch check. The update itself
+  /// is never forced and never silent: the Software Update screen
+  /// offers Update Now (download + verify + system install prompt)
+  /// or Remind Me Tonight (re-show at the next evening launch).
+  Future<void> _checkForUpdates() async {
+    final l10n = AppLocalizations.of(context);
+    final flow = AppUpdateFlow(
+      service: AppUpdateService(log: ref.read(appLogServiceProvider)),
+    );
+    await flow.checkManually(
+      context,
+      checkingTitle: l10n.updateChecking,
+      upToDateTitle: l10n.updateUpToDate,
+      upToDateBody: l10n.updateUpToDateBody,
+      errorTitle: l10n.updateErrorTitle,
+      closeLabel: l10n.close,
+    );
   }
 
   /// Opens the mail app for the support email; when no mail app can

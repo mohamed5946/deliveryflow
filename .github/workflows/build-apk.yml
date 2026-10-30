@@ -78,10 +78,47 @@ jobs:
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
 
-      - name: Publish APK to "latest" release
+      # v27.37: the in-app updater reads this manifest — it MUST be
+      # regenerated on EVERY release, or the updater goes blind.
+      # No manual step: versionCode/versionName come from pubspec,
+      # the changelog is the release commit's subject, the SHA-256
+      # and size are measured from the APK just built, and the APK
+      # URL is the STABLE "latest" release asset (never an expiring
+      # fast link). The manifest is published as a release asset
+      # alongside the APK in the step below, so the app's stable
+      # manifest URL always resolves to the newest release.
+      - name: Generate version manifest (version.json)
+        run: |
+          python3 - <<'PYEOF'
+          import hashlib, json, os, re, subprocess
+          pubspec = open('pubspec.yaml').read()
+          m = re.search(r'^version:\s*([0-9.]+)\+(\d+)', pubspec, re.M)
+          assert m, 'pubspec version not in X.Y.Z+N form'
+          version_name, version_code = m.group(1), int(m.group(2))
+          apk = 'build/app/outputs/flutter-apk/app-release.apk'
+          data = open(apk, 'rb').read()
+          changelog = subprocess.check_output(
+              ['git', 'log', '-1', '--pretty=%s']).decode().strip()
+          manifest = {
+              'versionCode': version_code,
+              'versionName': version_name,
+              'changelog': changelog,
+              'apkUrl': 'https://github.com/mohamed5946/deliveryflow/releases/download/latest/app-release.apk',
+              'apkSha256': hashlib.sha256(data).hexdigest(),
+              'apkSizeBytes': len(data),
+          }
+          with open('version.json', 'w') as f:
+              json.dump(manifest, f, indent=2)
+              f.write('\n')
+          print(json.dumps(manifest, indent=2))
+          PYEOF
+
+      - name: Publish APK + version manifest to "latest" release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
           name: "DeliveryFlow APK (latest)"
           body: "Latest successful release build of the DeliveryFlow app."
-          files: build/app/outputs/flutter-apk/app-release.apk
+          files: |
+            build/app/outputs/flutter-apk/app-release.apk
+            version.json

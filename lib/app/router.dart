@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/providers.dart';
+import '../core/update/app_update.dart';
+import '../core/update/app_update_flow.dart';
 import 'first_run_redirect.dart';
 import '../theme/design_system.dart';
 import '../theme/staggered_entrance.dart';
@@ -198,6 +200,19 @@ final routerProvider = Provider<GoRouter>((ref) {
             extendBody: true,
             body: Stack(
               children: [
+                // v27.37: automatic update check, once per session.
+                // Renders nothing; lives under the shell Navigator so
+                // it can push the Software Update screen. Foreground
+                // only — no background work while the app is closed.
+                Consumer(
+                  builder: (context, ref, _) => AppUpdateLaunchCheck(
+                    flow: AppUpdateFlow(
+                      service: AppUpdateService(
+                        log: ref.watch(appLogServiceProvider),
+                      ),
+                    ),
+                  ),
+                ),
                 const AuroraBackground(),
                 // Top padding: header content on the tab screens must sit
                 // well BELOW the phone's status bar (time/battery/icons)

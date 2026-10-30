@@ -585,5 +585,32 @@
   "blockBreak": "Break",
   "blockRestore": "Restore",
   "blockProtected": "Protected",
-  "blockProtectedHasOrders": "This block cannot be deleted because it contains orders"
+  "blockProtectedHasOrders": "This block cannot be deleted because it contains orders",
+  "softwareUpdateTitle": "Software Update",
+  "automaticUpdates": "Automatic Updates",
+  "updateAutoCheckTitle": "Automatic Updates",
+  "updateAutoCheckDesc": "Check for a new version when DeliveryFlow launches. This only checks — it never downloads or installs anything by itself.",
+  "updateAutoCheckOn": "On",
+  "updateAutoCheckOff": "Off",
+  "updateNow": "Update Now",
+  "remindMeTonight": "Remind Me Tonight",
+  "updateTermsLine": "By updating, you install the latest version of DeliveryFlow.",
+  "updateChangelogFallback": "This update includes the latest improvements and fixes for DeliveryFlow.",
+  "updateErrorTitle": "Update failed",
+  "updatePermissionTitle": "Allow app installs",
+  "updatePermissionBody": "To install an update, allow DeliveryFlow to install apps from this source: open Settings, turn on “Allow from this source” for DeliveryFlow, then come back and tap Update Now again. Android will still ask you to confirm the install with one tap.",
+  "updateOpenSettings": "Open settings",
+  "updateChecking": "Checking for updates…",
+  "updateUpToDate": "You're up to date",
+  "updateUpToDateBody": "You already have the latest version of DeliveryFlow.",
+  "updateVerifying": "Verifying…",
+  "updateDownloading": "Downloading… {percent}%",
+  "checkForUpdates": "Check for updates",
+  "@updateDownloading": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  }
 }

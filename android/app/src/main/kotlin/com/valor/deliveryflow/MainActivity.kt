@@ -111,6 +111,79 @@ class MainActivity : FlutterFragmentActivity() {
                 result.notImplemented()
             }
         }
+        // v27.37: in-app self-update (sideloaded, no Play). Dart
+        // downloads + SHA-256-verifies the APK first; this channel
+        // only (a) reports whether this app may install unknown
+        // apps, (b) opens the per-app setting when it may not, and
+        // (c) hands the VERIFIED file to Android's system install
+        // prompt via FileProvider. Android itself asks the user to
+        // confirm with one tap — there is no silent install, and
+        // this channel never installs anything on its own.
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "com.valor.deliveryflow/app_update",
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "canInstallUnknownApps" -> {
+                    val allowed = if (Build.VERSION.SDK_INT >=
+                        Build.VERSION_CODES.O) {
+                        packageManager.canRequestPackageInstalls()
+                    } else {
+                        true
+                    }
+                    result.success(allowed)
+                }
+                "openUnknownAppsSettings" -> {
+                    try {
+                        val intent =
+                            Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+                                data = Uri.parse("package:$packageName")
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                        startActivity(intent)
+                    } catch (_: Exception) {
+                        try {
+                            startActivity(
+                                Intent(Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS)
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            )
+                        } catch (_: Exception) {
+                        }
+                    }
+                    result.success(null)
+                }
+                "installApk" -> {
+                    try {
+                        val path = call.argument<String>("path")
+                        if (path.isNullOrBlank()) {
+                            result.error("NO_PATH", "No APK path given", null)
+                        } else {
+                            val apkFile = java.io.File(path)
+                            val uri = androidx.core.content.FileProvider
+                                .getUriForFile(
+                                    this,
+                                    "$packageName.fileprovider",
+                                    apkFile,
+                                )
+                            val intent =
+                                Intent(Intent.ACTION_VIEW).apply {
+                                    setDataAndType(
+                                        uri,
+                                        "application/vnd.android.package-archive",
+                                    )
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                            startActivity(intent)
+                            result.success(null)
+                        }
+                    } catch (e: Exception) {
+                        result.error("INSTALL_FAILED", e.message, null)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
         // v27: battery-optimization exemption. Aggressive OEM battery
         // managers (e.g. Infinix XOS) defer/kill scheduled reminder
         // alarms for non-exempt apps; Dart queries the state and offers
