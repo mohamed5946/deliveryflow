@@ -557,29 +557,43 @@ void main() {
       // different behaviour from the scrub under test.
       final gesture =
           await tester.startGesture(tester.getCenter(blockKey(840)));
-      // Same two-move pattern as the existing gesture tests in
-      // day_hours_section_test.dart: drag open, then drag BACK, and
-      // read the circle's scale at each held position. The scale
-      // must follow the finger in both directions.
-      await gesture.moveBy(const Offset(-30, 0));
-      await tester.pump();
-      await gesture.moveBy(const Offset(-30, 0));
-      await tester.pump();
+      // Held gesture (no release): drag open in steps, then drag
+      // BACK in steps, reading the circle's scale at each held
+      // position. The scale must follow the finger in both
+      // directions. Four open moves + two back moves are used on
+      // purpose: whether or not the gesture recognizer swallows
+      // the first move into its touch slop, the held offsets stay
+      // strictly decreasing (near-full -> mid -> dot), so every
+      // assertion below holds under either delivery.
+      for (var i = 0; i < 4; i++) {
+        await gesture.moveBy(const Offset(-30, 0));
+        await tester.pump();
+      }
       expect(find.byKey(const ValueKey('block-action-delete-840')),
           findsOneWidget);
       expect(circleScaleKey(840), findsOneWidget);
       final openScale = circleScale(tester, 840);
-      expect(openScale, greaterThan(0.5),
-          reason: 'a 60/96 drag must be well past a dot');
+      expect(openScale, greaterThan(0.9),
+          reason: 'near-full reveal must be near full size');
 
-      // Drag BACK toward closed: the circle shrinks to a dot.
+      // Drag BACK one step: the circle shrinks, but stays big.
       await gesture.moveBy(const Offset(30, 0));
       await tester.pump();
-      final dotScale = circleScale(tester, 840);
-      expect(dotScale, lessThan(openScale),
+      expect(circleScaleKey(840), findsOneWidget);
+      final midScale = circleScale(tester, 840);
+      expect(midScale, lessThan(openScale),
           reason: 'reversing the swipe must shrink the circle');
+      expect(midScale, greaterThan(0.5));
+
+      // Drag BACK another step: the circle shrinks to a dot.
+      await gesture.moveBy(const Offset(30, 0));
+      await tester.pump();
+      expect(circleScaleKey(840), findsOneWidget);
+      final dotScale = circleScale(tester, 840);
+      expect(dotScale, lessThan(midScale),
+          reason: 'reversing further must shrink the circle further');
       expect(dotScale, lessThan(0.5),
-          reason: 'a 30/96 drag must still be a small dot');
+          reason: 'a small remaining reveal must be a small dot');
       expect(dotScale, greaterThan(0.05));
       await gesture.up();
       await tester.pumpAndSettle();
