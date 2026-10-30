@@ -65,8 +65,20 @@ jobs:
       - name: Analyze
         run: flutter analyze
 
-      - name: Run tests
+      # v27.37 quality gate: the suite must pass under BOTH UTC and
+      # Africa/Cairo — date/time logic (week calendars, DST, reminder
+      # windows) has bitten this app before, so one timezone is not
+      # enough. Dart reads the system zone, so TZ on the step is
+      # sufficient; no code change is needed to run the second pass.
+      - name: Run tests (UTC)
         run: flutter test
+        env:
+          TZ: UTC
+
+      - name: Run tests (Africa/Cairo)
+        run: flutter test
+        env:
+          TZ: Africa/Cairo
 
       - name: Build release APK
         run: flutter build apk --release
