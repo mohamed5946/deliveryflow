@@ -14,9 +14,9 @@ import 'app_update.dart';
 ///   on launch ONLY. It never means silent install — there is no
 ///   silent install for sideloaded apps, and this screen never
 ///   implies one.
-/// - Main card: app icon (rounded square) + "DeliveryFlow <version>"
-///   big + real APK size below it + the REAL changelog from the
-///   manifest (never invented notes).
+/// - Main card: app icon (rounded square) + "DeliveryFlow" and the
+///   version name big + real APK size below it + the REAL changelog
+///   from the manifest (never invented notes).
 /// - BIG blue pill button "Update Now": foreground download with
 ///   progress, SHA-256 + size verification, then the Android system
 ///   install prompt (one-tap confirmation is unavoidable).

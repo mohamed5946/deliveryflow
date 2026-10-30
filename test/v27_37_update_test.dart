@@ -33,13 +33,11 @@ class _FakeUpdateClient extends http.BaseClient {
     required this.manifestBody,
     required this.apkBytes,
     this.manifestStatus = 200,
-    this.apkStatus = 200,
   });
 
   final String manifestBody;
   final List<int> apkBytes;
   final int manifestStatus;
-  final int apkStatus;
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
@@ -54,7 +52,7 @@ class _FakeUpdateClient extends http.BaseClient {
     }
     return http.StreamedResponse(
       Stream.value(apkBytes),
-      apkStatus,
+      200,
       contentLength: apkBytes.length,
       request: request,
     );
@@ -533,7 +531,7 @@ void main() {
       expect(hasCircle(tester), isTrue);
       expect(find.byIcon(Icons.delete_rounded), findsOneWidget);
       expect(
-          find.byKey(ValueKey('block-action-delete-840')), findsOneWidget);
+          find.byKey(const ValueKey('block-action-delete-840')), findsOneWidget);
       expect(circleScale(tester, 840), greaterThan(0.95),
           reason: 'fully revealed circle is full size');
     });
@@ -547,7 +545,7 @@ void main() {
       expect(hasCircle(tester), isTrue);
       expect(find.byIcon(Icons.coffee_rounded), findsOneWidget);
       expect(
-          find.byKey(ValueKey('block-action-break-840')), findsOneWidget);
+          find.byKey(const ValueKey('block-action-break-840')), findsOneWidget);
     });
 
     testWidgets('circle scale tracks the swipe: small drag = dot, '
@@ -617,7 +615,7 @@ void main() {
           blockKey(840), const Offset(-150, 0), const Duration(milliseconds: 300));
       await tester.pumpAndSettle();
       expect(deleted, isEmpty, reason: 'swiping alone never deletes');
-      await tester.tap(find.byKey(ValueKey('block-action-delete-840')));
+      await tester.tap(find.byKey(const ValueKey('block-action-delete-840')));
       await tester.pump();
       expect(find.text('هل أنت متأكد من حذف البلوكاية؟'), findsOneWidget);
     });

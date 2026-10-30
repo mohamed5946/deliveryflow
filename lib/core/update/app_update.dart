@@ -278,7 +278,7 @@ class AppUpdateService {
         const reason =
             'Update check failed: the version manifest could not be read.';
         _error('Update check failed', detail: reason);
-        throw AppUpdateException(reason);
+        throw const AppUpdateException(reason);
       }
       _info('Update check: latest is ${manifest.versionName}'
           '+${manifest.versionCode}');
@@ -302,7 +302,7 @@ class AppUpdateService {
     void Function(double? progress)? onProgress,
   }) async {
     final dir = _downloadDir != null
-        ? _downloadDir!()
+        ? _downloadDir()
         : await getTemporaryDirectory();
     final updatesDir = Directory('${dir.path}/updates');
     if (!updatesDir.existsSync()) updatesDir.createSync(recursive: true);

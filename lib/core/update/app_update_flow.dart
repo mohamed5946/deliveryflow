@@ -219,8 +219,9 @@ class AppUpdateFlow {
       );
       return;
     }
-    await _showUpdateScreen(context, manifest,
-        autoCheck: await autoCheckEnabled());
+    final auto = await autoCheckEnabled();
+    if (!context.mounted) return;
+    await _showUpdateScreen(context, manifest, autoCheck: auto);
   }
 }
 
